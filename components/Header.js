@@ -1,16 +1,10 @@
 'use client';
-
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function Header({ docente }) {
   const router = useRouter();
-
-  async function cerrarSesion() {
-    await supabase.auth.signOut();
-    router.push('/');
-  }
-
+  async function cerrarSesion() { await supabase.auth.signOut(); router.push('/'); }
   return (
     <header>
       <div className="brand">

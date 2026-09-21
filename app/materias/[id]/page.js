@@ -8,9 +8,6 @@ import Header from '@/components/Header';
 
 const NOTA_APROBACION = 7;
 
-// ═══════════════════════════════════════════════════════════════════════
-// Funciones de cálculo — SIN CAMBIOS respecto al diseño original.
-// ═══════════════════════════════════════════════════════════════════════
 function promedioDecimal(notas) {
   const v = notas.filter((n) => n !== null && n !== '' && !isNaN(n));
   if (v.length === 0) return null;
@@ -40,9 +37,6 @@ function crearCuatrimestre(n) {
 function calcularCuatrimestre(c) {
   const prom = promedioCuatrimestral(c.trayectorias);
   const habilitaCompensacion = prom !== null && prom < NOTA_APROBACION;
-  // La compensación es una nota independiente (máx. 7) — cuando existe,
-  // reemplaza directamente al promedio de trayectorias, no se promedia
-  // ni se compara con él.
   return { promedioTrayectorias: prom, habilitaCompensacion, notaCuatrimestre: habilitaCompensacion ? c.compensacion : prom };
 }
 function calcularEstado(alumno) {
@@ -69,18 +63,12 @@ function contarEtapa(filas, extractor) {
   return { aprobados, desaprobados: valores.length - aprobados, total: valores.length };
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Capa de datos: acá está TODO lo nuevo — leer y guardar en Supabase.
-// El resto del archivo (las dos pantallas) es el diseño original casi
-// sin tocar.
-// ═══════════════════════════════════════════════════════════════════════
 const NOMBRES_TRAYECTORIA = (n) => Array.from({ length: n }, (_, i) => `Trayectoria ${i + 1}`);
 
 async function asegurarEvaluaciones(materiaId, cantidadPorCuat) {
   const { data: existentes } = await supabase.from('evaluaciones').select('id, nombre, cuatrimestre').eq('materia_id', materiaId);
   const mapa = {};
   (existentes || []).forEach((e) => { mapa[`${e.cuatrimestre}_${e.nombre}`] = e.id; });
-
   const faltantes = [];
   for (const cuat of [1, 2]) {
     for (const nombre of [...NOMBRES_TRAYECTORIA(cantidadPorCuat[cuat]), 'Compensación']) {
@@ -104,12 +92,10 @@ function contarTrayectoriasExistentes(evaluacionesRaw, cuat) {
 export default function MateriaPage() {
   const { id: materiaId } = useParams();
   const router = useRouter();
-
   const { docente, cargando: cargandoDocente } = useDocente();
   const [catedra, setCatedra] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-
   const [evalIds, setEvalIds] = useState({});
   const [cuatrimestre, setCuatrimestre] = useState(1);
   const [cantidad, setCantidad] = useState({ 1: 3, 2: 3 });
@@ -123,49 +109,28 @@ export default function MateriaPage() {
       const { data: m, error: errM } = await supabase
         .from('materias')
         .select(`id, grupo, curso_id, plan_materias ( nombre ), cursos ( anio, division, ciclo )`)
-        .eq('id', materiaId)
-        .single();
-
+        .eq('id', materiaId).single();
       if (errM || !m) { setError(errM?.message || 'No se encontró la materia'); setCargando(false); return; }
-      setCatedra({
-        materia: m.plan_materias.nombre + (m.grupo ? ` — ${m.grupo}` : ''),
-        curso: `${m.cursos.anio}° ${m.cursos.division} · ${m.cursos.ciclo}`,
-      });
+      setCatedra({ materia: m.plan_materias.nombre + (m.grupo ? ` — ${m.grupo}` : ''), curso: `${m.cursos.anio}° ${m.cursos.division} · ${m.cursos.ciclo}` });
 
-      const { data: inscriptos } = await supabase
-        .from('inscripciones')
-        .select('alumnos ( id, nombre )')
-        .eq('curso_id', m.curso_id)
-        .order('alumnos(nombre)');
+      const { data: inscriptos } = await supabase.from('inscripciones').select('alumnos ( id, nombre )').eq('curso_id', m.curso_id).order('alumnos(nombre)');
       const listaAlumnos = (inscriptos || []).map((i) => i.alumnos).filter(Boolean);
-
-      if (listaAlumnos.length === 0) {
-        setAlumnos([]);
-        setCargando(false);
-        return;
-      }
+      if (listaAlumnos.length === 0) { setAlumnos([]); setCargando(false); return; }
 
       const { data: evaluacionesRaw } = await supabase.from('evaluaciones').select('id, nombre, cuatrimestre').eq('materia_id', materiaId);
       const cant1 = contarTrayectoriasExistentes(evaluacionesRaw || [], 1);
       const cant2 = contarTrayectoriasExistentes(evaluacionesRaw || [], 2);
       setCantidad({ 1: cant1, 2: cant2 });
-
       const mapaEval = await asegurarEvaluaciones(materiaId, { 1: cant1, 2: cant2 });
       setEvalIds(mapaEval);
 
       const idsEval = Object.values(mapaEval);
       const [neRes, cRes] = await Promise.all([
-        idsEval.length > 0
-          ? supabase.from('notas_evaluaciones').select('evaluacion_id, alumno_id, nota').in('evaluacion_id', idsEval)
-          : Promise.resolve({ data: [] }),
+        idsEval.length > 0 ? supabase.from('notas_evaluaciones').select('evaluacion_id, alumno_id, nota').in('evaluacion_id', idsEval) : Promise.resolve({ data: [] }),
         supabase.from('calificaciones').select('alumno_id, periodo, nota, firmado, fecha_firma').eq('materia_id', materiaId),
       ]);
       const ne = neRes.data, c = cRes.data;
-
-      const notaEval = (evalId, alumnoId) => {
-        const fila = (ne || []).find((n) => n.evaluacion_id === evalId && n.alumno_id === alumnoId);
-        return fila ? fila.nota : null;
-      };
+      const notaEval = (evalId, alumnoId) => { const fila = (ne || []).find((n) => n.evaluacion_id === evalId && n.alumno_id === alumnoId); return fila ? fila.nota : null; };
       const califAlumno = (alumnoId, periodo) => (c || []).find((x) => x.alumno_id === alumnoId && x.periodo === periodo);
 
       const alumnosCargados = listaAlumnos.map((al) => {
@@ -175,23 +140,11 @@ export default function MateriaPage() {
         for (let i = 0; i < cant2; i++) cuat2.trayectorias[i] = notaEval(mapaEval[`2_Trayectoria ${i + 1}`], al.id);
         cuat1.compensacion = notaEval(mapaEval['1_Compensación'], al.id);
         cuat2.compensacion = notaEval(mapaEval['2_Compensación'], al.id);
-
-        const c1oficial = califAlumno(al.id, 'cuat1');
-        const c2oficial = califAlumno(al.id, 'cuat2');
-        cuat1.firmado = c1oficial?.firmado || false;
-        cuat1.fechaFirma = c1oficial?.fecha_firma || null;
-        cuat2.firmado = c2oficial?.firmado || false;
-        cuat2.fechaFirma = c2oficial?.fecha_firma || null;
-
-        return {
-          id: al.id,
-          nombre: al.nombre,
-          cuat1, cuat2,
-          intensificacion: califAlumno(al.id, 'intensificacion')?.nota ?? null,
-          mesaExamen: califAlumno(al.id, 'mesa_examen')?.nota ?? null,
-        };
+        const c1o = califAlumno(al.id, 'cuat1'); const c2o = califAlumno(al.id, 'cuat2');
+        cuat1.firmado = c1o?.firmado || false; cuat1.fechaFirma = c1o?.fecha_firma || null;
+        cuat2.firmado = c2o?.firmado || false; cuat2.fechaFirma = c2o?.fecha_firma || null;
+        return { id: al.id, nombre: al.nombre, cuat1, cuat2, intensificacion: califAlumno(al.id, 'intensificacion')?.nota ?? null, mesaExamen: califAlumno(al.id, 'mesa_examen')?.nota ?? null };
       });
-
       setAlumnos(alumnosCargados);
       setCargando(false);
     })();
@@ -200,26 +153,17 @@ export default function MateriaPage() {
   const guardarTrayectoria = useCallback(async (cuat, idx, alumnoId, valor) => {
     const evalId = evalIds[`${cuat}_Trayectoria ${idx + 1}`];
     if (!evalId) return;
-    await supabase.from('notas_evaluaciones').upsert(
-      { evaluacion_id: evalId, alumno_id: alumnoId, nota: valor },
-      { onConflict: 'evaluacion_id,alumno_id' }
-    );
+    await supabase.from('notas_evaluaciones').upsert({ evaluacion_id: evalId, alumno_id: alumnoId, nota: valor }, { onConflict: 'evaluacion_id,alumno_id' });
   }, [evalIds]);
 
   const guardarCompensacion = useCallback(async (cuat, alumnoId, valor) => {
     const evalId = evalIds[`${cuat}_Compensación`];
     if (!evalId) return;
-    await supabase.from('notas_evaluaciones').upsert(
-      { evaluacion_id: evalId, alumno_id: alumnoId, nota: valor },
-      { onConflict: 'evaluacion_id,alumno_id' }
-    );
+    await supabase.from('notas_evaluaciones').upsert({ evaluacion_id: evalId, alumno_id: alumnoId, nota: valor }, { onConflict: 'evaluacion_id,alumno_id' });
   }, [evalIds]);
 
   const guardarCalificacionOficial = useCallback(async (alumnoId, periodo, nota) => {
-    await supabase.from('calificaciones').upsert(
-      { alumno_id: alumnoId, materia_id: materiaId, periodo, nota },
-      { onConflict: 'alumno_id,materia_id,periodo' }
-    );
+    await supabase.from('calificaciones').upsert({ alumno_id: alumnoId, materia_id: materiaId, periodo, nota }, { onConflict: 'alumno_id,materia_id,periodo' });
   }, [materiaId]);
 
   const sincronizarOficiales = useCallback((alumno) => {
@@ -230,21 +174,14 @@ export default function MateriaPage() {
     if (estado.definitiva !== null) guardarCalificacionOficial(alumno.id, 'definitiva', estado.definitiva);
   }, [guardarCalificacionOficial]);
 
-  const guardarIntensificacion = useCallback(async (alumnoId, valor) => {
-    await guardarCalificacionOficial(alumnoId, 'intensificacion', valor);
-  }, [guardarCalificacionOficial]);
-
-  const guardarMesaExamen = useCallback(async (alumnoId, valor) => {
-    await guardarCalificacionOficial(alumnoId, 'mesa_examen', valor);
-  }, [guardarCalificacionOficial]);
+  const guardarIntensificacion = useCallback(async (alumnoId, valor) => { await guardarCalificacionOficial(alumnoId, 'intensificacion', valor); }, [guardarCalificacionOficial]);
+  const guardarMesaExamen = useCallback(async (alumnoId, valor) => { await guardarCalificacionOficial(alumnoId, 'mesa_examen', valor); }, [guardarCalificacionOficial]);
 
   const firmar = useCallback(async (alumnoIds, cuat) => {
     const periodo = cuat === 1 ? 'cuat1' : 'cuat2';
     const hoy = new Date().toISOString().slice(0, 10);
     for (const alumnoId of alumnoIds) {
-      await supabase.from('calificaciones')
-        .update({ firmado: true, fecha_firma: hoy })
-        .eq('alumno_id', alumnoId).eq('materia_id', materiaId).eq('periodo', periodo);
+      await supabase.from('calificaciones').update({ firmado: true, fecha_firma: hoy }).eq('alumno_id', alumnoId).eq('materia_id', materiaId).eq('periodo', periodo);
     }
   }, [materiaId]);
 
@@ -272,21 +209,12 @@ export default function MateriaPage() {
       <Header docente={docente} />
       <main>
         <button className="back" style={{ marginBottom: 12 }} onClick={() => router.push('/materias')}>← Volver a mis materias</button>
-
         {cargando && <div className="empty">Cargando…</div>}
         {error && <div className="status error">{error}</div>}
-
-        {!cargando && !error && alumnos.length === 0 && (
-          <div className="empty">
-            <div className="icon">👥</div>
-            Todavía no hay alumnos inscriptos en este curso en el sistema.
-          </div>
-        )}
-
+        {!cargando && !error && alumnos.length === 0 && (<div className="empty"><div className="icon">👥</div>Todavía no hay alumnos inscriptos en este curso en el sistema.</div>)}
         {!cargando && !error && alumnos.length > 0 && catedra && (
           <PlanillaRoot
-            docente={docente.nombre}
-            catedra={catedra}
+            docente={docente.nombre} catedra={catedra}
             cuatrimestre={cuatrimestre} setCuatrimestre={setCuatrimestre}
             cantidad={cantidad} ajustarCantidad={ajustarCantidad}
             vista={vista} setVista={setVista}
@@ -308,24 +236,19 @@ export default function MateriaPage() {
 function PantallaConfiguracion({ docente, catedra, cuatrimestre, setCuatrimestre, cantidad, ajustarCantidad, progreso, onContinuar }) {
   const p = progreso[cuatrimestre];
   const hayFirmados = p.firmados > 0;
-
   return (
     <div className="pantalla-config">
       <p className="eyebrow">Cuaderno del docente · {docente}</p>
       <h1>{catedra.materia}</h1>
-      <p style={{ fontSize: 13, color: 'var(--tinta-60)', marginTop: 4, marginBottom: 20 }}>{catedra.curso}</p>
-
+      <p style={{ fontSize: 13, color: 'var(--tinta-60)', marginTop: -14, marginBottom: 20 }}>{catedra.curso}</p>
       <div className="campo-config">
         <label>Cuatrimestre</label>
         <div className="tabs-cuat">
           {[1, 2].map((n) => (
-            <button key={n} className={`tab-cuat ${cuatrimestre === n ? 'tab-cuat-activo' : ''}`} onClick={() => setCuatrimestre(n)}>
-              {n === 1 ? '1er cuatrimestre' : '2do cuatrimestre'}
-            </button>
+            <button key={n} className={`tab-cuat ${cuatrimestre === n ? 'tab-cuat-activo' : ''}`} onClick={() => setCuatrimestre(n)}>{n === 1 ? '1er cuatrimestre' : '2do cuatrimestre'}</button>
           ))}
         </div>
       </div>
-
       <div className="campo-config">
         <label>Cantidad de trayectorias a evaluar</label>
         {hayFirmados ? (
@@ -338,28 +261,18 @@ function PantallaConfiguracion({ docente, catedra, cuatrimestre, setCuatrimestre
           </div>
         )}
       </div>
-
-      <div className="aviso-progreso">
-        {p.firmados} de {p.total} alumnos firmados en {cuatrimestre === 1 ? 'el 1er' : 'el 2do'} cuatrimestre.
-      </div>
-
+      <div className="aviso-progreso">{p.firmados} de {p.total} alumnos firmados en {cuatrimestre === 1 ? 'el 1er' : 'el 2do'} cuatrimestre.</div>
       <button className="btn-primario btn-grande" onClick={onContinuar}>Continuar a la carga de notas →</button>
     </div>
   );
 }
 
-function PantallaCarga({
-  docente, catedra, cuatrimestre, alumnos, setAlumnos, onVolver,
-  onGuardarTrayectoria, onGuardarCompensacion, onGuardarIntensificacion, onGuardarMesaExamen,
-  onSincronizarOficiales, onFirmar,
-}) {
+function PantallaCarga({ docente, catedra, cuatrimestre, alumnos, setAlumnos, onVolver, onGuardarTrayectoria, onGuardarCompensacion, onGuardarIntensificacion, onGuardarMesaExamen, onSincronizarOficiales, onFirmar }) {
   const clave = cuatrimestre === 1 ? 'cuat1' : 'cuat2';
   const claveEstado = cuatrimestre === 1 ? 'c1' : 'c2';
   const [soloMesa, setSoloMesa] = useState(false);
 
-  function actualizar(id, updater) {
-    setAlumnos((prev) => prev.map((a) => (a.id === id ? updater(structuredClone(a)) : a)));
-  }
+  function actualizar(id, updater) { setAlumnos((prev) => prev.map((a) => (a.id === id ? updater(structuredClone(a)) : a))); }
 
   const filas = useMemo(() => alumnos.map((a) => ({ alumno: a, estado: calcularEstado(a) })), [alumnos]);
   const pendientesMesa = filas.filter((f) => f.estado.condicion === 'previa');
@@ -369,32 +282,18 @@ function PantallaCarga({
   const firmados = alumnos.filter((a) => a[clave].firmado).length;
   const todosListos = alumnos.every((a) => a[clave].listo || a[clave].firmado);
 
-  function alternarListo(id) {
-    actualizar(id, (a) => { a[clave].listo = !a[clave].listo; return a; });
-  }
+  function alternarListo(id) { actualizar(id, (a) => { a[clave].listo = !a[clave].listo; return a; }); }
   function alternarTodos() {
     const marcar = !todosListos;
-    setAlumnos((prev) => prev.map((a) => {
-      const clon = structuredClone(a);
-      if (!clon[clave].firmado) clon[clave].listo = marcar;
-      return clon;
-    }));
+    setAlumnos((prev) => prev.map((a) => { const clon = structuredClone(a); if (!clon[clave].firmado) clon[clave].listo = marcar; return clon; }));
   }
   async function firmarTotal() {
     if (listosSinFirmar.length === 0) return;
-    const ok = window.confirm(
-      `Vas a firmar la calificación del ${cuatrimestre === 1 ? '1er' : '2do'} cuatrimestre de ${listosSinFirmar.length} alumno(s) en ${catedra.materia} (${catedra.curso}).\n\nUna vez firmadas, esas notas no se van a poder modificar.`
-    );
+    const ok = window.confirm(`Vas a firmar la calificación del ${cuatrimestre === 1 ? '1er' : '2do'} cuatrimestre de ${listosSinFirmar.length} alumno(s) en ${catedra.materia} (${catedra.curso}).\n\nUna vez firmadas, esas notas no se van a poder modificar.`);
     if (!ok) return;
     const hoy = fechaHoy();
     const ids = listosSinFirmar.map((a) => a.id);
-    setAlumnos((prev) => prev.map((a) => {
-      if (!a[clave].listo || a[clave].firmado) return a;
-      const clon = structuredClone(a);
-      clon[clave].firmado = true;
-      clon[clave].fechaFirma = hoy;
-      return clon;
-    }));
+    setAlumnos((prev) => prev.map((a) => { if (!a[clave].listo || a[clave].firmado) return a; const clon = structuredClone(a); clon[clave].firmado = true; clon[clave].fechaFirma = hoy; return clon; }));
     await onFirmar(ids, cuatrimestre);
   }
   function imprimir() { window.print(); }
@@ -405,17 +304,12 @@ function PantallaCarga({
         <button className="btn-volver" onClick={onVolver}>← Cambiar cuatrimestre / cantidad</button>
         <div className="barra-acciones">
           {cuatrimestre === 2 && pendientesMesa.length > 0 && (
-            <button className={`btn-secundario ${soloMesa ? 'btn-secundario-activo' : ''}`} onClick={() => setSoloMesa((v) => !v)}>
-              {soloMesa ? 'Ver todos' : `Pendientes de mesa (${pendientesMesa.length})`}
-            </button>
+            <button className={`btn-secundario ${soloMesa ? 'btn-secundario-activo' : ''}`} onClick={() => setSoloMesa((v) => !v)}>{soloMesa ? 'Ver todos' : `Pendientes de mesa (${pendientesMesa.length})`}</button>
           )}
           <button className="btn-secundario" onClick={imprimir}>Imprimir planilla</button>
-          <button className="btn-firmar" disabled={listosSinFirmar.length === 0} onClick={firmarTotal}>
-            Firmar {listosSinFirmar.length > 0 ? `(${listosSinFirmar.length})` : 'total'}
-          </button>
+          <button className="btn-firmar" disabled={listosSinFirmar.length === 0} onClick={firmarTotal}>Firmar {listosSinFirmar.length > 0 ? `(${listosSinFirmar.length})` : 'total'}</button>
         </div>
       </div>
-
       <div className="encabezado-catedra">
         <div className="identidad-docente">
           <p className="eyebrow">
@@ -428,11 +322,8 @@ function PantallaCarga({
           <span className="chip-catedra-materia">{catedra.materia}</span>
           <span className="chip-catedra-curso">{catedra.curso}</span>
         </div>
-        <div className="tag-lateral">
-          <span className="tag-cuat">{cuatrimestre === 1 ? '1er' : '2do'} cuatrimestre · {firmados}/{alumnos.length} firmados</span>
-        </div>
+        <div className="tag-lateral"><span className="tag-cuat">{cuatrimestre === 1 ? '1er' : '2do'} cuatrimestre · {firmados}/{alumnos.length} firmados</span></div>
       </div>
-
       <div className="layout">
         <div className="tabla-wrap">
           <table>
@@ -440,9 +331,7 @@ function PantallaCarga({
               <tr className="grupo">
                 <th colSpan={2}></th>
                 {cuatrimestre === 2 && <th>Nota del 1er cuatrimestre</th>}
-                <th colSpan={alumnos[0][clave].trayectorias.length + 2}>
-                  {cuatrimestre === 1 ? '1er cuatrimestre — trayectorias y compensación' : '2do cuatrimestre — trayectorias y compensación'}
-                </th>
+                <th colSpan={alumnos[0][clave].trayectorias.length + 2}>{cuatrimestre === 1 ? '1er cuatrimestre — trayectorias y compensación' : '2do cuatrimestre — trayectorias y compensación'}</th>
                 {cuatrimestre === 2 && <th colSpan={4}>Intensificación, mesa, anual y definitiva</th>}
                 <th className="no-imprimir"></th>
               </tr>
@@ -453,20 +342,8 @@ function PantallaCarga({
                 {alumnos[0][clave].trayectorias.map((_, i) => <th key={i}>Trayectoria {i + 1}</th>)}
                 <th>Compensación</th>
                 <th className="col-resultado">Calificación {cuatrimestre === 1 ? '1er' : '2do'} cuat.</th>
-                {cuatrimestre === 2 && (
-                  <>
-                    <th className="col-referencia">Intensif. (Dic.)</th>
-                    <th className="col-referencia">Mesa (Feb.) — 1ª instancia</th>
-                    <th className="col-referencia">Calif. anual</th>
-                    <th className="col-referencia">Calif. definitiva</th>
-                  </>
-                )}
-                <th className="col-firma no-imprimir">
-                  <label className="check-todos">
-                    <input type="checkbox" checked={todosListos} onChange={alternarTodos} />
-                    Listo
-                  </label>
-                </th>
+                {cuatrimestre === 2 && (<><th className="col-referencia">Intensif. (Dic.)</th><th className="col-referencia">Mesa (Feb.) — 1ª instancia</th><th className="col-referencia">Calif. anual</th><th className="col-referencia">Calif. definitiva</th></>)}
+                <th className="col-firma no-imprimir"><label className="check-todos"><input type="checkbox" checked={todosListos} onChange={alternarTodos} />Listo</label></th>
               </tr>
             </thead>
             <tbody>
@@ -480,125 +357,59 @@ function PantallaCarga({
                 return (
                   <tr key={alumno.id} className={bloqueado ? 'fila-firmada' : ''}>
                     <td className="col-nro">{idx + 1}</td>
-                    <td className="col-alumno">
-                      {alumno.nombre}
-                      {estado.condicion === 'previa' && <div className="badge-previa">PREVIA</div>}
-                    </td>
-                    {cuatrimestre === 2 && (
-                      <td className="col-referencia">
-                        <div className={`celda-calc ${estado.c1.notaCuatrimestre === null ? '' : estado.c1.notaCuatrimestre >= NOTA_APROBACION ? 'ok' : 'mal'}`}>
-                          {estado.c1.notaCuatrimestre ?? '—'}
-                        </div>
-                      </td>
-                    )}
+                    <td className="col-alumno">{alumno.nombre}{estado.condicion === 'previa' && <div className="badge-previa">PREVIA</div>}</td>
+                    {cuatrimestre === 2 && (<td className="col-referencia"><div className={`celda-calc ${estado.c1.notaCuatrimestre === null ? '' : estado.c1.notaCuatrimestre >= NOTA_APROBACION ? 'ok' : 'mal'}`}>{estado.c1.notaCuatrimestre ?? '—'}</div></td>)}
                     {c.trayectorias.map((t, i) => (
                       <td key={i}>
-                        {bloqueado ? (
-                          <div className="celda-calc">{t ?? ''}</div>
-                        ) : (
-                          <input
-                            type="number" min="0" max="10" step="1" defaultValue={t ?? ''}
+                        {bloqueado ? (<div className="celda-calc">{t ?? ''}</div>) : (
+                          <input type="number" min="0" max="10" step="1" defaultValue={t ?? ''}
                             onChange={(e) => { const r = notaValida(e.target.value, 0, 10); if (!r.ok) return; actualizar(alumno.id, (a) => { a[clave].trayectorias[i] = r.valor; return a; }); }}
-                            onBlur={async (e) => {
-                              const r = notaValida(e.target.value, 0, 10); if (!r.ok) return;
-                              await onGuardarTrayectoria(cuatrimestre, i, alumno.id, r.valor);
-                              const actualizado = { ...alumno, [clave]: { ...alumno[clave], trayectorias: alumno[clave].trayectorias.map((x, xi) => xi === i ? r.valor : x) } };
-                              onSincronizarOficiales(actualizado);
-                            }}
-                            className="celda"
-                          />
+                            onBlur={async (e) => { const r = notaValida(e.target.value, 0, 10); if (!r.ok) return; await onGuardarTrayectoria(cuatrimestre, i, alumno.id, r.valor); const actualizado = { ...alumno, [clave]: { ...alumno[clave], trayectorias: alumno[clave].trayectorias.map((x, xi) => xi === i ? r.valor : x) } }; onSincronizarOficiales(actualizado); }}
+                            className="celda" />
                         )}
                       </td>
                     ))}
                     <td>
-                      {bloqueado ? (
-                        <div className="celda-calc">{c.compensacion ?? ''}</div>
-                      ) : (
-                        <input
-                          type="number" min="0" max="7" step="1" defaultValue={c.compensacion ?? ''}
-                          disabled={!calc.habilitaCompensacion}
+                      {bloqueado ? (<div className="celda-calc">{c.compensacion ?? ''}</div>) : (
+                        <input type="number" min="0" max="7" step="1" defaultValue={c.compensacion ?? ''} disabled={!calc.habilitaCompensacion}
                           onChange={(e) => { const r = notaValida(e.target.value, 0, 7); if (!r.ok) return; actualizar(alumno.id, (a) => { a[clave].compensacion = r.valor; return a; }); }}
-                          onBlur={async (e) => {
-                            const r = notaValida(e.target.value, 0, 7); if (!r.ok) return;
-                            await onGuardarCompensacion(cuatrimestre, alumno.id, r.valor);
-                            const actualizado = { ...alumno, [clave]: { ...alumno[clave], compensacion: r.valor } };
-                            onSincronizarOficiales(actualizado);
-                          }}
-                          className={`celda ${calc.habilitaCompensacion ? 'celda-dorado' : 'celda-disabled'}`}
-                        />
+                          onBlur={async (e) => { const r = notaValida(e.target.value, 0, 7); if (!r.ok) return; await onGuardarCompensacion(cuatrimestre, alumno.id, r.valor); const actualizado = { ...alumno, [clave]: { ...alumno[clave], compensacion: r.valor } }; onSincronizarOficiales(actualizado); }}
+                          className={`celda ${calc.habilitaCompensacion ? 'celda-dorado' : 'celda-disabled'}`} />
                       )}
                     </td>
                     <td className="col-resultado">
-                      <div className={`celda-calc celda-calc-fuerte ${provisorio ? 'celda-provisoria' : valorMostrado === null ? '' : valorMostrado >= NOTA_APROBACION ? 'ok' : 'mal'}`}>
-                        {valorMostrado ?? '—'}
-                      </div>
+                      <div className={`celda-calc celda-calc-fuerte ${provisorio ? 'celda-provisoria' : valorMostrado === null ? '' : valorMostrado >= NOTA_APROBACION ? 'ok' : 'mal'}`}>{valorMostrado ?? '—'}</div>
                       {provisorio && valorMostrado !== null && <div className="etiqueta-provisoria">provisorio</div>}
                     </td>
                     {cuatrimestre === 2 && (
                       <>
                         <td className="col-referencia">
-                          {estado.anual !== null && estado.anual < NOTA_APROBACION ? (
-                            bloqueado ? (
-                              <div className="celda-calc">{alumno.intensificacion ?? ''}</div>
-                            ) : (
-                              <input
-                                type="number" min="0" max="7" step="1" defaultValue={alumno.intensificacion ?? ''}
-                                onChange={(e) => { const r = notaValida(e.target.value, 0, 7); if (!r.ok) return; actualizar(alumno.id, (a) => ({ ...a, intensificacion: r.valor })); }}
-                                onBlur={async (e) => {
-                                  const r = notaValida(e.target.value, 0, 7); if (!r.ok) return;
-                                  await onGuardarIntensificacion(alumno.id, r.valor);
-                                  onSincronizarOficiales({ ...alumno, intensificacion: r.valor });
-                                }}
-                                className="celda celda-dorado"
-                              />
-                            )
-                          ) : <div className="celda-calc celda-calc-na">—</div>}
+                          {estado.anual !== null && estado.anual < NOTA_APROBACION ? (bloqueado ? (<div className="celda-calc">{alumno.intensificacion ?? ''}</div>) : (
+                            <input type="number" min="0" max="7" step="1" defaultValue={alumno.intensificacion ?? ''}
+                              onChange={(e) => { const r = notaValida(e.target.value, 0, 7); if (!r.ok) return; actualizar(alumno.id, (a) => ({ ...a, intensificacion: r.valor })); }}
+                              onBlur={async (e) => { const r = notaValida(e.target.value, 0, 7); if (!r.ok) return; await onGuardarIntensificacion(alumno.id, r.valor); onSincronizarOficiales({ ...alumno, intensificacion: r.valor }); }}
+                              className="celda celda-dorado" />
+                          )) : <div className="celda-calc celda-calc-na">—</div>}
                         </td>
                         <td className="col-referencia">
-                          {estado.condicion === 'previa' || alumno.mesaExamen !== null ? (
-                            bloqueado ? (
-                              <div className="celda-calc">{alumno.mesaExamen ?? ''}</div>
-                            ) : (
-                              <input
-                                type="number" min="0" max="10" step="1" defaultValue={alumno.mesaExamen ?? ''}
-                                onChange={(e) => { const r = notaValida(e.target.value, 0, 10); if (!r.ok) return; actualizar(alumno.id, (a) => ({ ...a, mesaExamen: r.valor })); }}
-                                onBlur={async (e) => {
-                                  const r = notaValida(e.target.value, 0, 10); if (!r.ok) return;
-                                  await onGuardarMesaExamen(alumno.id, r.valor);
-                                  onSincronizarOficiales({ ...alumno, mesaExamen: r.valor });
-                                }}
-                                className="celda celda-dorado"
-                              />
-                            )
-                          ) : <div className="celda-calc celda-calc-na">—</div>}
+                          {estado.condicion === 'previa' || alumno.mesaExamen !== null ? (bloqueado ? (<div className="celda-calc">{alumno.mesaExamen ?? ''}</div>) : (
+                            <input type="number" min="0" max="10" step="1" defaultValue={alumno.mesaExamen ?? ''}
+                              onChange={(e) => { const r = notaValida(e.target.value, 0, 10); if (!r.ok) return; actualizar(alumno.id, (a) => ({ ...a, mesaExamen: r.valor })); }}
+                              onBlur={async (e) => { const r = notaValida(e.target.value, 0, 10); if (!r.ok) return; await onGuardarMesaExamen(alumno.id, r.valor); onSincronizarOficiales({ ...alumno, mesaExamen: r.valor }); }}
+                              className="celda celda-dorado" />
+                          )) : <div className="celda-calc celda-calc-na">—</div>}
                         </td>
-                        <td className="col-referencia">
-                          {(() => {
-                            const anualMostrado = estado.definitiva ?? estado.anual;
-                            return (
-                              <div className={`celda-calc celda-calc-decimal ${anualMostrado === null ? '' : anualMostrado >= NOTA_APROBACION ? 'ok' : 'mal'}`}>{fmt2(anualMostrado)}</div>
-                            );
-                          })()}
-                        </td>
-                        <td className="col-referencia">
-                          <div className={`celda-calc celda-calc-decimal celda-calc-fuerte ${estado.definitiva === null ? '' : 'ok'}`}>{fmt2(estado.definitiva)}</div>
-                        </td>
+                        <td className="col-referencia">{(() => { const anualMostrado = estado.anual; return (<div className={`celda-calc celda-calc-decimal ${anualMostrado === null ? '' : anualMostrado >= NOTA_APROBACION ? 'ok' : 'mal'}`}>{fmt2(anualMostrado)}</div>); })()}</td>
+                        <td className="col-referencia"><div className={`celda-calc celda-calc-decimal celda-calc-fuerte ${estado.definitiva === null ? '' : 'ok'}`}>{fmt2(estado.definitiva)}</div></td>
                       </>
                     )}
-                    <td className="col-firma no-imprimir">
-                      {bloqueado ? (
-                        <span className="badge-firmado" title={`Firmado el ${c.fechaFirma}`}>🔒 {c.fechaFirma}</span>
-                      ) : (
-                        <input type="checkbox" checked={c.listo} onChange={() => alternarListo(alumno.id)} className="check-fila" />
-                      )}
-                    </td>
+                    <td className="col-firma no-imprimir">{bloqueado ? (<span className="badge-firmado" title={`Firmado el ${c.fechaFirma}`}>🔒 {c.fechaFirma}</span>) : (<input type="checkbox" checked={c.listo} onChange={() => alternarListo(alumno.id)} className="check-fila" />)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-
         <div className="panel-lateral no-imprimir">
           <div className="panel-etapa">
             <div className="panel-etapa-titulo"><span>{cuatrimestre === 1 ? '1er' : '2do'} cuatrimestre</span><span>%</span></div>
@@ -618,12 +429,7 @@ function PlanillaRoot(props) {
   return (
     <div className="planilla-root">
       <style>{`
-        .planilla-root {
-          --tinta:#1B2A4A; --tinta-60:#5B6B8C; --papel:#F7F8FA; --dorado:#B8912F; --dorado-bg:#FBF3DE;
-          --verde:#2F7D5C; --verde-bg:#E4F3EC; --rojo:#B54834; --rojo-bg:#FBEAE5; --borde:#DDE1EA;
-          font-family:'IBM Plex Sans',-apple-system,sans-serif; background:var(--papel); color:var(--tinta);
-          padding:24px; border-radius:14px; max-width:100%; overflow-x:auto;
-        }
+        .planilla-root { --tinta:#1B2A4A; --tinta-60:#5B6B8C; --papel:#F7F8FA; --dorado:#B8912F; --dorado-bg:#FBF3DE; --verde:#2F7D5C; --verde-bg:#E4F3EC; --rojo:#B54834; --rojo-bg:#FBEAE5; --borde:#DDE1EA; font-family:'IBM Plex Sans',-apple-system,sans-serif; background:var(--papel); color:var(--tinta); padding:24px; border-radius:14px; max-width:100%; overflow-x:auto; }
         .planilla-root * { box-sizing:border-box; }
         .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dorado); margin:0 0 5px 0; font-weight:600; }
         .pantalla-config { max-width:440px; margin:0 auto; padding:20px 0; }
@@ -712,12 +518,7 @@ function PlanillaRoot(props) {
           .chip-catedra { background:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         }
       `}</style>
-
-      {vista === 'configuracion' ? (
-        <PantallaConfiguracion {...resto} onContinuar={() => setVista('carga')} />
-      ) : (
-        <PantallaCarga {...resto} onVolver={() => setVista('configuracion')} />
-      )}
+      {vista === 'configuracion' ? (<PantallaConfiguracion {...resto} onContinuar={() => setVista('carga')} />) : (<PantallaCarga {...resto} onVolver={() => setVista('configuracion')} />)}
     </div>
   );
 }
