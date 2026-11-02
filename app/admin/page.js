@@ -6,6 +6,8 @@ const ACCESOS = [
   { href: '/admin/asignar-profesores', titulo: 'Asignar profesores', desc: 'Vincular cada materia con el profesor que la dicta' },
   { href: '/admin/asignar-preceptores', titulo: 'Asignar preceptores', desc: 'Definir qué preceptor está a cargo de cada curso' },
   { href: '/preceptor/inscribir', titulo: 'Inscripción de alumnos', desc: 'Agregar o dar de baja alumnos en un curso' },
+  { href: '/preceptor/preinscripcion-fp', titulo: 'Preinscripción FP 2027', desc: 'Anotar alumnos a las ofertas de Formación Profesional del ciclo 2027' },
+  { href: '/admin/datos/ofertas-fp', titulo: 'Carga: Ofertas FP', desc: 'Cursos y talleres de FP por ciclo lectivo, con cupos y horarios' },
   { href: '/admin/datos/profesores', titulo: 'Carga: Profesores', desc: 'Alta y edición de profesores' },
   { href: '/admin/datos/alumnos', titulo: 'Carga: Alumnos', desc: 'Datos generales de cada alumno' },
   { href: '/admin/datos/resoluciones', titulo: 'Carga: Resoluciones', desc: 'Normativa que respalda planes y designaciones' },
