@@ -14,7 +14,10 @@ export default function LoginPage() {
   async function ingresar() {
     if (!email.trim() || !password) return;
     setStatus({ tipo: 'loading', mensaje: 'Ingresando…' });
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password
+    });
     if (error) {
       setStatus({ tipo: 'error', mensaje: 'Email o contraseña incorrectos.' });
       return;
