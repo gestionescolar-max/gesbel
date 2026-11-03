@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSesion } from '@/lib/useSesion';
 import Header from '@/components/Header';
 
-// ✅ ESTILOS MOVIDOS AL PRINCIPIO (después de los imports)
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' };
 const selectStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
@@ -18,10 +17,9 @@ export default function AsignarPreceptoresPage() {
   const [profesores, setProfesores] = useState([]);
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
-  const [modalidadFiltro, setModalidadFiltro] = useState('todos');
+  const [tipoFiltro, setTipoFiltro] = useState('todos'); // 'todos', 'secundario', 'fp'
   const [anioFiltro, setAnioFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
-  const [ordenamiento, setOrdenamiento] = useState('anio_asc');
   const [cursoEditando, setCursoEditando] = useState(null);
   const [preceptorSeleccionado, setPreceptorSeleccionado] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -161,7 +159,7 @@ export default function AsignarPreceptoresPage() {
   }
 
   async function eliminarAsignacion() {
-    if (!cursoEditando || !confirm('¿Seguro que querés eliminar esta asignación? El preceptor quedará sin asignar.')) return;
+    if (!cursoEditando || !confirm('¿Seguro que querés eliminar esta asignación?')) return;
 
     setGuardando(true);
     setError(null);
@@ -198,58 +196,50 @@ export default function AsignarPreceptoresPage() {
     return p ? p.nombre : '—';
   }
 
-  function filtrarYOrdenarCursos(cursos, tipo) {
-    if (!cursos) return [];
-    let filtrados = [...cursos];
+  function filtrarYOrdenarCursos() {
+    let todos = [];
 
-    // Filtro por modalidad
-    if (modalidadFiltro !== 'todos') {
-      filtrados = filtrados.filter((c) => c.modalidad === modalidadFiltro);
+    // Filtrar por tipo
+    if (tipoFiltro === 'todos') {
+      todos = [...(cursosSec || []), ...(cursosFP || [])];
+    } else if (tipoFiltro === 'secundario') {
+      todos = [...(cursosSec || [])];
+    } else if (tipoFiltro === 'fp') {
+      todos = [...(cursosFP || [])];
     }
 
-    // Filtro por año
-    if (anioFiltro !== 'todos') {
-      filtrados = filtrados.filter((c) => c.anio === Number(anioFiltro));
+    // Filtrar por año (solo para secundario)
+    if (anioFiltro !== 'todos' && tipoFiltro === 'secundario') {
+      todos = todos.filter((c) => c.anio === Number(anioFiltro));
     }
 
     // Búsqueda
     if (busqueda) {
       const q = busqueda.toLowerCase();
-      filtrados = filtrados.filter((c) => {
+      todos = todos.filter((c) => {
         const nombre = c.nombre || `${c.anio || ''}° ${c.division || ''}`;
         const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
         return nombre.toLowerCase().includes(q) || preceptor.includes(q);
       });
     }
 
-    // Ordenamiento ultra-simple (sin localeCompare en valores undefined)
-    filtrados.sort((a, b) => {
-      const anioA = a.anio || 0;
-      const anioB = b.anio || 0;
-
-      if (ordenamiento === 'anio_asc') {
+    // Ordenar
+    todos.sort((a, b) => {
+      if (tipoFiltro === 'secundario') {
+        const anioA = a.anio || 0;
+        const anioB = b.anio || 0;
         if (anioA !== anioB) return anioA - anioB;
         const divA = a.division || '';
         const divB = b.division || '';
-        if (divA && divB) return divA.localeCompare(divB);
-        return 0;
+        return divA.localeCompare(divB);
+      } else {
+        const nombreA = a.nombre || '';
+        const nombreB = b.nombre || '';
+        return nombreA.localeCompare(nombreB);
       }
-
-      if (ordenamiento === 'anio_desc') {
-        if (anioA !== anioB) return anioB - anioA;
-        const divA = a.division || '';
-        const divB = b.division || '';
-        if (divA && divB) return divB.localeCompare(divA);
-        return 0;
-      }
-
-      // Por nombre
-      const nombreA = a.nombre || `${a.anio || ''}° ${a.division || ''}`;
-      const nombreB = b.nombre || `${b.anio || ''}° ${b.division || ''}`;
-      return nombreA.localeCompare(nombreB);
     });
 
-    return filtrados;
+    return todos;
   }
 
   if (cargando) return null;
@@ -262,379 +252,199 @@ export default function AsignarPreceptoresPage() {
     </>
   );
 
-  const cursosSecFiltrados = filtrarYOrdenarCursos(cursosSec || [], 'secundario');
-  const cursosFPFiltrados = filtrarYOrdenarCursos(cursosFP || [], 'fp');
+  const cursosFiltrados = filtrarYOrdenarCursos();
 
   return (
     <>
       <Header docente={{ nombre: `${sesion.email} · directivo` }} titulo="Asignación de Preceptores" />
-      <main style={{ padding: '2rem', maxWidth: 1400, margin: '0 auto' }}>
+      <main style={{ padding: '1rem', maxWidth: 1200, margin: '0 auto' }}>
 
-        {/* ENCABEZADO */}
-        <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-            Gestión de Preceptores
-          </h2>
-          <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 700 }}>
-            Visualizá y gestioná las asignaciones de preceptores. Los cambios quedan registrados automáticamente en el historial.
-          </p>
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Gestión de Preceptores</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>Asigná preceptores a los cursos</p>
         </div>
 
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
             {error}
           </div>
         )}
 
         {mensaje && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
             {mensaje}
           </div>
         )}
 
         {/* FILTROS */}
-        <section style={{ marginBottom: 32 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-            <div>
-              <label style={labelStyle}>Modalidad</label>
-              <select value={modalidadFiltro} onChange={(e) => setModalidadFiltro(e.target.value)} style={selectStyle}>
-                <option value="todos">Todas las modalidades</option>
-                <option value="Secundario">Secundario</option>
-                <option value="FP">Formación Profesional</option>
-                <option value="Técnico">Técnico</option>
-              </select>
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 24 }}>
+          <div>
+            <label style={labelStyle}>Tipo de curso</label>
+            <select value={tipoFiltro} onChange={(e) => { setTipoFiltro(e.target.value); setAnioFiltro('todos'); }} style={selectStyle}>
+              <option value="todos">Todos los cursos</option>
+              <option value="secundario">Secundario (1° a 4°)</option>
+              <option value="fp">Formación Profesional</option>
+            </select>
+          </div>
+
+          {tipoFiltro === 'secundario' && (
             <div>
               <label style={labelStyle}>Año</label>
               <select value={anioFiltro} onChange={(e) => setAnioFiltro(e.target.value)} style={selectStyle}>
                 <option value="todos">Todos los años</option>
-                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                  <option key={n} value={n}>{n}° año</option>
-                ))}
+                <option value="1">1° año</option>
+                <option value="2">2° año</option>
+                <option value="3">3° año</option>
+                <option value="4">4° año</option>
               </select>
             </div>
-            <div>
-              <label style={labelStyle}>Ordenar por</label>
-              <select value={ordenamiento} onChange={(e) => setOrdenamiento(e.target.value)} style={selectStyle}>
-                <option value="anio_asc">Año (ascendente)</option>
-                <option value="anio_desc">Año (descendente)</option>
-                <option value="nombre">Nombre del curso</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Buscar</label>
-              <input
-                type="text"
-                placeholder="Curso o preceptor..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
+          )}
+
+          <div>
+            <label style={labelStyle}>Buscar</label>
+            <input
+              type="text"
+              placeholder="Curso o preceptor..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              style={inputStyle}
+            />
           </div>
-        </section>
+        </div>
 
-        {/* TABLA DE ASIGNACIONES */}
-        <section style={{ marginBottom: 32 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>
-            Asignaciones vigentes
-          </h3>
-
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
-                    <th style={thStyle}>Curso</th>
-                    <th style={thStyle}>Modalidad</th>
-                    <th style={thStyle}>Año</th>
-                    <th style={thStyle}>Preceptor asignado</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...cursosSecFiltrados, ...cursosFPFiltrados].map((c, idx) => {
-                    const tipo = c.nombre ? 'fp' : 'secundario';
-                    return (
-                      <tr key={c.id} style={{ borderBottom: idx < cursosSecFiltrados.length + cursosFPFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <td style={tdStyle}>
-                          <strong>{c.nombre || `${c.anio}° ${c.division}`}</strong>
-                          {c.turno && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.turno}</div>}
-                        </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            background: c.modalidad === 'FP' ? '#fef3c7' : '#dbeafe',
-                            color: c.modalidad === 'FP' ? '#92400e' : '#1e40af'
-                          }}>
-                            {c.modalidad || 'Secundario'}
+        {/* TABLA RESPONSIVE */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600 }}>
+              <thead>
+                <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
+                  <th style={thStyle}>Curso</th>
+                  <th style={thStyle}>Tipo</th>
+                  <th style={thStyle}>Año</th>
+                  <th style={thStyle}>Preceptor</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cursosFiltrados.map((c, idx) => {
+                  const tipo = c.nombre ? 'fp' : 'secundario';
+                  return (
+                    <tr key={c.id} style={{ borderBottom: idx < cursosFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <td style={tdStyle}>
+                        <strong>{c.nombre || `${c.anio}° ${c.division}`}</strong>
+                        {c.turno && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.turno}</div>}
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          background: c.modalidad === 'FP' ? '#fef3c7' : '#dbeafe',
+                          color: c.modalidad === 'FP' ? '#92400e' : '#1e40af'
+                        }}>
+                          {c.modalidad || 'Secundario'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{c.anio}°</td>
+                      <td style={tdStyle}>
+                        {c.preceptor_id ? (
+                          <span style={{ display: 'inline-block', padding: '6px 14px', background: '#dcfce7', color: '#15803d', borderRadius: 20, fontSize: 13, fontWeight: 500 }}>
+                            {getNombrePreceptor(c.preceptor_id)}
                           </span>
-                        </td>
-                        <td style={tdStyle}>{c.anio}°</td>
-                        <td style={tdStyle}>
-                          {c.preceptor_id ? (
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '6px 14px',
-                              background: '#dcfce7',
-                              color: '#15803d',
-                              borderRadius: 20,
-                              fontSize: 13,
-                              fontWeight: 500
-                            }}>
-                              {getNombrePreceptor(c.preceptor_id)}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 13 }}>Sin asignar</span>
-                          )}
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          <button
-                            onClick={() => abrirModalEdicion(c, tipo)}
-                            style={{
-                              background: 'var(--accent)',
-                              color: '#fff',
-                              border: 'none',
-                              padding: '6px 14px',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              transition: 'background 0.2s'
-                            }}
-                          >
-                            Editar
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {cursosSecFiltrados.length + cursosFPFiltrados.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                No se encontraron cursos con los filtros seleccionados
-              </div>
-            )}
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 13 }}>Sin asignar</span>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        <button
+                          onClick={() => abrirModalEdicion(c, tipo)}
+                          style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </section>
+          {cursosFiltrados.length === 0 && (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              No se encontraron cursos
+            </div>
+          )}
+        </div>
 
-        {/* GESTIÓN DE PRECEPTORES */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-              Personal registrado ({profesores.length})
-            </h3>
+        {/* PRECEPTORES */}
+        <section style={{ marginTop: 32 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Preceptores ({profesores.length})</h3>
             <button
               onClick={() => setMostrarFormNuevo(!mostrarFormNuevo)}
-              style={{
-                background: 'var(--accent)',
-                color: '#fff',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
+              style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
-              {mostrarFormNuevo ? 'Cancelar' : '+ Nuevo preceptor'}
+              {mostrarFormNuevo ? 'Cancelar' : '+ Nuevo'}
             </button>
           </div>
 
           {mostrarFormNuevo && (
-            <div style={{ background: 'var(--surface-2)', padding: 24, borderRadius: 10, marginBottom: 20 }}>
-              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginBottom: 16 }}>
-                <div>
-                  <label style={labelStyle}>Nombre completo *</label>
-                  <input
-                    type="text"
-                    value={nombreNuevo}
-                    onChange={(e) => setNombreNuevo(e.target.value)}
-                    placeholder="Ej: Juan Pérez"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Email (opcional)</label>
-                  <input
-                    type="email"
-                    value={emailNuevo}
-                    onChange={(e) => setEmailNuevo(e.target.value)}
-                    placeholder="email@ejemplo.com"
-                    style={inputStyle}
-                  />
-                </div>
+            <div style={{ background: 'var(--surface-2)', padding: 20, borderRadius: 10, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
+                <input type="text" placeholder="Nombre completo" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} style={inputStyle} />
+                <input type="email" placeholder="Email (opcional)" value={emailNuevo} onChange={(e) => setEmailNuevo(e.target.value)} style={inputStyle} />
               </div>
-              <button
-                onClick={crearPreceptor}
-                disabled={creando || !nombreNuevo.trim()}
-                style={{
-                  background: creando ? 'var(--text-muted)' : 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 24px',
-                  borderRadius: 8,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: creando ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {creando ? 'Creando...' : 'Crear preceptor'}
+              <button onClick={crearPreceptor} disabled={creando || !nombreNuevo.trim()} style={{ background: creando ? 'var(--text-muted)' : 'var(--accent)', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: creando ? 'not-allowed' : 'pointer' }}>
+                {creando ? 'Creando...' : 'Crear'}
               </button>
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {profesores.map((p) => (
-              <div key={p.id} style={{
-                padding: '14px 18px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                fontSize: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div>
-                  <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.nombre}</div>
-                  {p.email && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.email}</div>}
-                </div>
-                <span style={{
-                  fontSize: 11,
-                  padding: '3px 10px',
-                  borderRadius: 12,
-                  background: 'var(--surface-2)',
-                  color: 'var(--text-muted)',
-                  textTransform: 'capitalize'
-                }}>
-                  {p.categoria || 'preceptor'}
-                </span>
+              <div key={p.id} style={{ padding: '12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 500 }}>{p.nombre}</div>
+                {p.email && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.email}</div>}
               </div>
             ))}
           </div>
         </section>
 
-        {/* MODAL DE EDICIÓN */}
+        {/* MODAL */}
         {cursoEditando && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 20
-          }} onClick={cerrarModal}>
-            <div style={{
-              background: 'var(--surface)',
-              borderRadius: 12,
-              padding: 32,
-              maxWidth: 500,
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-                Editar asignación
-              </h3>
-              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
-                {cursoEditando.nombre || `${cursoEditando.anio}° ${cursoEditando.division}`} — {cursoEditando.turno || cursoEditando.ciclo}
-              </p>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={cerrarModal}>
+            <div style={{ background: 'var(--surface)', borderRadius: 12, padding: 28, maxWidth: 450, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Editar asignación</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>{cursoEditando.nombre || `${cursoEditando.anio}° ${cursoEditando.division}`} — {cursoEditando.turno || cursoEditando.ciclo}</p>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={labelStyle}>Preceptor asignado</label>
-                <select
-                  value={preceptorSeleccionado}
-                  onChange={(e) => setPreceptorSeleccionado(e.target.value)}
-                  style={{ ...selectStyle, width: '100%' }}
-                >
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>Preceptor</label>
+                <select value={preceptorSeleccionado} onChange={(e) => setPreceptorSeleccionado(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
                   <option value="">Sin asignar</option>
-                  {profesores.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
+                  {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
               </div>
 
               {cursoEditando.historial && cursoEditando.historial.length > 0 && (
-                <div style={{ marginBottom: 24, padding: 16, background: 'var(--surface-2)', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
-                    Historial de asignaciones
-                  </div>
+                <div style={{ marginBottom: 20, padding: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Historial</div>
                   {cursoEditando.historial.map((h, i) => {
                     const prof = profesores.find(p => p.id === h.profesor_id);
                     return (
-                      <div key={i} style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-                        {prof?.nombre || 'Desconocido'}
-                        <span style={{ marginLeft: 8, fontSize: 11 }}>
-                          {h.vigente_desde} → {h.vigente_hasta}
-                        </span>
+                      <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                        {prof?.nombre} <span style={{ fontSize: 10 }}>{h.vigente_desde} → {h.vigente_hasta}</span>
                       </div>
                     );
                   })}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button
-                  onClick={cerrarModal}
-                  disabled={guardando}
-                  style={{
-                    background: 'var(--surface-2)',
-                    color: 'var(--text)',
-                    border: '1px solid var(--border-strong)',
-                    padding: '10px 20px',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={eliminarAsignacion}
-                  disabled={guardando || !cursoEditando.preceptor_id}
-                  style={{
-                    background: 'var(--danger-bg)',
-                    color: 'var(--danger)',
-                    border: '1px solid #fecaca',
-                    padding: '10px 20px',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    cursor: guardando || !cursoEditando.preceptor_id ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Eliminar
-                </button>
-                <button
-                  onClick={guardarAsignacion}
-                  disabled={guardando}
-                  style={{
-                    background: guardando ? 'var(--text-muted)' : 'var(--accent)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '10px 24px',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: guardando ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {guardando ? 'Guardando...' : 'Guardar'}
-                </button>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={cerrarModal} disabled={guardando} style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={eliminarAsignacion} disabled={guardando || !cursoEditando.preceptor_id} style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid #fecaca', padding: '8px 16px', borderRadius: 6, fontSize: 13, cursor: guardando || !cursoEditando.preceptor_id ? 'not-allowed' : 'pointer' }}>Eliminar</button>
+                <button onClick={guardarAsignacion} disabled={guardando} style={{ background: guardando ? 'var(--text-muted)' : 'var(--accent)', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: guardando ? 'not-allowed' : 'pointer' }}>{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </div>
           </div>
