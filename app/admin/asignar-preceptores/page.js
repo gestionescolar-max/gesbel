@@ -202,49 +202,52 @@ export default function AsignarPreceptoresPage() {
     if (!cursos) return [];
     let filtrados = [...cursos];
 
+    // Filtro por modalidad
     if (modalidadFiltro !== 'todos') {
       filtrados = filtrados.filter((c) => c.modalidad === modalidadFiltro);
     }
 
+    // Filtro por año
     if (anioFiltro !== 'todos') {
       filtrados = filtrados.filter((c) => c.anio === Number(anioFiltro));
     }
 
+    // Búsqueda
     if (busqueda) {
       const q = busqueda.toLowerCase();
       filtrados = filtrados.filter((c) => {
-        const nombre = c.nombre || `${c.anio}° ${c.division || ''}`;
+        const nombre = c.nombre || `${c.anio || ''}° ${c.division || ''}`;
         const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
         return nombre.toLowerCase().includes(q) || preceptor.includes(q);
       });
     }
 
-    // ✅ ORDENAMIENTO CORREGIDO (maneja undefined)
-    if (ordenamiento === 'anio_asc') {
-      filtrados.sort((a, b) => {
-        const anioA = a.anio || 0;
-        const anioB = b.anio || 0;
+    // Ordenamiento ultra-simple (sin localeCompare en valores undefined)
+    filtrados.sort((a, b) => {
+      const anioA = a.anio || 0;
+      const anioB = b.anio || 0;
+
+      if (ordenamiento === 'anio_asc') {
         if (anioA !== anioB) return anioA - anioB;
         const divA = a.division || '';
         const divB = b.division || '';
-        return divA.localeCompare(divB);
-      });
-    } else if (ordenamiento === 'anio_desc') {
-      filtrados.sort((a, b) => {
-        const anioA = a.anio || 0;
-        const anioB = b.anio || 0;
+        if (divA && divB) return divA.localeCompare(divB);
+        return 0;
+      }
+
+      if (ordenamiento === 'anio_desc') {
         if (anioA !== anioB) return anioB - anioA;
         const divA = a.division || '';
         const divB = b.division || '';
-        return divB.localeCompare(divA);
-      });
-    } else if (ordenamiento === 'nombre') {
-      filtrados.sort((a, b) => {
-        const nombreA = a.nombre || `${a.anio}° ${a.division || ''}`;
-        const nombreB = b.nombre || `${b.anio}° ${b.division || ''}`;
-        return nombreA.localeCompare(nombreB);
-      });
-    }
+        if (divA && divB) return divB.localeCompare(divA);
+        return 0;
+      }
+
+      // Por nombre
+      const nombreA = a.nombre || `${a.anio || ''}° ${a.division || ''}`;
+      const nombreB = b.nombre || `${b.anio || ''}° ${b.division || ''}`;
+      return nombreA.localeCompare(nombreB);
+    });
 
     return filtrados;
   }
