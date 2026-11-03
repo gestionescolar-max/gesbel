@@ -9,7 +9,6 @@ export default function Sidebar({ docente, titulo, children }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    // Detectar si es móvil de forma segura (evita errores de SSR)
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
@@ -26,7 +25,6 @@ export default function Sidebar({ docente, titulo, children }) {
 
     return (
         <>
-            {/* Overlay para móvil */}
             {abierto && isMobile && (
                 <div
                     style={{
@@ -42,7 +40,6 @@ export default function Sidebar({ docente, titulo, children }) {
                 />
             )}
 
-            {/* Sidebar */}
             <aside style={{
                 position: 'fixed',
                 left: 0,
@@ -58,7 +55,6 @@ export default function Sidebar({ docente, titulo, children }) {
                 flexDirection: 'column',
                 overflow: 'hidden'
             }}>
-                {/* Header del sidebar */}
                 <div style={{
                     padding: '20px 16px',
                     borderBottom: '1px solid var(--border)',
@@ -95,49 +91,65 @@ export default function Sidebar({ docente, titulo, children }) {
                     )}
                 </div>
 
-                {/* Menú de navegación */}
                 <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
-                    {menuItems.map((item, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => {
-                                router.push(item.ruta);
-                                setAbierto(false);
-                            }}
-                            style={{
-                                width: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 12,
-                                padding: '12px 16px',
-                                background: pathname === item.ruta ? 'var(--accent-bg)' : 'transparent',
-                                color: pathname === item.ruta ? 'var(--accent)' : 'var(--text)',
-                                border: 'none',
-                                borderBottom: '1px solid var(--border)',
-                                cursor: 'pointer',
-                                fontSize: 14,
-                                fontWeight: pathname === item.ruta ? 600 : 400,
-                                textAlign: 'left',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (pathname !== item.ruta) {
-                                    e.currentTarget.style.background = 'var(--surface-2)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (pathname !== item.ruta) {
-                                    e.currentTarget.style.background = 'transparent';
-                                }
-                            }}
-                        >
-                            <span style={{ fontSize: 18 }}>{item.icono}</span>
-                            <span>{item.label}</span>
-                        </button>
-                    ))}
+                    {menuItems.map((item, idx) => {
+                        if (item.tipo === 'separador') {
+                            return (
+                                <div key={idx} style={{
+                                    padding: '8px 16px 4px',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: 'var(--text-muted)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    borderTop: '1px solid var(--border)',
+                                    marginTop: '8px'
+                                }}>
+                                    {item.label}
+                                </div>
+                            );
+                        }
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => {
+                                    router.push(item.ruta);
+                                    setAbierto(false);
+                                }}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    padding: '10px 16px',
+                                    background: pathname === item.ruta ? 'var(--accent-bg)' : 'transparent',
+                                    color: pathname === item.ruta ? 'var(--accent)' : 'var(--text)',
+                                    border: 'none',
+                                    borderBottom: '1px solid var(--border)',
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                    fontWeight: pathname === item.ruta ? 600 : 400,
+                                    textAlign: 'left',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (pathname !== item.ruta) {
+                                        e.currentTarget.style.background = 'var(--surface-2)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (pathname !== item.ruta) {
+                                        e.currentTarget.style.background = 'transparent';
+                                    }
+                                }}
+                            >
+                                <span style={{ fontSize: 16 }}>{item.icono}</span>
+                                <span>{item.label}</span>
+                            </button>
+                        );
+                    })}
                 </nav>
 
-                {/* Botón de salir */}
                 <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
                     <button
                         onClick={salir}
@@ -146,13 +158,13 @@ export default function Sidebar({ docente, titulo, children }) {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 12,
-                            padding: '12px',
+                            padding: '10px',
                             background: 'var(--danger-bg)',
                             color: 'var(--danger)',
                             border: '1px solid #fecaca',
                             borderRadius: 8,
                             cursor: 'pointer',
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: 600,
                             justifyContent: 'center'
                         }}
@@ -163,7 +175,6 @@ export default function Sidebar({ docente, titulo, children }) {
                 </div>
             </aside>
 
-            {/* Botón hamburguesa para móvil */}
             <button
                 onClick={() => setAbierto(!abierto)}
                 style={{
@@ -183,14 +194,12 @@ export default function Sidebar({ docente, titulo, children }) {
                 <span style={{ fontSize: 20 }}>☰</span>
             </button>
 
-            {/* Contenido principal con margen para el sidebar */}
             <div style={{
                 marginLeft: !isMobile ? 280 : 0,
                 minHeight: '100vh',
                 background: 'var(--bg)',
                 transition: 'margin-left 0.3s ease'
             }}>
-                {/* Header superior */}
                 <header style={{
                     background: 'var(--surface)',
                     borderBottom: '1px solid var(--border)',
@@ -210,7 +219,6 @@ export default function Sidebar({ docente, titulo, children }) {
                     </div>
                 </header>
 
-                {/* Contenido de la página (inyectado desde children) */}
                 <main style={{ padding: isMobile ? '16px' : '24px' }}>
                     {children}
                 </main>
@@ -219,67 +227,73 @@ export default function Sidebar({ docente, titulo, children }) {
     );
 }
 
-// Función para obtener items del menú según el rol
 function getMenuItems(docente) {
     const items = [];
     if (!docente) return items;
 
-    // === DOCENTE (común si es docente) ===
+    // ==========================================
+    // DOCENTE (Secundario y/o FP)
+    // ==========================================
     if (docente.es_docente) {
+        items.push({ tipo: 'separador', label: 'Docencia' });
         items.push({ label: 'Mis materias', ruta: '/materias', icono: '📖' });
-        items.push({ label: 'Horarios / Informes', ruta: '/horarios', icono: '🕐' });
-        items.push({ label: 'Constancias', ruta: '/constancias', icono: '📄' });
-        items.push({ label: 'Actas', ruta: '/actas', icono: '📝' });
+        items.push({ label: 'Horarios', ruta: '/docente/horarios', icono: '🕐' });
+        items.push({ label: 'Actas de exámenes', ruta: '/docente/actas', icono: '📝' });
+        items.push({ label: 'Constancias', ruta: '/docente/constancias', icono: '📄' });
+        items.push({ label: 'Currículum', ruta: '/docente/curriculum', icono: '📚' });
+        items.push({ label: 'Notas/Documentación', ruta: '/docente/notas', icono: '📋' });
     }
 
-    // === ADMINISTRADOR ===
-    if (docente.esAdmin) {
-        items.push({ label: 'Panel de administración', ruta: '/admin', icono: '⚙️' });
-        items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: '👥' });
-        items.push({ label: 'Horarios / Informes', ruta: '/horarios', icono: '🕐' });
-        items.push({ label: 'Constancias', ruta: '/constancias', icono: '📄' });
-        items.push({ label: 'Actas', ruta: '/actas', icono: '📝' });
-    }
-
-    // === DIRECTIVO ===
-    if (docente.esDirectivo && !docente.esAdmin) {
-        items.push({ label: 'Panel de administración', ruta: '/admin', icono: '⚙️' });
-        items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: '👥' });
-        items.push({ label: 'Horarios / Informes', ruta: '/horarios', icono: '🕐' });
-        items.push({ label: 'Constancias', ruta: '/constancias', icono: '📄' });
-        items.push({ label: 'Actas', ruta: '/actas', icono: '📝' });
-    }
-
-    // === SECRETARÍA ===
-    if (docente.esSecretaria) {
-        items.push({ label: 'Panel de administración', ruta: '/admin', icono: '⚙️' });
-        items.push({ label: 'Carga de profesor', ruta: '/admin/carga-profesor', icono: '👨‍🏫' });
-        items.push({ label: 'Horarios / Informes', ruta: '/horarios', icono: '🕐' });
-        items.push({ label: 'Constancias', ruta: '/constancias', icono: '📄' });
-        items.push({ label: 'Actas', ruta: '/actas', icono: '📝' });
-    }
-
-    // === PRECEPTOR ===
+    // ==========================================
+    // PRECEPTOR
+    // ==========================================
     if (docente.esPreceptor) {
-        if (!docente.es_docente) { // Evitar duplicar "Mis materias" si ya es docente
+        items.push({ tipo: 'separador', label: 'Preceptoría' });
+        if (!docente.es_docente) {
             items.push({ label: 'Mis materias', ruta: '/materias', icono: '📖' });
         }
         items.push({ label: 'Inscripciones', ruta: '/preceptor/inscribir', icono: '✍️' });
-        items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: '📝' });
         items.push({ label: 'Asistencias', ruta: '/preceptor/asistencias', icono: '✅' });
-        items.push({ label: 'Legajo alumno', ruta: '/preceptor/legajo-alumno', icono: '📋' });
+        items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: '📝' });
+        items.push({ label: 'Legajo alumno', ruta: '/preceptor/legajo-alumno', icono: '' });
     }
 
-    // === LEGAJOS / AUXILIAR LEGAJOS ===
+    // ==========================================
+    // SECRETARÍA (Carga y gestión administrativa)
+    // ==========================================
+    if (docente.esSecretaria) {
+        items.push({ tipo: 'separador', label: 'Secretaría' });
+        items.push({ label: 'Carga de profesor', ruta: '/admin/carga-profesor', icono: '👨🏫' });
+        items.push({ label: 'Carga de alumno', ruta: '/admin/carga-alumno', icono: '👨🎓' });
+        items.push({ label: 'Horarios', ruta: '/admin/horarios', icono: '🕐' });
+        items.push({ label: 'Constancias', ruta: '/admin/constancias', icono: '📄' });
+        items.push({ label: 'Actas', ruta: '/admin/actas', icono: '📝' });
+    }
+
+    // ==========================================
+    // LEGAJOS (Seguimiento del alumno)
+    // ==========================================
     if (docente.esLegajos) {
-        // SOLO legajo de alumno, nada del profesor
+        items.push({ tipo: 'separador', label: 'Legajos' });
         items.push({ label: 'Legajo alumno', ruta: '/admin/legajo-alumno', icono: '📋' });
     }
 
-    // Fallback si no tiene ningún menú específico
-    if (items.length === 0) {
-        items.push({ label: 'Inicio', ruta: '/', icono: '🏠' });
+    // ==========================================
+    // ADMINISTRADOR / DIRECTIVO
+    // ==========================================
+    if (docente.esAdmin || docente.esDirectivo) {
+        items.push({ tipo: 'separador', label: 'Administración' });
+        items.push({ label: 'Panel de control', ruta: '/admin', icono: '⚙️' });
+        items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: '👥' });
+        items.push({ label: 'Estadísticas', ruta: '/admin/estadisticas', icono: '📊' });
+        items.push({ label: 'Configuración', ruta: '/admin/configuracion', icono: '🔧' });
     }
+
+    // ==========================================
+    // PERFIL (Común para todos)
+    // ==========================================
+    items.push({ tipo: 'separador', label: 'Personal' });
+    items.push({ label: 'Mi perfil', ruta: '/perfil', icono: '👤' });
 
     return items;
 }

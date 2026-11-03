@@ -1,16 +1,16 @@
-'use client';
-import { useDocente } from '@/lib/useDocente';
-import Sidebar from '@/components/Sidebar';
-
-export default function MateriasPage() {
-  const { docente, cargando } = useDocente();
-
-  if (cargando || !docente) return null;
-
-  return (
-    <Sidebar docente={docente} titulo="Mis materias">
-      {/* Acá va todo el contenido específico de esta página */}
-      <p>Contenido de las materias...</p>
-    </Sidebar>
-  );
-}
+// La consulta debería ser algo así:
+const { data, error } = await supabase
+  .from('materias')
+  .select(`
+    id, 
+    grupo, 
+    plan_materias ( nombre ), 
+    cursos ( 
+      anio, 
+      division, 
+      ciclo, 
+      modalidad,
+      fp_perfiles ( nombre )
+    )
+  `)
+  .eq('profesor_id', docente.id);
