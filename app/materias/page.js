@@ -31,8 +31,9 @@ export default function MateriasPage() {
       <main>
         <div className="toolbar">
           <div className="titulo"><h2>Tus materias</h2><p>Elegí un curso para abrir el cuaderno</p></div>
-          {docente.esAdmin && (
+          {docente.puedeAdministrar && (
             <a href="/admin" style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>⚙ Administración</a>
+            <a href="/fp/preinscripciones" style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>🌙 FP Preinscripciones</a>
           )}
         </div>
         {error && <div className="status error">Error al cargar materias: {error}</div>}
