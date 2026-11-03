@@ -13,15 +13,12 @@ export default function AsignarPreceptoresPage() {
   const [error, setError] = useState(null);
   const [tabActiva, setTabActiva] = useState('secundario');
   const [busqueda, setBusqueda] = useState('');
-
-  // Para agregar nuevo preceptor
   const [mostrarFormNuevo, setMostrarFormNuevo] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [emailNuevo, setEmailNuevo] = useState('');
   const [creando, setCreando] = useState(false);
-
-  // Para asignar a todos
   const [preceptorTodos, setPreceptorTodos] = useState('');
+  const [mensaje, setMensaje] = useState(null);
 
   async function cargarTodo() {
     const [{ data: cSec, error: errSec }, { data: cFP, error: errFP }, { data: p }, { data: asigSec }, { data: asigFP }] = await Promise.all([
@@ -34,7 +31,6 @@ export default function AsignarPreceptoresPage() {
 
     if (errSec || errFP) { setError(errSec?.message || errFP?.message); return; }
 
-    // Procesar asignaciones de Secundario (solo vigentes)
     const mapaSec = {};
     const historialSec = {};
     (asigSec || []).forEach((a) => {
@@ -51,7 +47,6 @@ export default function AsignarPreceptoresPage() {
       historial: historialSec[c.id] || []
     })));
 
-    // Procesar asignaciones de FP
     const mapaFP = {};
     const historialFP = {};
     (asigFP || []).forEach((a) => {
@@ -76,51 +71,28 @@ export default function AsignarPreceptoresPage() {
   async function crearPreceptor() {
     if (!nombreNuevo.trim()) return;
     setCreando(true);
+    setError(null);
 
-    // Crear usuario en auth (si hay email)
-    let userId = null;
-    if (emailNuevo) {
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: emailNuevo,
-        password: 'temporal123',
-        email_confirm: true
-      });
-      if (authError) {
-        setError('Error al crear usuario: ' + authError.message);
-        setCreando(false);
-        return;
-      }
-      userId = authData.user.id;
-    }
+    try {
+      const { data: prof, error: profError } = await supabase
+        .from('profesores')
+        .insert({ nombre: nombreNuevo.trim(), categoria: 'preceptor' })
+        .select('id')
+        .single();
 
-    // Crear profesor
-    const { data: prof, error: profError } = await supabase
-      .from('profesores')
-      .insert({ nombre: nombreNuevo.trim(), categoria: 'preceptor' })
-      .select('id')
-      .single();
+      if (profError) throw profError;
 
-    if (profError) {
-      setError('Error al crear profesor: ' + profError.message);
+      setProfesores((prev) => [...prev, { id: prof.id, nombre: nombreNuevo.trim(), email: emailNuevo }]);
+      setNombreNuevo('');
+      setEmailNuevo('');
+      setMostrarFormNuevo(false);
+      setMensaje('Preceptor creado correctamente');
+      setTimeout(() => setMensaje(null), 3000);
+    } catch (err) {
+      setError(`Error al crear preceptor: ${err.message}`);
+    } finally {
       setCreando(false);
-      return;
     }
-
-    // Crear perfil si hay userId
-    if (userId) {
-      await supabase.from('perfiles').insert({
-        user_id: userId,
-        profesor_id: prof.id,
-        rol: 'preceptor',
-        es_preceptor: true
-      });
-    }
-
-    setProfesores((prev) => [...prev, { id: prof.id, nombre: nombreNuevo.trim(), email: emailNuevo }]);
-    setNombreNuevo('');
-    setEmailNuevo('');
-    setMostrarFormNuevo(false);
-    setCreando(false);
   }
 
   async function asignarSecundario(cursoId, profesorId) {
@@ -130,46 +102,21 @@ export default function AsignarPreceptoresPage() {
     try {
       const hoy = new Date().toISOString().slice(0, 10);
 
-      // 1. Cerrar asignación vigente actual
-      const { error: errUpdate } = await supabase
+      await supabase
         .from('preceptores_curso')
         .update({ vigente_hasta: hoy })
         .eq('curso_id', cursoId)
         .is('vigente_hasta', null);
 
-      if (errUpdate && errUpdate.code !== 'PGRST116') throw errUpdate;
-
-      // 2. Crear nueva asignación
       if (profesorId) {
-        const { error: errInsert } = await supabase
+        await supabase
           .from('preceptores_curso')
-          .insert({
-            curso_id: cursoId,
-            profesor_id: profesorId,
-            vigente_desde: hoy,
-            vigente_hasta: null
-          });
-
-        if (errInsert) {
-          // Si es conflicto, hacer upsert
-          if (errInsert.code === '23505') {
-            const { error: errUpsert } = await supabase
-              .from('preceptores_curso')
-              .upsert({
-                curso_id: cursoId,
-                profesor_id: profesorId,
-                vigente_desde: hoy,
-                vigente_hasta: null
-              }, { onConflict: 'curso_id,profesor_id,vigente_hasta' });
-
-            if (errUpsert) throw errUpsert;
-          } else {
-            throw errInsert;
-          }
-        }
+          .insert({ curso_id: cursoId, profesor_id: profesorId, vigente_desde: hoy, vigente_hasta: null });
       }
 
       setCursosSec((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
+      setMensaje('Asignación actualizada');
+      setTimeout(() => setMensaje(null), 3000);
     } catch (err) {
       setError(`Error al asignar: ${err.message}`);
     } finally {
@@ -184,43 +131,21 @@ export default function AsignarPreceptoresPage() {
     try {
       const hoy = new Date().toISOString().slice(0, 10);
 
-      const { error: errUpdate } = await supabase
+      await supabase
         .from('fp_cursos_preceptores')
         .update({ vigente_hasta: hoy })
         .eq('fp_curso_id', cursoId)
         .is('vigente_hasta', null);
 
-      if (errUpdate && errUpdate.code !== 'PGRST116') throw errUpdate;
-
       if (profesorId) {
-        const { error: errInsert } = await supabase
+        await supabase
           .from('fp_cursos_preceptores')
-          .insert({
-            fp_curso_id: cursoId,
-            profesor_id: profesorId,
-            vigente_desde: hoy,
-            vigente_hasta: null
-          });
-
-        if (errInsert) {
-          if (errInsert.code === '23505') {
-            const { error: errUpsert } = await supabase
-              .from('fp_cursos_preceptores')
-              .upsert({
-                fp_curso_id: cursoId,
-                profesor_id: profesorId,
-                vigente_desde: hoy,
-                vigente_hasta: null
-              }, { onConflict: 'fp_curso_id,profesor_id,vigente_hasta' });
-
-            if (errUpsert) throw errUpsert;
-          } else {
-            throw errInsert;
-          }
-        }
+          .insert({ fp_curso_id: cursoId, profesor_id: profesorId, vigente_desde: hoy, vigente_hasta: null });
       }
 
       setCursosFP((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
+      setMensaje('Asignación actualizada');
+      setTimeout(() => setMensaje(null), 3000);
     } catch (err) {
       setError(`Error al asignar: ${err.message}`);
     } finally {
@@ -228,12 +153,12 @@ export default function AsignarPreceptoresPage() {
     }
   }
 
-  async function asignarATodos(tipo) {
+  async function asignarATodos() {
     if (!preceptorTodos) return;
-    if (!confirm(`¿Asignar este preceptor a todos los cursos de ${tipo === 'secundario' ? 'Secundario' : 'FP'}?`)) return;
+    if (!confirm(`¿Asignar este preceptor a todos los cursos de ${tabActiva === 'secundario' ? 'Secundario' : 'FP'}?`)) return;
 
-    const cursos = tipo === 'secundario' ? cursosSec : cursosFP;
-    const asignarFn = tipo === 'secundario' ? asignarSecundario : asignarFP;
+    const cursos = tabActiva === 'secundario' ? cursosSec : cursosFP;
+    const asignarFn = tabActiva === 'secundario' ? asignarSecundario : asignarFP;
 
     for (const curso of cursos) {
       await asignarFn(curso.id, Number(preceptorTodos));
@@ -242,7 +167,7 @@ export default function AsignarPreceptoresPage() {
 
   function getNombrePreceptor(id) {
     const p = profesores.find((x) => x.id === id);
-    return p ? p.nombre : 'Sin asignar';
+    return p ? p.nombre : '—';
   }
 
   function filtrarCursos(cursos) {
@@ -258,7 +183,7 @@ export default function AsignarPreceptoresPage() {
   if (cargando) return null;
   if (autorizado === false) return (
     <>
-      <Header docente={null} />
+      <Header docente={null} titulo="Acceso denegado" />
       <main>
         <div className="status error">No tenés permiso para ver esta pantalla.</div>
       </main>
@@ -270,40 +195,339 @@ export default function AsignarPreceptoresPage() {
 
   return (
     <>
-      <Header docente={{ nombre: `${sesion.email} · directivo` }} />
-      <main style={{ padding: '1rem', maxWidth: 1200, margin: '0 auto' }}>
+      <Header docente={{ nombre: `${sesion.email} · directivo` }} titulo="Asignación de Preceptores" />
+      <main style={{ padding: '2rem', maxWidth: 1400, margin: '0 auto' }}>
 
-        {/* HEADER */}
+        {/* ENCABEZADO DE SECCIÓN */}
         <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
+          <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, color: 'var(--text)', letterSpacing: '-0.02em' }}>
             Gestión de Preceptores
           </h2>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            Asigná preceptores a los cursos. Al cambiar un preceptor, el anterior queda registrado como suplente en el historial.
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 700 }}>
+            Visualizá el historial de asignaciones y gestioná los preceptores de cada curso. Los cambios quedan registrados automáticamente.
           </p>
         </div>
 
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: 12, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
             {error}
           </div>
         )}
 
-        {/* SECCIÓN: AGREGAR NUEVO PRECEPTOR */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Preceptores registrados</h3>
+        {mensaje && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+            {mensaje}
+          </div>
+        )}
+
+        {/* SECCIÓN 1: TABLA DE HISTORIAL */}
+        <section style={{ marginBottom: 40 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              Historial de asignaciones
+            </h3>
+            <input
+              type="text"
+              placeholder="Buscar curso o preceptor..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: '1px solid var(--border-strong)',
+                fontSize: 14,
+                background: 'var(--surface)',
+                minWidth: 280,
+              }}
+            />
+          </div>
+
+          {/* TABS */}
+          <div style={{ display: 'flex', gap: 0, marginBottom: 0, borderBottom: '2px solid var(--border)' }}>
+            <button
+              onClick={() => setTabActiva('secundario')}
+              style={{
+                padding: '12px 28px',
+                background: 'transparent',
+                color: tabActiva === 'secundario' ? 'var(--accent)' : 'var(--text-muted)',
+                border: 'none',
+                borderBottom: tabActiva === 'secundario' ? '2px solid var(--accent)' : '2px solid transparent',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: -2,
+                transition: 'all 0.2s'
+              }}
+            >
+              Secundario ({cursosSecFiltrados.length})
+            </button>
+            <button
+              onClick={() => setTabActiva('fp')}
+              style={{
+                padding: '12px 28px',
+                background: 'transparent',
+                color: tabActiva === 'fp' ? 'var(--accent)' : 'var(--text-muted)',
+                border: 'none',
+                borderBottom: tabActiva === 'fp' ? '2px solid var(--accent)' : '2px solid transparent',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: -2,
+                transition: 'all 0.2s'
+              }}
+            >
+              Formación Profesional ({cursosFPFiltrados.length})
+            </button>
+          </div>
+
+          {/* TABLA DE HISTORIAL */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginTop: 20 }}>
+            {tabActiva === 'secundario' && (
+              <>
+                {cursosSec === null && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>}
+                {cursosSecFiltrados.length === 0 && cursosSec !== null && (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos</div>
+                )}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                        <th style={thStyle}>Curso</th>
+                        <th style={thStyle}>Ciclo</th>
+                        <th style={thStyle}>Preceptor actual</th>
+                        <th style={thStyle}>Historial</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cursosSecFiltrados.map((c, idx) => (
+                        <tr key={c.id} style={{ borderBottom: idx < cursosSecFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={tdStyle}>
+                            <strong>{c.anio}° {c.division}</strong>
+                          </td>
+                          <td style={tdStyle}>{c.ciclo}</td>
+                          <td style={tdStyle}>
+                            {c.preceptor_id ? (
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '4px 12px',
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: 20,
+                                fontSize: 13,
+                                fontWeight: 500
+                              }}>
+                                {getNombrePreceptor(c.preceptor_id)}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin asignar</span>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {c.historial && c.historial.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {c.historial.map((h, i) => {
+                                  const prof = profesores.find(p => p.id === h.profesor_id);
+                                  return (
+                                    <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                      {prof?.nombre || 'Desconocido'}
+                                      <span style={{ marginLeft: 8, color: 'var(--border-strong)' }}>
+                                        {h.vigente_desde} → {h.vigente_hasta}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sin historial</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {tabActiva === 'fp' && (
+              <>
+                {cursosFP === null && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>}
+                {cursosFPFiltrados.length === 0 && cursosFP !== null && (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos</div>
+                )}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                        <th style={thStyle}>Curso</th>
+                        <th style={thStyle}>Turno / Año</th>
+                        <th style={thStyle}>Preceptor actual</th>
+                        <th style={thStyle}>Historial</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cursosFPFiltrados.map((c, idx) => (
+                        <tr key={c.id} style={{ borderBottom: idx < cursosFPFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={tdStyle}>
+                            <strong>{c.nombre}</strong>
+                          </td>
+                          <td style={tdStyle}>{c.turno} · {c.anio}</td>
+                          <td style={tdStyle}>
+                            {c.preceptor_id ? (
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '4px 12px',
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: 20,
+                                fontSize: 13,
+                                fontWeight: 500
+                              }}>
+                                {getNombrePreceptor(c.preceptor_id)}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin asignar</span>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            {c.historial && c.historial.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {c.historial.map((h, i) => {
+                                  const prof = profesores.find(p => p.id === h.profesor_id);
+                                  return (
+                                    <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                      {prof?.nombre || 'Desconocido'}
+                                      <span style={{ marginLeft: 8, color: 'var(--border-strong)' }}>
+                                        {h.vigente_desde} → {h.vigente_hasta}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sin historial</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* SECCIÓN 2: ASIGNACIÓN RÁPIDA */}
+        <section style={{ marginBottom: 40 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>
+            Asignación rápida
+          </h3>
+
+          {/* ASIGNAR A TODOS */}
+          <div style={{ background: 'var(--surface-2)', padding: 20, borderRadius: 10, marginBottom: 24, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 300 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
+                Preceptor para asignar a todos los cursos de {tabActiva === 'secundario' ? 'Secundario' : 'FP'}
+              </label>
+              <select
+                value={preceptorTodos}
+                onChange={(e) => setPreceptorTodos(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
+              >
+                <option value="">Seleccionar preceptor...</option>
+                {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            </div>
+            <div style={{ alignSelf: 'flex-end' }}>
+              <button
+                onClick={asignarATodos}
+                disabled={!preceptorTodos}
+                style={{
+                  background: !preceptorTodos ? 'var(--border)' : 'var(--accent)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 24px',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: !preceptorTodos ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.2s'
+                }}
+              >
+                Asignar a todos
+              </button>
+            </div>
+          </div>
+
+          {/* GRID DE ASIGNACIÓN INDIVIDUAL */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+            {(tabActiva === 'secundario' ? cursosSecFiltrados : cursosFPFiltrados).map((c) => (
+              <div key={c.id} style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: 20,
+                transition: 'box-shadow 0.2s'
+              }}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                    {c.nombre || `${c.anio}° ${c.division}`}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    {c.ciclo || `${c.turno} · ${c.anio}`}
+                  </div>
+                </div>
+
+                <select
+                  value={c.preceptor_id || ''}
+                  disabled={guardandoId === `${tabActiva === 'secundario' ? 'sec' : 'fp'}-${c.id}`}
+                  onChange={(e) => {
+                    const fn = tabActiva === 'secundario' ? asignarSecundario : asignarFP;
+                    fn(c.id, e.target.value ? Number(e.target.value) : null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-strong)',
+                    fontSize: 14,
+                    background: 'var(--surface-2)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">Sin asignar</option>
+                  {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+
+                {guardandoId === `${tabActiva === 'secundario' ? 'sec' : 'fp'}-${c.id}` && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                    Guardando...
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* SECCIÓN 3: AGREGAR NUEVO PRECEPTOR */}
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              Preceptores registrados
+            </h3>
             <button
               onClick={() => setMostrarFormNuevo(!mostrarFormNuevo)}
               style={{
                 background: 'var(--accent)',
                 color: '#fff',
                 border: 'none',
-                padding: '8px 16px',
-                borderRadius: 6,
-                fontSize: 13,
+                padding: '10px 20px',
+                borderRadius: 8,
+                fontSize: 14,
                 fontWeight: 600,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'background 0.2s'
               }}
             >
               {mostrarFormNuevo ? 'Cancelar' : '+ Nuevo preceptor'}
@@ -311,10 +535,10 @@ export default function AsignarPreceptoresPage() {
           </div>
 
           {mostrarFormNuevo && (
-            <div style={{ background: 'var(--surface-2)', padding: 16, borderRadius: 8, marginTop: 12 }}>
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+            <div style={{ background: 'var(--surface-2)', padding: 24, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginBottom: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
                     Nombre completo *
                   </label>
                   <input
@@ -322,11 +546,11 @@ export default function AsignarPreceptoresPage() {
                     value={nombreNuevo}
                     onChange={(e) => setNombreNuevo(e.target.value)}
                     placeholder="Ej: Juan Pérez"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
                     Email (opcional)
                   </label>
                   <input
@@ -334,7 +558,7 @@ export default function AsignarPreceptoresPage() {
                     value={emailNuevo}
                     onChange={(e) => setEmailNuevo(e.target.value)}
                     placeholder="email@ejemplo.com"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
                   />
                 </div>
               </div>
@@ -342,13 +566,12 @@ export default function AsignarPreceptoresPage() {
                 onClick={crearPreceptor}
                 disabled={creando || !nombreNuevo.trim()}
                 style={{
-                  marginTop: 12,
                   background: creando ? 'var(--text-muted)' : 'var(--accent)',
                   color: '#fff',
                   border: 'none',
-                  padding: '8px 20px',
-                  borderRadius: 6,
-                  fontSize: 13,
+                  padding: '10px 24px',
+                  borderRadius: 8,
+                  fontSize: 14,
                   fontWeight: 600,
                   cursor: creando ? 'not-allowed' : 'pointer'
                 }}
@@ -358,272 +581,40 @@ export default function AsignarPreceptoresPage() {
             </div>
           )}
 
-          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
             {profesores.map((p) => (
-              <span key={p.id} style={{
-                padding: '6px 12px',
-                background: 'var(--surface-2)',
+              <div key={p.id} style={{
+                padding: '12px 16px',
+                background: 'var(--surface)',
                 border: '1px solid var(--border)',
-                borderRadius: 6,
-                fontSize: 13
+                borderRadius: 8,
+                fontSize: 14,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}>
-                {p.nombre}
-              </span>
+                <span style={{ fontWeight: 500 }}>{p.nombre}</span>
+                {p.email && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.email}</span>}
+              </div>
             ))}
           </div>
-        </div>
-
-        {/* BÚSQUEDA */}
-        <div style={{ marginBottom: 20 }}>
-          <input
-            type="text"
-            placeholder="Buscar curso o preceptor..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid var(--border-strong)',
-              fontSize: 14,
-              background: 'var(--surface)',
-            }}
-          />
-        </div>
-
-        {/* TABS */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '2px solid var(--border)' }}>
-          <button
-            onClick={() => setTabActiva('secundario')}
-            style={{
-              padding: '12px 24px',
-              background: 'transparent',
-              color: tabActiva === 'secundario' ? 'var(--accent)' : 'var(--text-muted)',
-              border: 'none',
-              borderBottom: tabActiva === 'secundario' ? '2px solid var(--accent)' : '2px solid transparent',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginBottom: -2
-            }}
-          >
-            Secundario ({cursosSecFiltrados.length})
-          </button>
-          <button
-            onClick={() => setTabActiva('fp')}
-            style={{
-              padding: '12px 24px',
-              background: 'transparent',
-              color: tabActiva === 'fp' ? 'var(--accent)' : 'var(--text-muted)',
-              border: 'none',
-              borderBottom: tabActiva === 'fp' ? '2px solid var(--accent)' : '2px solid transparent',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginBottom: -2
-            }}
-          >
-            Formación Profesional ({cursosFPFiltrados.length})
-          </button>
-        </div>
-
-        {/* ASIGNAR A TODOS */}
-        <div style={{ background: 'var(--surface-2)', padding: 16, borderRadius: 8, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Asignar preceptor a todos los cursos:</span>
-          <select
-            value={preceptorTodos}
-            onChange={(e) => setPreceptorTodos(e.target.value)}
-            style={{ flex: 1, minWidth: 200, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}
-          >
-            <option value="">Seleccionar preceptor...</option>
-            {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
-          <button
-            onClick={() => asignarATodos(tabActiva)}
-            disabled={!preceptorTodos}
-            style={{
-              background: !preceptorTodos ? 'var(--border)' : 'var(--accent)',
-              color: '#fff',
-              border: 'none',
-              padding: '8px 20px',
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: !preceptorTodos ? 'not-allowed' : 'pointer'
-            }}
-          >
-            Asignar a todos
-          </button>
-        </div>
-
-        {/* CONTENIDO SECUNDARIO */}
-        {tabActiva === 'secundario' && (
-          <div>
-            {cursosSec === null && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
-            {cursosSecFiltrados.length === 0 && cursosSec !== null && (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                No se encontraron cursos
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 12 }}>
-              {cursosSecFiltrados.map((c) => (
-                <div key={c.id} style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 20,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                        {c.anio}° {c.division}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        {c.ciclo}
-                      </div>
-                    </div>
-                    {c.preceptor_id && (
-                      <span style={{
-                        fontSize: 11,
-                        padding: '4px 12px',
-                        borderRadius: 20,
-                        background: '#dcfce7',
-                        color: '#15803d',
-                        fontWeight: 600,
-                      }}>
-                        Asignado
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <select
-                      value={c.preceptor_id || ''}
-                      disabled={guardandoId === `sec-${c.id}`}
-                      onChange={(e) => asignarSecundario(c.id, e.target.value ? Number(e.target.value) : null)}
-                      style={{
-                        flex: 1,
-                        minWidth: 200,
-                        padding: '10px 12px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border-strong)',
-                        fontSize: 14,
-                        background: 'var(--surface-2)',
-                      }}
-                    >
-                      <option value="">Sin asignar</option>
-                      {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
-                    {guardandoId === `sec-${c.id}` && (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Guardando...</span>
-                    )}
-                  </div>
-
-                  {c.historial && c.historial.length > 0 && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
-                        Historial de preceptores:
-                      </div>
-                      {c.historial.map((h, idx) => {
-                        const prof = profesores.find(p => p.id === h.profesor_id);
-                        return (
-                          <div key={idx} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                            {prof?.nombre || 'Desconocido'} ({h.vigente_desde} - {h.vigente_hasta || 'actual'})
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* CONTENIDO FP */}
-        {tabActiva === 'fp' && (
-          <div>
-            {cursosFP === null && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
-            {cursosFPFiltrados.length === 0 && cursosFP !== null && (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                No se encontraron cursos
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 12 }}>
-              {cursosFPFiltrados.map((c) => (
-                <div key={c.id} style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 20,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                        {c.nombre}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        {c.turno} · {c.anio}
-                      </div>
-                    </div>
-                    {c.preceptor_id && (
-                      <span style={{
-                        fontSize: 11,
-                        padding: '4px 12px',
-                        borderRadius: 20,
-                        background: '#dcfce7',
-                        color: '#15803d',
-                        fontWeight: 600,
-                      }}>
-                        Asignado
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <select
-                      value={c.preceptor_id || ''}
-                      disabled={guardandoId === `fp-${c.id}`}
-                      onChange={(e) => asignarFP(c.id, e.target.value ? Number(e.target.value) : null)}
-                      style={{
-                        flex: 1,
-                        minWidth: 200,
-                        padding: '10px 12px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border-strong)',
-                        fontSize: 14,
-                        background: 'var(--surface-2)',
-                      }}
-                    >
-                      <option value="">Sin asignar</option>
-                      {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
-                    {guardandoId === `fp-${c.id}` && (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Guardando...</span>
-                    )}
-                  </div>
-
-                  {c.historial && c.historial.length > 0 && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
-                        Historial de preceptores:
-                      </div>
-                      {c.historial.map((h, idx) => {
-                        const prof = profesores.find(p => p.id === h.profesor_id);
-                        return (
-                          <div key={idx} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                            {prof?.nombre || 'Desconocido'} ({h.vigente_desde} - {h.vigente_hasta || 'actual'})
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        </section>
       </main>
     </>
   );
 }
+
+const thStyle = {
+  padding: '14px 16px',
+  textAlign: 'left',
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: 'var(--text-muted)',
+  fontWeight: 600
+};
+
+const tdStyle = {
+  padding: '14px 16px',
+  verticalAlign: 'top'
+};
