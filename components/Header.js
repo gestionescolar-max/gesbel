@@ -1,73 +1,58 @@
 'use client';
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-const MENU = [
-  { etiqueta: 'Principal', href: '/materias' },
-  { etiqueta: 'Mis materias', href: '/materias' },
-  { etiqueta: 'Legajo', href: '/legajo' },
-  { etiqueta: 'Constancias', href: '/constancias' },
-  { etiqueta: 'Horarios / Informes', href: '/horarios-informes' },
-];
-
 export default function Header({ docente }) {
+  const [abierto, setAbierto] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
-  const [menuAbierto, setMenuAbierto] = useState(false);
 
-  async function cerrarSesion() {
-    setMenuAbierto(false);
+  async function salir() {
     await supabase.auth.signOut();
     router.push('/');
-  }
-
-  function ir(href) {
-    setMenuAbierto(false);
-    router.push(href);
   }
 
   return (
     <header>
       <div className="brand">
-        <div className="logo">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
-        </div>
+        <div className="logo">📚</div>
         <div>
-          <h1>Gestión Escuela Técnica Fray Luis Beltrán</h1>
-          <p>Sistema de gestión académica</p>
+          <h1>Cuaderno del Profesor</h1>
+          <p>Escuela Técnica "Fray Luis Beltrán" · ciclo 2026</p>
         </div>
       </div>
-      {docente && (
+
+      {docente ? (
         <div className="nav-wrap">
-          <button
-            className="nav-toggle"
-            onClick={() => setMenuAbierto((v) => !v)}
-            aria-expanded={menuAbierto}
-            aria-label="Abrir menú"
-          >
-            ☰ Menú
-          </button>
-          {menuAbierto && (
+          <button className="nav-toggle" onClick={() => setAbierto(!abierto)}>☰ Menú</button>
+          {abierto && (
             <div className="nav-menu">
-              <div className="nav-user">{docente.nombre}</div>
-              {MENU.map((item) => (
-                <button
-                  key={item.etiqueta}
-                  className={'nav-item' + (pathname === item.href ? ' activo' : '')}
-                  onClick={() => ir(item.href)}
-                >
-                  {item.etiqueta}
-                </button>
-              ))}
-              <button className="nav-item nav-salir" onClick={cerrarSesion}>
-                Salir
+              <div className="nav-user">{docente.nombre || docente.rol}</div>
+
+              <button className="nav-item" onClick={() => { router.push('/materias'); setAbierto(false); }}>
+                📖 Mis materias
               </button>
+
+              {/* Solo Admins/Directivos/Secretaría ven el Panel de Gestión */}
+              {(docente.esAdmin || docente.esDirectivo || docente.esSecretaria) && (
+                <button className="nav-item" onClick={() => { router.push('/admin'); setAbierto(false); }}>
+                  ⚙ Panel de gestión
+                </button>
+              )}
+
+              {/* Solo Preceptores (y Admins) ven la Inscripción */}
+              {(docente.esPreceptor || docente.esAdmin) && (
+                <button className="nav-item" onClick={() => { router.push('/preceptor/inscribir'); setAbierto(false); }}>
+                  📝 Inscripción de alumnos
+                </button>
+              )}
+
+              <button className="nav-item nav-salir" onClick={salir}>Salir</button>
             </div>
           )}
         </div>
+      ) : (
+        <div className="docente-chip"><span>Invitado</span></div>
       )}
     </header>
   );

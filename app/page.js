@@ -14,14 +14,8 @@ export default function LoginPage() {
   async function ingresar() {
     if (!email.trim() || !password) return;
     setStatus({ tipo: 'loading', mensaje: 'Ingresando…' });
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password
-    });
-    if (error) {
-      setStatus({ tipo: 'error', mensaje: 'Email o contraseña incorrectos.' });
-      return;
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) { setStatus({ tipo: 'error', mensaje: 'Email o contraseña incorrectos.' }); return; }
     router.push('/materias');
   }
 
@@ -34,31 +28,16 @@ export default function LoginPage() {
           <p className="hint">Ingresá con el email y la contraseña de tu cuenta.</p>
           <div className="field">
             <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && ingresar()}
-              placeholder="tu-email@ejemplo.com"
-            />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ingresar()} placeholder="tu-email@ejemplo.com" />
           </div>
           <div className="field">
             <label>Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && ingresar()}
-              placeholder="••••••••"
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ingresar()} placeholder="••••••••" />
           </div>
           <button className="btn block" onClick={ingresar}>Ingresar</button>
           {status && <div className={`status ${status.tipo}`}>{status.mensaje}</div>}
           <p className="hint" style={{ marginTop: 16, marginBottom: 0 }}>
-            ¿Todavía no tenés cuenta?{' '}
-            <Link href="/signup" style={{ color: 'var(--accent)', fontWeight: 600 }}>
-              Registrate acá
-            </Link>
+            ¿Todavía no tenés cuenta? <Link href="/signup" style={{ color: 'var(--accent)', fontWeight: 600 }}>Registrate acá</Link>
           </p>
         </div>
       </main>
