@@ -9,22 +9,29 @@ export default function AsignarPreceptoresPage() {
   const [cursosSec, setCursosSec] = useState(null);
   const [cursosFP, setCursosFP] = useState(null);
   const [profesores, setProfesores] = useState([]);
-  const [guardandoId, setGuardandoId] = useState(null);
   const [error, setError] = useState(null);
-  const [tabActiva, setTabActiva] = useState('secundario');
+  const [mensaje, setMensaje] = useState(null);
+  const [modalidadFiltro, setModalidadFiltro] = useState('todos');
+  const [anioFiltro, setAnioFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [ordenamiento, setOrdenamiento] = useState('anio_asc');
+
+  // Modal de edición
+  const [cursoEditando, setCursoEditando] = useState(null);
+  const [preceptorSeleccionado, setPreceptorSeleccionado] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  // Formulario nuevo preceptor
   const [mostrarFormNuevo, setMostrarFormNuevo] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [emailNuevo, setEmailNuevo] = useState('');
   const [creando, setCreando] = useState(false);
-  const [preceptorTodos, setPreceptorTodos] = useState('');
-  const [mensaje, setMensaje] = useState(null);
 
   async function cargarTodo() {
     const [{ data: cSec, error: errSec }, { data: cFP, error: errFP }, { data: p }, { data: asigSec }, { data: asigFP }] = await Promise.all([
-      supabase.from('cursos').select('id, anio, division, ciclo').order('ciclo', { ascending: false }).order('anio').order('division'),
-      supabase.from('fp_cursos').select('id, nombre, anio, turno').order('anio', { ascending: false }).order('nombre'),
-      supabase.from('profesores').select('id, nombre, email').order('nombre'),
+      supabase.from('cursos').select('id, anio, division, ciclo, modalidad').order('anio').order('division'),
+      supabase.from('fp_cursos').select('id, nombre, anio, turno, modalidad').order('nombre'),
+      supabase.from('profesores').select('id, nombre, email, categoria').order('nombre'),
       supabase.from('preceptores_curso').select('curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
       supabase.from('fp_cursos_preceptores').select('fp_curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
     ]);
@@ -76,13 +83,13 @@ export default function AsignarPreceptoresPage() {
     try {
       const { data: prof, error: profError } = await supabase
         .from('profesores')
-        .insert({ nombre: nombreNuevo.trim(), categoria: 'preceptor' })
-        .select('id')
+        .insert({ nombre: nombreNuevo.trim(), categoria: 'preceptor', email: emailNuevo.trim() || null })
+        .select('id, nombre, email')
         .single();
 
       if (profError) throw profError;
 
-      setProfesores((prev) => [...prev, { id: prof.id, nombre: nombreNuevo.trim(), email: emailNuevo }]);
+      setProfesores((prev) => [...prev, prof]);
       setNombreNuevo('');
       setEmailNuevo('');
       setMostrarFormNuevo(false);
@@ -95,73 +102,92 @@ export default function AsignarPreceptoresPage() {
     }
   }
 
-  async function asignarSecundario(cursoId, profesorId) {
-    setGuardandoId(`sec-${cursoId}`);
+  function abrirModalEdicion(curso, tipo) {
+    setCursoEditando({ ...curso, tipo });
+    setPreceptorSeleccionado(curso.preceptor_id || '');
+  }
+
+  function cerrarModal() {
+    setCursoEditando(null);
+    setPreceptorSeleccionado('');
+  }
+
+  async function guardarAsignacion() {
+    if (!cursoEditando) return;
+    setGuardando(true);
     setError(null);
 
     try {
       const hoy = new Date().toISOString().slice(0, 10);
+      const tabla = cursoEditando.tipo === 'secundario' ? 'preceptores_curso' : 'fp_cursos_preceptores';
+      const campoId = cursoEditando.tipo === 'secundario' ? 'curso_id' : 'fp_curso_id';
 
+      // Cerrar asignación vigente
       await supabase
-        .from('preceptores_curso')
+        .from(tabla)
         .update({ vigente_hasta: hoy })
-        .eq('curso_id', cursoId)
+        .eq(campoId, cursoEditando.id)
         .is('vigente_hasta', null);
 
-      if (profesorId) {
+      // Crear nueva asignación si hay preceptor
+      if (preceptorSeleccionado) {
         await supabase
-          .from('preceptores_curso')
-          .insert({ curso_id: cursoId, profesor_id: profesorId, vigente_desde: hoy, vigente_hasta: null });
+          .from(tabla)
+          .insert({
+            [campoId]: cursoEditando.id,
+            profesor_id: Number(preceptorSeleccionado),
+            vigente_desde: hoy,
+            vigente_hasta: null
+          });
       }
 
-      setCursosSec((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
-      setMensaje('Asignación actualizada');
+      // Actualizar estado local
+      if (cursoEditando.tipo === 'secundario') {
+        setCursosSec((prev) => prev.map((c) => (c.id === cursoEditando.id ? { ...c, preceptor_id: preceptorSeleccionado ? Number(preceptorSeleccionado) : null } : c)));
+      } else {
+        setCursosFP((prev) => prev.map((c) => (c.id === cursoEditando.id ? { ...c, preceptor_id: preceptorSeleccionado ? Number(preceptorSeleccionado) : null } : c)));
+      }
+
+      setMensaje('Asignación actualizada correctamente');
       setTimeout(() => setMensaje(null), 3000);
+      cerrarModal();
     } catch (err) {
-      setError(`Error al asignar: ${err.message}`);
+      setError(`Error al guardar: ${err.message}`);
     } finally {
-      setGuardandoId(null);
+      setGuardando(false);
     }
   }
 
-  async function asignarFP(cursoId, profesorId) {
-    setGuardandoId(`fp-${cursoId}`);
+  async function eliminarAsignacion() {
+    if (!cursoEditando || !confirm('¿Seguro que querés eliminar esta asignación? El preceptor quedará sin asignar.')) return;
+
+    setGuardando(true);
     setError(null);
 
     try {
       const hoy = new Date().toISOString().slice(0, 10);
+      const tabla = cursoEditando.tipo === 'secundario' ? 'preceptores_curso' : 'fp_cursos_preceptores';
+      const campoId = cursoEditando.tipo === 'secundario' ? 'curso_id' : 'fp_curso_id';
 
       await supabase
-        .from('fp_cursos_preceptores')
+        .from(tabla)
         .update({ vigente_hasta: hoy })
-        .eq('fp_curso_id', cursoId)
+        .eq(campoId, cursoEditando.id)
         .is('vigente_hasta', null);
 
-      if (profesorId) {
-        await supabase
-          .from('fp_cursos_preceptores')
-          .insert({ fp_curso_id: cursoId, profesor_id: profesorId, vigente_desde: hoy, vigente_hasta: null });
+      if (cursoEditando.tipo === 'secundario') {
+        setCursosSec((prev) => prev.map((c) => (c.id === cursoEditando.id ? { ...c, preceptor_id: null } : c)));
+      } else {
+        setCursosFP((prev) => prev.map((c) => (c.id === cursoEditando.id ? { ...c, preceptor_id: null } : c)));
       }
 
-      setCursosFP((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
-      setMensaje('Asignación actualizada');
+      setMensaje('Asignación eliminada');
       setTimeout(() => setMensaje(null), 3000);
+      cerrarModal();
     } catch (err) {
-      setError(`Error al asignar: ${err.message}`);
+      setError(`Error al eliminar: ${err.message}`);
     } finally {
-      setGuardandoId(null);
-    }
-  }
-
-  async function asignarATodos() {
-    if (!preceptorTodos) return;
-    if (!confirm(`¿Asignar este preceptor a todos los cursos de ${tabActiva === 'secundario' ? 'Secundario' : 'FP'}?`)) return;
-
-    const cursos = tabActiva === 'secundario' ? cursosSec : cursosFP;
-    const asignarFn = tabActiva === 'secundario' ? asignarSecundario : asignarFP;
-
-    for (const curso of cursos) {
-      await asignarFn(curso.id, Number(preceptorTodos));
+      setGuardando(false);
     }
   }
 
@@ -170,14 +196,39 @@ export default function AsignarPreceptoresPage() {
     return p ? p.nombre : '—';
   }
 
-  function filtrarCursos(cursos) {
-    if (!busqueda) return cursos;
-    const q = busqueda.toLowerCase();
-    return cursos.filter((c) => {
-      const nombre = c.nombre || `${c.anio}° ${c.division} — ${c.ciclo}`;
-      const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
-      return nombre.toLowerCase().includes(q) || preceptor.includes(q);
-    });
+  function filtrarYOrdenarCursos(cursos, tipo) {
+    let filtrados = [...cursos];
+
+    // Filtro por modalidad
+    if (modalidadFiltro !== 'todos') {
+      filtrados = filtrados.filter((c) => c.modalidad === modalidadFiltro);
+    }
+
+    // Filtro por año
+    if (anioFiltro !== 'todos') {
+      filtrados = filtrados.filter((c) => c.anio === Number(anioFiltro));
+    }
+
+    // Búsqueda
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      filtrados = filtrados.filter((c) => {
+        const nombre = c.nombre || `${c.anio}° ${c.division}`;
+        const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
+        return nombre.toLowerCase().includes(q) || preceptor.includes(q);
+      });
+    }
+
+    // Ordenamiento
+    if (ordenamiento === 'anio_asc') {
+      filtrados.sort((a, b) => a.anio - b.anio || a.division.localeCompare(b.division));
+    } else if (ordenamiento === 'anio_desc') {
+      filtrados.sort((a, b) => b.anio - a.anio || b.division.localeCompare(a.division));
+    } else if (ordenamiento === 'nombre') {
+      filtrados.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    }
+
+    return filtrados;
   }
 
   if (cargando) return null;
@@ -190,21 +241,21 @@ export default function AsignarPreceptoresPage() {
     </>
   );
 
-  const cursosSecFiltrados = filtrarCursos(cursosSec || []);
-  const cursosFPFiltrados = filtrarCursos(cursosFP || []);
+  const cursosSecFiltrados = filtrarYOrdenarCursos(cursosSec || [], 'secundario');
+  const cursosFPFiltrados = filtrarYOrdenarCursos(cursosFP || [], 'fp');
 
   return (
     <>
       <Header docente={{ nombre: `${sesion.email} · directivo` }} titulo="Asignación de Preceptores" />
       <main style={{ padding: '2rem', maxWidth: 1400, margin: '0 auto' }}>
 
-        {/* ENCABEZADO DE SECCIÓN */}
+        {/* ENCABEZADO */}
         <div style={{ marginBottom: 32 }}>
           <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, color: 'var(--text)', letterSpacing: '-0.02em' }}>
             Gestión de Preceptores
           </h2>
           <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 700 }}>
-            Visualizá el historial de asignaciones y gestioná los preceptores de cada curso. Los cambios quedan registrados automáticamente.
+            Visualizá y gestioná las asignaciones de preceptores. Los cambios quedan registrados automáticamente en el historial.
           </p>
         </div>
 
@@ -220,301 +271,143 @@ export default function AsignarPreceptoresPage() {
           </div>
         )}
 
-        {/* SECCIÓN 1: TABLA DE HISTORIAL */}
-        <section style={{ marginBottom: 40 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-              Historial de asignaciones
-            </h3>
-            <input
-              type="text"
-              placeholder="Buscar curso o preceptor..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 8,
-                border: '1px solid var(--border-strong)',
-                fontSize: 14,
-                background: 'var(--surface)',
-                minWidth: 280,
-              }}
-            />
-          </div>
-
-          {/* TABS */}
-          <div style={{ display: 'flex', gap: 0, marginBottom: 0, borderBottom: '2px solid var(--border)' }}>
-            <button
-              onClick={() => setTabActiva('secundario')}
-              style={{
-                padding: '12px 28px',
-                background: 'transparent',
-                color: tabActiva === 'secundario' ? 'var(--accent)' : 'var(--text-muted)',
-                border: 'none',
-                borderBottom: tabActiva === 'secundario' ? '2px solid var(--accent)' : '2px solid transparent',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: -2,
-                transition: 'all 0.2s'
-              }}
-            >
-              Secundario ({cursosSecFiltrados.length})
-            </button>
-            <button
-              onClick={() => setTabActiva('fp')}
-              style={{
-                padding: '12px 28px',
-                background: 'transparent',
-                color: tabActiva === 'fp' ? 'var(--accent)' : 'var(--text-muted)',
-                border: 'none',
-                borderBottom: tabActiva === 'fp' ? '2px solid var(--accent)' : '2px solid transparent',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: -2,
-                transition: 'all 0.2s'
-              }}
-            >
-              Formación Profesional ({cursosFPFiltrados.length})
-            </button>
-          </div>
-
-          {/* TABLA DE HISTORIAL */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginTop: 20 }}>
-            {tabActiva === 'secundario' && (
-              <>
-                {cursosSec === null && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>}
-                {cursosSecFiltrados.length === 0 && cursosSec !== null && (
-                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos</div>
-                )}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                        <th style={thStyle}>Curso</th>
-                        <th style={thStyle}>Ciclo</th>
-                        <th style={thStyle}>Preceptor actual</th>
-                        <th style={thStyle}>Historial</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cursosSecFiltrados.map((c, idx) => (
-                        <tr key={c.id} style={{ borderBottom: idx < cursosSecFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <td style={tdStyle}>
-                            <strong>{c.anio}° {c.division}</strong>
-                          </td>
-                          <td style={tdStyle}>{c.ciclo}</td>
-                          <td style={tdStyle}>
-                            {c.preceptor_id ? (
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '4px 12px',
-                                background: '#dcfce7',
-                                color: '#15803d',
-                                borderRadius: 20,
-                                fontSize: 13,
-                                fontWeight: 500
-                              }}>
-                                {getNombrePreceptor(c.preceptor_id)}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin asignar</span>
-                            )}
-                          </td>
-                          <td style={tdStyle}>
-                            {c.historial && c.historial.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {c.historial.map((h, i) => {
-                                  const prof = profesores.find(p => p.id === h.profesor_id);
-                                  return (
-                                    <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                      {prof?.nombre || 'Desconocido'}
-                                      <span style={{ marginLeft: 8, color: 'var(--border-strong)' }}>
-                                        {h.vigente_desde} → {h.vigente_hasta}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sin historial</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            {tabActiva === 'fp' && (
-              <>
-                {cursosFP === null && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>}
-                {cursosFPFiltrados.length === 0 && cursosFP !== null && (
-                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos</div>
-                )}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                        <th style={thStyle}>Curso</th>
-                        <th style={thStyle}>Turno / Año</th>
-                        <th style={thStyle}>Preceptor actual</th>
-                        <th style={thStyle}>Historial</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cursosFPFiltrados.map((c, idx) => (
-                        <tr key={c.id} style={{ borderBottom: idx < cursosFPFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <td style={tdStyle}>
-                            <strong>{c.nombre}</strong>
-                          </td>
-                          <td style={tdStyle}>{c.turno} · {c.anio}</td>
-                          <td style={tdStyle}>
-                            {c.preceptor_id ? (
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '4px 12px',
-                                background: '#dcfce7',
-                                color: '#15803d',
-                                borderRadius: 20,
-                                fontSize: 13,
-                                fontWeight: 500
-                              }}>
-                                {getNombrePreceptor(c.preceptor_id)}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin asignar</span>
-                            )}
-                          </td>
-                          <td style={tdStyle}>
-                            {c.historial && c.historial.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {c.historial.map((h, i) => {
-                                  const prof = profesores.find(p => p.id === h.profesor_id);
-                                  return (
-                                    <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                      {prof?.nombre || 'Desconocido'}
-                                      <span style={{ marginLeft: 8, color: 'var(--border-strong)' }}>
-                                        {h.vigente_desde} → {h.vigente_hasta}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sin historial</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-
-        {/* SECCIÓN 2: ASIGNACIÓN RÁPIDA */}
-        <section style={{ marginBottom: 40 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>
-            Asignación rápida
-          </h3>
-
-          {/* ASIGNAR A TODOS */}
-          <div style={{ background: 'var(--surface-2)', padding: 20, borderRadius: 10, marginBottom: 24, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 300 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
-                Preceptor para asignar a todos los cursos de {tabActiva === 'secundario' ? 'Secundario' : 'FP'}
-              </label>
-              <select
-                value={preceptorTodos}
-                onChange={(e) => setPreceptorTodos(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
-              >
-                <option value="">Seleccionar preceptor...</option>
-                {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        {/* FILTROS */}
+        <section style={{ marginBottom: 32 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
+            <div>
+              <label style={labelStyle}>Modalidad</label>
+              <select value={modalidadFiltro} onChange={(e) => setModalidadFiltro(e.target.value)} style={selectStyle}>
+                <option value="todos">Todas las modalidades</option>
+                <option value="Secundario">Secundario</option>
+                <option value="FP">Formación Profesional</option>
+                <option value="Técnico">Técnico</option>
               </select>
             </div>
-            <div style={{ alignSelf: 'flex-end' }}>
-              <button
-                onClick={asignarATodos}
-                disabled={!preceptorTodos}
-                style={{
-                  background: !preceptorTodos ? 'var(--border)' : 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 24px',
-                  borderRadius: 8,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: !preceptorTodos ? 'not-allowed' : 'pointer',
-                  transition: 'background 0.2s'
-                }}
-              >
-                Asignar a todos
-              </button>
+            <div>
+              <label style={labelStyle}>Año</label>
+              <select value={anioFiltro} onChange={(e) => setAnioFiltro(e.target.value)} style={selectStyle}>
+                <option value="todos">Todos los años</option>
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <option key={n} value={n}>{n}° año</option>
+                ))}
+              </select>
             </div>
-          </div>
-
-          {/* GRID DE ASIGNACIÓN INDIVIDUAL */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-            {(tabActiva === 'secundario' ? cursosSecFiltrados : cursosFPFiltrados).map((c) => (
-              <div key={c.id} style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: 20,
-                transition: 'box-shadow 0.2s'
-              }}>
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-                    {c.nombre || `${c.anio}° ${c.division}`}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    {c.ciclo || `${c.turno} · ${c.anio}`}
-                  </div>
-                </div>
-
-                <select
-                  value={c.preceptor_id || ''}
-                  disabled={guardandoId === `${tabActiva === 'secundario' ? 'sec' : 'fp'}-${c.id}`}
-                  onChange={(e) => {
-                    const fn = tabActiva === 'secundario' ? asignarSecundario : asignarFP;
-                    fn(c.id, e.target.value ? Number(e.target.value) : null);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid var(--border-strong)',
-                    fontSize: 14,
-                    background: 'var(--surface-2)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="">Sin asignar</option>
-                  {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-
-                {guardandoId === `${tabActiva === 'secundario' ? 'sec' : 'fp'}-${c.id}` && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                    Guardando...
-                  </div>
-                )}
-              </div>
-            ))}
+            <div>
+              <label style={labelStyle}>Ordenar por</label>
+              <select value={ordenamiento} onChange={(e) => setOrdenamiento(e.target.value)} style={selectStyle}>
+                <option value="anio_asc">Año (ascendente)</option>
+                <option value="anio_desc">Año (descendente)</option>
+                <option value="nombre">Nombre del curso</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Buscar</label>
+              <input
+                type="text"
+                placeholder="Curso o preceptor..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
           </div>
         </section>
 
-        {/* SECCIÓN 3: AGREGAR NUEVO PRECEPTOR */}
+        {/* TABLA DE ASIGNACIONES */}
+        <section style={{ marginBottom: 32 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 20 }}>
+            Asignaciones vigentes
+          </h3>
+
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
+                    <th style={thStyle}>Curso</th>
+                    <th style={thStyle}>Modalidad</th>
+                    <th style={thStyle}>Año</th>
+                    <th style={thStyle}>Preceptor asignado</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...cursosSecFiltrados, ...cursosFPFiltrados].map((c, idx) => {
+                    const tipo = c.nombre ? 'fp' : 'secundario';
+                    return (
+                      <tr key={c.id} style={{ borderBottom: idx < cursosSecFiltrados.length + cursosFPFiltrados.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <td style={tdStyle}>
+                          <strong>{c.nombre || `${c.anio}° ${c.division}`}</strong>
+                          {c.turno && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.turno}</div>}
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            background: c.modalidad === 'FP' ? '#fef3c7' : '#dbeafe',
+                            color: c.modalidad === 'FP' ? '#92400e' : '#1e40af'
+                          }}>
+                            {c.modalidad || 'Secundario'}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>{c.anio}°</td>
+                        <td style={tdStyle}>
+                          {c.preceptor_id ? (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '6px 14px',
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              borderRadius: 20,
+                              fontSize: 13,
+                              fontWeight: 500
+                            }}>
+                              {getNombrePreceptor(c.preceptor_id)}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 13 }}>Sin asignar</span>
+                          )}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right' }}>
+                          <button
+                            onClick={() => abrirModalEdicion(c, tipo)}
+                            style={{
+                              background: 'var(--accent)',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 14px',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              transition: 'background 0.2s'
+                            }}
+                          >
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {cursosSecFiltrados.length + cursosFPFiltrados.length === 0 && (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                No se encontraron cursos con los filtros seleccionados
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* GESTIÓN DE PRECEPTORES */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
             <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-              Preceptores registrados
+              Personal registrado ({profesores.length})
             </h3>
             <button
               onClick={() => setMostrarFormNuevo(!mostrarFormNuevo)}
@@ -526,8 +419,7 @@ export default function AsignarPreceptoresPage() {
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'background 0.2s'
+                cursor: 'pointer'
               }}
             >
               {mostrarFormNuevo ? 'Cancelar' : '+ Nuevo preceptor'}
@@ -538,27 +430,23 @@ export default function AsignarPreceptoresPage() {
             <div style={{ background: 'var(--surface-2)', padding: 24, borderRadius: 10, marginBottom: 20 }}>
               <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginBottom: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
-                    Nombre completo *
-                  </label>
+                  <label style={labelStyle}>Nombre completo *</label>
                   <input
                     type="text"
                     value={nombreNuevo}
                     onChange={(e) => setNombreNuevo(e.target.value)}
                     placeholder="Ej: Juan Pérez"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
-                    Email (opcional)
-                  </label>
+                  <label style={labelStyle}>Email (opcional)</label>
                   <input
                     type="email"
                     value={emailNuevo}
                     onChange={(e) => setEmailNuevo(e.target.value)}
                     placeholder="email@ejemplo.com"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' }}
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -581,10 +469,10 @@ export default function AsignarPreceptoresPage() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
             {profesores.map((p) => (
               <div key={p.id} style={{
-                padding: '12px 16px',
+                padding: '14px 18px',
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
                 borderRadius: 8,
@@ -593,28 +481,150 @@ export default function AsignarPreceptoresPage() {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ fontWeight: 500 }}>{p.nombre}</span>
-                {p.email && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.email}</span>}
+                <div>
+                  <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.nombre}</div>
+                  {p.email && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.email}</div>}
+                </div>
+                <span style={{
+                  fontSize: 11,
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  background: 'var(--surface-2)',
+                  color: 'var(--text-muted)',
+                  textTransform: 'capitalize'
+                }}>
+                  {p.categoria || 'preceptor'}
+                </span>
               </div>
             ))}
           </div>
         </section>
+
+        {/* MODAL DE EDICIÓN */}
+        {cursoEditando && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20
+          }} onClick={cerrarModal}>
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: 12,
+              padding: 32,
+              maxWidth: 500,
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                Editar asignación
+              </h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
+                {cursoEditando.nombre || `${cursoEditando.anio}° ${cursoEditando.division}`} — {cursoEditando.turno || cursoEditando.ciclo}
+              </p>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={labelStyle}>Preceptor asignado</label>
+                <select
+                  value={preceptorSeleccionado}
+                  onChange={(e) => setPreceptorSeleccionado(e.target.value)}
+                  style={{ ...selectStyle, width: '100%' }}
+                >
+                  <option value="">Sin asignar</option>
+                  {profesores.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {cursoEditando.historial && cursoEditando.historial.length > 0 && (
+                <div style={{ marginBottom: 24, padding: 16, background: 'var(--surface-2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+                    Historial de asignaciones
+                  </div>
+                  {cursoEditando.historial.map((h, i) => {
+                    const prof = profesores.find(p => p.id === h.profesor_id);
+                    return (
+                      <div key={i} style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+                        {prof?.nombre || 'Desconocido'}
+                        <span style={{ marginLeft: 8, fontSize: 11 }}>
+                          {h.vigente_desde} → {h.vigente_hasta}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={cerrarModal}
+                  disabled={guardando}
+                  style={{
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border-strong)',
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={eliminarAsignacion}
+                  disabled={guardando || !cursoEditando.preceptor_id}
+                  style={{
+                    background: 'var(--danger-bg)',
+                    color: 'var(--danger)',
+                    border: '1px solid #fecaca',
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: guardando || !cursoEditando.preceptor_id ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Eliminar
+                </button>
+                <button
+                  onClick={guardarAsignacion}
+                  disabled={guardando}
+                  style={{
+                    background: guardando ? 'var(--text-muted)' : 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 24px',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: guardando ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {guardando ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );
 }
 
-const thStyle = {
-  padding: '14px 16px',
-  textAlign: 'left',
-  fontSize: 12,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  color: 'var(--text-muted)',
-  fontWeight: 600
-};
-
-const tdStyle = {
-  padding: '14px 16px',
-  verticalAlign: 'top'
-};
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' };
+const selectStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
+const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
+const thStyle = { padding: '14px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 };
+const tdStyle = { padding: '14px 16px', verticalAlign: 'middle' };
