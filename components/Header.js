@@ -17,8 +17,8 @@ export default function Header({ docente, titulo }) {
       <div className="brand">
         <div className="logo">📚</div>
         <div>
-          <h1>{titulo || 'Cuaderno del Profesor'}</h1>
-          <p>Escuela Técnica "Fray Luis Beltrán" · ciclo 2026</p>
+          <h1>{titulo || 'Gestion Institucional Escolar'}</h1>
+          <p>Escuela Técnica "Fray Luis Beltrán"</p>
         </div>
       </div>
 
