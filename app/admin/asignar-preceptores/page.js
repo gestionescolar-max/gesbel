@@ -30,7 +30,7 @@ export default function AsignarPreceptoresPage() {
   async function cargarTodo() {
     const [{ data: cSec, error: errSec }, { data: cFP, error: errFP }, { data: p }, { data: asigSec }, { data: asigFP }] = await Promise.all([
       supabase.from('cursos').select('id, anio, division, ciclo, modalidad').order('anio').order('division'),
-      supabase.from('fp_cursos').select('id, nombre, anio, turno, modalidad').order('nombre'),
+      supabase.from('fp_cursos').select('id, nombre, anio, turno').order('nombre'), // ✅ CAMBIO 1: se quitó 'modalidad'
       supabase.from('profesores').select('id, nombre, email, categoria').order('nombre'),
       supabase.from('preceptores_curso').select('curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
       supabase.from('fp_cursos_preceptores').select('fp_curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
@@ -50,6 +50,7 @@ export default function AsignarPreceptoresPage() {
     });
     setCursosSec((cSec || []).map((c) => ({
       ...c,
+      modalidad: c.modalidad || 'Secundario', // ✅ CAMBIO 2: se asigna manualmente
       preceptor_id: mapaSec[c.id] || null,
       historial: historialSec[c.id] || []
     })));
@@ -66,6 +67,7 @@ export default function AsignarPreceptoresPage() {
     });
     setCursosFP((cFP || []).map((c) => ({
       ...c,
+      modalidad: 'FP', // ✅ CAMBIO 3: se asigna manualmente
       preceptor_id: mapaFP[c.id] || null,
       historial: historialFP[c.id] || []
     })));
