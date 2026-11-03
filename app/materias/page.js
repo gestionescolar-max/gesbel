@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { useDocente } from '@/lib/useDocente';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 
 export default function MateriasPage() {
   const { docente, cargando } = useDocente();
@@ -26,38 +26,48 @@ export default function MateriasPage() {
   if (cargando || !docente) return null;
 
   return (
-    <>
-      <Header docente={docente} />
-      <main>
-        <div className="toolbar">
-          <div className="titulo">
-            <h2>Tus materias</h2>
-            <p>Elegí un curso para abrir el cuaderno</p>
-          </div>
+    <Sidebar docente={docente} titulo="Mis materias">
+      <div className="toolbar">
+        <div className="titulo">
+          <h2>Tus materias</h2>
+          <p>Elegí un curso para abrir el cuaderno</p>
         </div>
-        {error && <div className="status error">Error al cargar materias: {error}</div>}
-        {materias === null && !error && <div className="empty">Cargando…</div>}
-        {materias && materias.length === 0 && (
-          <div className="empty"><div className="icon">📭</div>No tenés materias asignadas todavía en el sistema.</div>
-        )}
-        {materias && materias.length > 0 && (
-          <div className="materias-grid">
-            {materias.map((m) => {
-              const esFP = m.cursos?.modalidad === 'FP';
-              const nombreCurso = esFP
-                ? `🌙 ${m.cursos.fp_perfiles?.nombre || 'Formación Profesional'}`
-                : `${m.cursos.anio}° ${m.cursos.division} — ${m.cursos.ciclo}`;
-              return (
-                <div key={m.id} className="materia-card" onClick={() => router.push(`/materias/${m.id}`)} style={{ borderColor: esFP ? 'var(--amber)' : undefined }}>
-                  <div className="nombre">{m.plan_materias?.nombre}</div>
-                  <div className="curso">{nombreCurso}</div>
-                  {m.grupo && <span className="grupo">{m.grupo}</span>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
-    </>
+      </div>
+
+      {error && <div className="status error">Error al cargar materias: {error}</div>}
+
+      {materias === null && !error && <div className="empty">Cargando…</div>}
+
+      {materias && materias.length === 0 && (
+        <div className="empty">
+          <div className="icon">📭</div>
+          No tenés materias asignadas todavía en el sistema.
+        </div>
+      )}
+
+      {materias && materias.length > 0 && (
+        <div className="materias-grid">
+          {materias.map((m) => {
+            const esFP = m.cursos?.modalidad === 'FP';
+            const nombreCurso = esFP
+              ? `🌙 ${m.cursos.fp_perfiles?.nombre || 'Formación Profesional'}`
+              : `${m.cursos.anio}° ${m.cursos.division} — ${m.cursos.ciclo}`;
+
+            return (
+              <div
+                key={m.id}
+                className="materia-card"
+                onClick={() => router.push(`/materias/${m.id}`)}
+                style={{ borderColor: esFP ? 'var(--amber)' : undefined }}
+              >
+                <div className="nombre">{m.plan_materias?.nombre}</div>
+                <div className="curso">{nombreCurso}</div>
+                {m.grupo && <span className="grupo">{m.grupo}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Sidebar>
   );
 }
