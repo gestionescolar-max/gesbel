@@ -4,6 +4,13 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSesion } from '@/lib/useSesion';
 import Header from '@/components/Header';
 
+// ✅ ESTILOS MOVIDOS AL PRINCIPIO (después de los imports)
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' };
+const selectStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
+const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
+const thStyle = { padding: '14px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 };
+const tdStyle = { padding: '14px 16px', verticalAlign: 'middle' };
+
 export default function AsignarPreceptoresPage() {
   const { sesion, cargando, autorizado } = useSesion(['directivo']);
   const [cursosSec, setCursosSec] = useState(null);
@@ -15,13 +22,9 @@ export default function AsignarPreceptoresPage() {
   const [anioFiltro, setAnioFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [ordenamiento, setOrdenamiento] = useState('anio_asc');
-
-  // Modal de edición
   const [cursoEditando, setCursoEditando] = useState(null);
   const [preceptorSeleccionado, setPreceptorSeleccionado] = useState('');
   const [guardando, setGuardando] = useState(false);
-
-  // Formulario nuevo preceptor
   const [mostrarFormNuevo, setMostrarFormNuevo] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [emailNuevo, setEmailNuevo] = useState('');
@@ -30,7 +33,7 @@ export default function AsignarPreceptoresPage() {
   async function cargarTodo() {
     const [{ data: cSec, error: errSec }, { data: cFP, error: errFP }, { data: p }, { data: asigSec }, { data: asigFP }] = await Promise.all([
       supabase.from('cursos').select('id, anio, division, ciclo, modalidad').order('anio').order('division'),
-      supabase.from('fp_cursos').select('id, nombre, anio, turno').order('nombre'), // ✅ CAMBIO 1: se quitó 'modalidad'
+      supabase.from('fp_cursos').select('id, nombre, anio, turno').order('nombre'),
       supabase.from('profesores').select('id, nombre, email, categoria').order('nombre'),
       supabase.from('preceptores_curso').select('curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
       supabase.from('fp_cursos_preceptores').select('fp_curso_id, profesor_id, vigente_desde, vigente_hasta').order('vigente_desde', { ascending: false }),
@@ -50,7 +53,7 @@ export default function AsignarPreceptoresPage() {
     });
     setCursosSec((cSec || []).map((c) => ({
       ...c,
-      modalidad: c.modalidad || 'Secundario', // ✅ CAMBIO 2: se asigna manualmente
+      modalidad: c.modalidad || 'Secundario',
       preceptor_id: mapaSec[c.id] || null,
       historial: historialSec[c.id] || []
     })));
@@ -67,7 +70,7 @@ export default function AsignarPreceptoresPage() {
     });
     setCursosFP((cFP || []).map((c) => ({
       ...c,
-      modalidad: 'FP', // ✅ CAMBIO 3: se asigna manualmente
+      modalidad: 'FP',
       preceptor_id: mapaFP[c.id] || null,
       historial: historialFP[c.id] || []
     })));
@@ -124,14 +127,12 @@ export default function AsignarPreceptoresPage() {
       const tabla = cursoEditando.tipo === 'secundario' ? 'preceptores_curso' : 'fp_cursos_preceptores';
       const campoId = cursoEditando.tipo === 'secundario' ? 'curso_id' : 'fp_curso_id';
 
-      // Cerrar asignación vigente
       await supabase
         .from(tabla)
         .update({ vigente_hasta: hoy })
         .eq(campoId, cursoEditando.id)
         .is('vigente_hasta', null);
 
-      // Crear nueva asignación si hay preceptor
       if (preceptorSeleccionado) {
         await supabase
           .from(tabla)
@@ -143,7 +144,6 @@ export default function AsignarPreceptoresPage() {
           });
       }
 
-      // Actualizar estado local
       if (cursoEditando.tipo === 'secundario') {
         setCursosSec((prev) => prev.map((c) => (c.id === cursoEditando.id ? { ...c, preceptor_id: preceptorSeleccionado ? Number(preceptorSeleccionado) : null } : c)));
       } else {
@@ -199,35 +199,51 @@ export default function AsignarPreceptoresPage() {
   }
 
   function filtrarYOrdenarCursos(cursos, tipo) {
+    if (!cursos) return [];
     let filtrados = [...cursos];
 
-    // Filtro por modalidad
     if (modalidadFiltro !== 'todos') {
       filtrados = filtrados.filter((c) => c.modalidad === modalidadFiltro);
     }
 
-    // Filtro por año
     if (anioFiltro !== 'todos') {
       filtrados = filtrados.filter((c) => c.anio === Number(anioFiltro));
     }
 
-    // Búsqueda
     if (busqueda) {
       const q = busqueda.toLowerCase();
       filtrados = filtrados.filter((c) => {
-        const nombre = c.nombre || `${c.anio}° ${c.division}`;
+        const nombre = c.nombre || `${c.anio}° ${c.division || ''}`;
         const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
         return nombre.toLowerCase().includes(q) || preceptor.includes(q);
       });
     }
 
-    // Ordenamiento
+    // ✅ ORDENAMIENTO CORREGIDO (maneja undefined)
     if (ordenamiento === 'anio_asc') {
-      filtrados.sort((a, b) => a.anio - b.anio || a.division.localeCompare(b.division));
+      filtrados.sort((a, b) => {
+        const anioA = a.anio || 0;
+        const anioB = b.anio || 0;
+        if (anioA !== anioB) return anioA - anioB;
+        const divA = a.division || '';
+        const divB = b.division || '';
+        return divA.localeCompare(divB);
+      });
     } else if (ordenamiento === 'anio_desc') {
-      filtrados.sort((a, b) => b.anio - a.anio || b.division.localeCompare(a.division));
+      filtrados.sort((a, b) => {
+        const anioA = a.anio || 0;
+        const anioB = b.anio || 0;
+        if (anioA !== anioB) return anioB - anioA;
+        const divA = a.division || '';
+        const divB = b.division || '';
+        return divB.localeCompare(divA);
+      });
     } else if (ordenamiento === 'nombre') {
-      filtrados.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+      filtrados.sort((a, b) => {
+        const nombreA = a.nombre || `${a.anio}° ${a.division || ''}`;
+        const nombreB = b.nombre || `${b.anio}° ${b.division || ''}`;
+        return nombreA.localeCompare(nombreB);
+      });
     }
 
     return filtrados;
@@ -624,9 +640,3 @@ export default function AsignarPreceptoresPage() {
     </>
   );
 }
-
-const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' };
-const selectStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
-const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', fontSize: 14, background: 'var(--surface)' };
-const thStyle = { padding: '14px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 };
-const tdStyle = { padding: '14px 16px', verticalAlign: 'middle' };
