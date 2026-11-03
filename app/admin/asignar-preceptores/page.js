@@ -202,55 +202,66 @@ export default function AsignarPreceptoresPage() {
     return p ? p.nombre : '—';
   }
 
+  // ✅ FUNCIÓN DE FILTRADO CORREGIDA
   function filtrarYOrdenarCursos() {
-    let todos = [];
+    let resultados = [];
 
-    // 1. Filtrar por tipo
-    if (tipoFiltro === 'todos') {
-      todos = [...(cursosSec || []), ...(cursosFP || [])];
-    } else if (tipoFiltro === 'secundario') {
-      todos = [...(cursosSec || [])];
+    // PASO 1: Seleccionar qué cursos usar según el tipo
+    if (tipoFiltro === 'secundario') {
+      resultados = [...(cursosSec || [])];
     } else if (tipoFiltro === 'fp') {
-      todos = [...(cursosFP || [])];
+      resultados = [...(cursosFP || [])];
+    } else {
+      // 'todos': combinar ambos
+      resultados = [...(cursosSec || []), ...(cursosFP || [])];
     }
 
-    // 2. Filtrar por año (solo para secundario)
-    if (anioFiltro !== 'todos' && tipoFiltro === 'secundario') {
-      todos = todos.filter((c) => c.anio === Number(anioFiltro));
+    // PASO 2: Filtrar por año (solo si es secundario y hay filtro seleccionado)
+    if (tipoFiltro === 'secundario' && anioFiltro !== 'todos') {
+      const anioNum = Number(anioFiltro);
+      resultados = resultados.filter((c) => c.anio === anioNum);
     }
 
-    // 3. Filtrar por curso FP específico
-    if (cursoFPFiltro !== 'todos' && tipoFiltro === 'fp') {
-      todos = todos.filter((c) => c.id === Number(cursoFPFiltro));
+    // PASO 3: Filtrar por curso FP específico (solo si es FP y hay filtro seleccionado)
+    if (tipoFiltro === 'fp' && cursoFPFiltro !== 'todos') {
+      const cursoId = Number(cursoFPFiltro);
+      resultados = resultados.filter((c) => c.id === cursoId);
     }
 
-    // 4. Búsqueda por texto
-    if (busqueda) {
-      const q = busqueda.toLowerCase();
-      todos = todos.filter((c) => {
-        const nombre = c.nombre || `${c.anio || ''}° ${c.division || ''}`;
-        const preceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
-        return nombre.toLowerCase().includes(q) || preceptor.includes(q);
+    // PASO 4: Filtrar por búsqueda de texto
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase().trim();
+      resultados = resultados.filter((c) => {
+        const nombreCurso = (c.nombre || `${c.anio || ''}° ${c.division || ''}`).toLowerCase();
+        const nombrePreceptor = getNombrePreceptor(c.preceptor_id).toLowerCase();
+        return nombreCurso.includes(q) || nombrePreceptor.includes(q);
       });
     }
 
-    // 5. Ordenar
-    todos.sort((a, b) => {
-      if (tipoFiltro === 'secundario' || (tipoFiltro === 'todos' && !a.nombre)) {
+    // PASO 5: Ordenar
+    resultados.sort((a, b) => {
+      // Si es secundario, ordenar por año (grado) y división
+      if (a.modalidad === 'Secundario' && b.modalidad === 'Secundario') {
         const anioA = a.anio || 0;
         const anioB = b.anio || 0;
         if (anioA !== anioB) return anioA - anioB;
         const divA = a.division || '';
         const divB = b.division || '';
         return divA.localeCompare(divB);
-      } else {
+      }
+      // Si es FP, ordenar por nombre
+      if (a.modalidad === 'FP' && b.modalidad === 'FP') {
         const nombreA = a.nombre || '';
         const nombreB = b.nombre || '';
         return nombreA.localeCompare(nombreB);
       }
+      // Si son de diferente tipo, secundario primero
+      if (a.modalidad === 'Secundario') return -1;
+      if (b.modalidad === 'Secundario') return 1;
+      return 0;
     });
 
-    return todos;
+    return resultados;
   }
 
   if (cargando) return null;
@@ -285,7 +296,12 @@ export default function AsignarPreceptoresPage() {
         <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
           <div>
             <label style={labelStyle}>Tipo de curso</label>
-            <select value={tipoFiltro} onChange={(e) => { setTipoFiltro(e.target.value); setAnioFiltro('todos'); setCursoFPFiltro('todos'); }} style={selectStyle}>
+            <select value={tipoFiltro} onChange={(e) => {
+              setTipoFiltro(e.target.value);
+              setAnioFiltro('todos');
+              setCursoFPFiltro('todos');
+              setBusqueda('');
+            }} style={selectStyle}>
               <option value="todos">Todos los cursos</option>
               <option value="secundario">Secundario (1° a 7°)</option>
               <option value="fp">Formación Profesional</option>
@@ -294,9 +310,9 @@ export default function AsignarPreceptoresPage() {
 
           {tipoFiltro === 'secundario' && (
             <div>
-              <label style={labelStyle}>Año</label>
+              <label style={labelStyle}>Grado/Año</label>
               <select value={anioFiltro} onChange={(e) => setAnioFiltro(e.target.value)} style={selectStyle}>
-                <option value="todos">Todos los años</option>
+                <option value="todos">Todos los grados</option>
                 {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                   <option key={n} value={n}>{n}° año</option>
                 ))}
@@ -306,7 +322,7 @@ export default function AsignarPreceptoresPage() {
 
           {tipoFiltro === 'fp' && (
             <div>
-              <label style={labelStyle}>Curso FP</label>
+              <label style={labelStyle}>Curso específico</label>
               <select value={cursoFPFiltro} onChange={(e) => setCursoFPFiltro(e.target.value)} style={selectStyle}>
                 <option value="todos">Todos los cursos FP</option>
                 {(cursosFP || []).map((c) => (
@@ -326,6 +342,13 @@ export default function AsignarPreceptoresPage() {
               style={inputStyle}
             />
           </div>
+        </div>
+
+        {/* CONTADOR DE RESULTADOS */}
+        <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text-muted)' }}>
+          Mostrando {cursosFiltrados.length} curso{cursosFiltrados.length !== 1 ? 's' : ''}
+          {tipoFiltro === 'secundario' && anioFiltro !== 'todos' && ` de ${anioFiltro}° año`}
+          {tipoFiltro === 'fp' && cursoFPFiltro !== 'todos' && ` de ${(cursosFP || []).find(c => c.id === Number(cursoFPFiltro))?.nombre || ''}`}
         </div>
 
         {/* VISTA DESKTOP: TABLA */}
@@ -375,7 +398,7 @@ export default function AsignarPreceptoresPage() {
                 </tbody>
               </table>
             </div>
-            {cursosFiltrados.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos</div>}
+            {cursosFiltrados.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron cursos con los filtros seleccionados</div>}
           </div>
         )}
 
