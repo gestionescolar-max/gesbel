@@ -125,42 +125,107 @@ export default function AsignarPreceptoresPage() {
 
   async function asignarSecundario(cursoId, profesorId) {
     setGuardandoId(`sec-${cursoId}`);
+    setError(null);
 
-    // Cerrar asignación actual si existe
-    await supabase
-      .from('preceptores_curso')
-      .update({ vigente_hasta: new Date().toISOString().slice(0, 10) })
-      .eq('curso_id', cursoId)
-      .is('vigente_hasta', null);
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
 
-    // Crear nueva asignación
-    if (profesorId) {
-      await supabase
+      // 1. Cerrar asignación vigente actual
+      const { error: errUpdate } = await supabase
         .from('preceptores_curso')
-        .insert({ curso_id: cursoId, profesor_id: profesorId, vigente_desde: new Date().toISOString().slice(0, 10) });
-    }
+        .update({ vigente_hasta: hoy })
+        .eq('curso_id', cursoId)
+        .is('vigente_hasta', null);
 
-    setCursosSec((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
-    setGuardandoId(null);
+      if (errUpdate && errUpdate.code !== 'PGRST116') throw errUpdate;
+
+      // 2. Crear nueva asignación
+      if (profesorId) {
+        const { error: errInsert } = await supabase
+          .from('preceptores_curso')
+          .insert({
+            curso_id: cursoId,
+            profesor_id: profesorId,
+            vigente_desde: hoy,
+            vigente_hasta: null
+          });
+
+        if (errInsert) {
+          // Si es conflicto, hacer upsert
+          if (errInsert.code === '23505') {
+            const { error: errUpsert } = await supabase
+              .from('preceptores_curso')
+              .upsert({
+                curso_id: cursoId,
+                profesor_id: profesorId,
+                vigente_desde: hoy,
+                vigente_hasta: null
+              }, { onConflict: 'curso_id,profesor_id,vigente_hasta' });
+
+            if (errUpsert) throw errUpsert;
+          } else {
+            throw errInsert;
+          }
+        }
+      }
+
+      setCursosSec((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
+    } catch (err) {
+      setError(`Error al asignar: ${err.message}`);
+    } finally {
+      setGuardandoId(null);
+    }
   }
 
   async function asignarFP(cursoId, profesorId) {
     setGuardandoId(`fp-${cursoId}`);
+    setError(null);
 
-    await supabase
-      .from('fp_cursos_preceptores')
-      .update({ vigente_hasta: new Date().toISOString().slice(0, 10) })
-      .eq('fp_curso_id', cursoId)
-      .is('vigente_hasta', null);
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
 
-    if (profesorId) {
-      await supabase
+      const { error: errUpdate } = await supabase
         .from('fp_cursos_preceptores')
-        .insert({ fp_curso_id: cursoId, profesor_id: profesorId, vigente_desde: new Date().toISOString().slice(0, 10) });
-    }
+        .update({ vigente_hasta: hoy })
+        .eq('fp_curso_id', cursoId)
+        .is('vigente_hasta', null);
 
-    setCursosFP((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
-    setGuardandoId(null);
+      if (errUpdate && errUpdate.code !== 'PGRST116') throw errUpdate;
+
+      if (profesorId) {
+        const { error: errInsert } = await supabase
+          .from('fp_cursos_preceptores')
+          .insert({
+            fp_curso_id: cursoId,
+            profesor_id: profesorId,
+            vigente_desde: hoy,
+            vigente_hasta: null
+          });
+
+        if (errInsert) {
+          if (errInsert.code === '23505') {
+            const { error: errUpsert } = await supabase
+              .from('fp_cursos_preceptores')
+              .upsert({
+                fp_curso_id: cursoId,
+                profesor_id: profesorId,
+                vigente_desde: hoy,
+                vigente_hasta: null
+              }, { onConflict: 'fp_curso_id,profesor_id,vigente_hasta' });
+
+            if (errUpsert) throw errUpsert;
+          } else {
+            throw errInsert;
+          }
+        }
+      }
+
+      setCursosFP((prev) => prev.map((c) => (c.id === cursoId ? { ...c, preceptor_id: profesorId } : c)));
+    } catch (err) {
+      setError(`Error al asignar: ${err.message}`);
+    } finally {
+      setGuardandoId(null);
+    }
   }
 
   async function asignarATodos(tipo) {
