@@ -19,6 +19,7 @@ export default function AsignarPreceptoresPage() {
   const [mensaje, setMensaje] = useState(null);
   const [tipoFiltro, setTipoFiltro] = useState('todos');
   const [anioFiltro, setAnioFiltro] = useState('todos');
+  const [cursoFPFiltro, setCursoFPFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [cursoEditando, setCursoEditando] = useState(null);
   const [preceptorSeleccionado, setPreceptorSeleccionado] = useState('');
@@ -29,7 +30,6 @@ export default function AsignarPreceptoresPage() {
   const [creando, setCreando] = useState(false);
   const [esMovil, setEsMovil] = useState(false);
 
-  // Detectar si es móvil
   useEffect(() => {
     const checkMovil = () => setEsMovil(window.innerWidth < 768);
     checkMovil();
@@ -205,6 +205,7 @@ export default function AsignarPreceptoresPage() {
   function filtrarYOrdenarCursos() {
     let todos = [];
 
+    // 1. Filtrar por tipo
     if (tipoFiltro === 'todos') {
       todos = [...(cursosSec || []), ...(cursosFP || [])];
     } else if (tipoFiltro === 'secundario') {
@@ -213,10 +214,17 @@ export default function AsignarPreceptoresPage() {
       todos = [...(cursosFP || [])];
     }
 
+    // 2. Filtrar por año (solo para secundario)
     if (anioFiltro !== 'todos' && tipoFiltro === 'secundario') {
       todos = todos.filter((c) => c.anio === Number(anioFiltro));
     }
 
+    // 3. Filtrar por curso FP específico
+    if (cursoFPFiltro !== 'todos' && tipoFiltro === 'fp') {
+      todos = todos.filter((c) => c.id === Number(cursoFPFiltro));
+    }
+
+    // 4. Búsqueda por texto
     if (busqueda) {
       const q = busqueda.toLowerCase();
       todos = todos.filter((c) => {
@@ -226,6 +234,7 @@ export default function AsignarPreceptoresPage() {
       });
     }
 
+    // 5. Ordenar
     todos.sort((a, b) => {
       if (tipoFiltro === 'secundario' || (tipoFiltro === 'todos' && !a.nombre)) {
         const anioA = a.anio || 0;
@@ -273,10 +282,10 @@ export default function AsignarPreceptoresPage() {
         )}
 
         {/* FILTROS */}
-        <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
           <div>
             <label style={labelStyle}>Tipo de curso</label>
-            <select value={tipoFiltro} onChange={(e) => { setTipoFiltro(e.target.value); setAnioFiltro('todos'); }} style={selectStyle}>
+            <select value={tipoFiltro} onChange={(e) => { setTipoFiltro(e.target.value); setAnioFiltro('todos'); setCursoFPFiltro('todos'); }} style={selectStyle}>
               <option value="todos">Todos los cursos</option>
               <option value="secundario">Secundario (1° a 7°)</option>
               <option value="fp">Formación Profesional</option>
@@ -290,6 +299,18 @@ export default function AsignarPreceptoresPage() {
                 <option value="todos">Todos los años</option>
                 {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                   <option key={n} value={n}>{n}° año</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {tipoFiltro === 'fp' && (
+            <div>
+              <label style={labelStyle}>Curso FP</label>
+              <select value={cursoFPFiltro} onChange={(e) => setCursoFPFiltro(e.target.value)} style={selectStyle}>
+                <option value="todos">Todos los cursos FP</option>
+                {(cursosFP || []).map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
                 ))}
               </select>
             </div>
