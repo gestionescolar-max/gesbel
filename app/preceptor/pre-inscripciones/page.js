@@ -4,14 +4,34 @@ import { supabase } from '@/lib/supabaseClient';
 import { useDocente } from '@/lib/useDocente';
 import Sidebar from '@/components/Sidebar';
 
+// Documentos requeridos
+const DOCUMENTOS_REQUERIDOS = [
+    { id: 'doc_dni', nombre: 'Copia de DNI', obligatorio: true },
+    { id: 'doc_foto', nombre: 'Foto 4x4', obligatorio: true },
+    { id: 'doc_certificado_estudios', nombre: 'Certificado de estudios', obligatorio: true },
+    { id: 'doc_cuil', nombre: 'Constancia de CUIL/CUIT', obligatorio: true },
+    { id: 'doc_certificado_medico', nombre: 'Certificado médico', obligatorio: true },
+    { id: 'doc_libreta_trabajo', nombre: 'Libreta de trabajo', obligatorio: false }
+];
+
+const CONCEPTOS_PAGO = ['Inscripción', 'Cuota 1', 'Cuota 2', 'Cuota 3', 'Cooperadora', 'Otro'];
+const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Débito automático'];
+
 export default function PreInscripcionesPage() {
     const { docente, cargando } = useDocente();
     const [preinscripciones, setPreinscripciones] = useState([]);
     const [cursosFP, setCursosFP] = useState([]);
     const [filtroCurso, setFiltroCurso] = useState('todos');
-    const [filtroEstado, setFiltroEstado] = useState('todos');
+    const [filtroDoc, setFiltroDoc] = useState('todos');
     const [busqueda, setBusqueda] = useState('');
     const [mensaje, setMensaje] = useState(null);
+
+    // Modales
+    const [modalDocs, setModalDocs] = useState(null);
+    const [modalPagos, setModalPagos] = useState(null);
+    const [docForm, setDocForm] = useState({});
+    const [linkDrive, setLinkDrive] = useState('');
+    const [pagoForm, setPagoForm] = useState({ concepto: 'Inscripción', monto: '', fecha_pago: '', numero_recibo: '', forma_pago: 'Efectivo', observaciones: '' });
 
     useEffect(() => {
         if (!docente) return;
@@ -27,27 +47,72 @@ export default function PreInscripcionesPage() {
         setPreinscripciones(preinsc || []);
     }
 
-    async function toggleDocumentacion(id, estadoActual) {
+    async function abrirModalDocs(preinsc) {
+        setModalDocs(preinsc);
+        setDocForm({
+            doc_dni: preinsc.doc_dni || false,
+            doc_foto: preinsc.doc_foto || false,
+            doc_certificado_estudios: preinsc.doc_certificado_estudios || false,
+            doc_cuil: preinsc.doc_cuil || false,
+            doc_certificado_medico: preinsc.doc_certificado_medico || false,
+            doc_libreta_trabajo: preinsc.doc_libreta_trabajo || false
+        });
+        setLinkDrive(preinsc.link_carpeta_drive || '');
+    }
+
+    async function guardarDocumentos() {
+        if (!modalDocs) return;
         const { error } = await supabase
             .from('fp_preinscripciones')
             .update({
-                documentacion_completa: !estadoActual,
+                ...docForm,
+                link_carpeta_drive: linkDrive,
+                documentacion_completa: DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).every(d => docForm[d.id]),
                 updated_at: new Date().toISOString()
             })
-            .eq('id', id);
+            .eq('id', modalDocs.id);
 
         if (error) {
             setMensaje({ tipo: 'error', texto: error.message });
         } else {
-            setMensaje({ tipo: 'ok', texto: !estadoActual ? 'Documentación marcada como completa' : 'Documentación marcada como pendiente' });
+            setMensaje({ tipo: 'ok', texto: 'Documentación actualizada correctamente' });
             cargarDatos();
+            setModalDocs(null);
+            setTimeout(() => setMensaje(null), 3000);
+        }
+    }
+
+    async function abrirModalPagos(preinsc) {
+        setModalPagos(preinsc);
+        setPagoForm({ concepto: 'Inscripción', monto: '', fecha_pago: new Date().toISOString().split('T')[0], numero_recibo: '', forma_pago: 'Efectivo', observaciones: '' });
+    }
+
+    async function registrarPago() {
+        if (!modalPagos || !pagoForm.monto || !pagoForm.fecha_pago) {
+            setMensaje({ tipo: 'error', texto: 'Completá monto y fecha' });
+            return;
+        }
+
+        const { error } = await supabase
+            .from('fp_pagos')
+            .insert({
+                preinscripcion_id: modalPagos.id,
+                ...pagoForm,
+                monto: parseFloat(pagoForm.monto),
+                creado_por: docente.id
+            });
+
+        if (error) {
+            setMensaje({ tipo: 'error', texto: error.message });
+        } else {
+            setMensaje({ tipo: 'ok', texto: 'Pago registrado correctamente' });
+            setPagoForm({ concepto: 'Inscripción', monto: '', fecha_pago: new Date().toISOString().split('T')[0], numero_recibo: '', forma_pago: 'Efectivo', observaciones: '' });
             setTimeout(() => setMensaje(null), 3000);
         }
     }
 
     function calcularEstadisticas() {
         const stats = {};
-
         cursosFP.forEach(curso => {
             const preinscCurso = preinscripciones.filter(p => p.fp_curso_id === curso.id);
             const conDocCompleta = preinscCurso.filter(p => p.documentacion_completa).length;
@@ -63,7 +128,6 @@ export default function PreInscripcionesPage() {
                 cupoTotal: curso.cupo || 0
             };
         });
-
         return stats;
     }
 
@@ -74,9 +138,9 @@ export default function PreInscripcionesPage() {
             resultado = resultado.filter(p => p.fp_curso_id === Number(filtroCurso));
         }
 
-        if (filtroEstado === 'completa') {
+        if (filtroDoc === 'completa') {
             resultado = resultado.filter(p => p.documentacion_completa);
-        } else if (filtroEstado === 'pendiente') {
+        } else if (filtroDoc === 'pendiente') {
             resultado = resultado.filter(p => !p.documentacion_completa);
         }
 
@@ -107,7 +171,7 @@ export default function PreInscripcionesPage() {
                 <div style={{ marginBottom: 24 }}>
                     <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Pre-inscripciones Formación Profesional</h2>
                     <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                        Gestioná las pre-inscripciones y marcá cuando el alumno entregue la documentación completa.
+                        Gestioná las pre-inscripciones, documentación y pagos.
                     </p>
                 </div>
 
@@ -155,8 +219,8 @@ export default function PreInscripcionesPage() {
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Cupo: {s.cupoTotal}</div>
 
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                                        <span style={{ color: '#15803d' }}>✓ {s.conDocCompleta} completos</span>
-                                        <span style={{ color: '#92400e' }}>⏳ {s.pendientes} pendientes</span>
+                                        <span style={{ color: '#15803d' }}>{s.conDocCompleta} completos</span>
+                                        <span style={{ color: '#92400e' }}>{s.pendientes} pendientes</span>
                                     </div>
 
                                     <div style={{ background: 'var(--surface-2)', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 8 }}>
@@ -188,7 +252,7 @@ export default function PreInscripcionesPage() {
                     </div>
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Documentación</label>
-                        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
+                        <select value={filtroDoc} onChange={(e) => setFiltroDoc(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
                             <option value="todos">Todos</option>
                             <option value="completa">Completa</option>
                             <option value="pendiente">Pendiente</option>
@@ -209,9 +273,9 @@ export default function PreInscripcionesPage() {
                                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Alumno</th>
                                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>DNI</th>
                                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Curso</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Expediente</th>
                                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Documentación</th>
-                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Fecha</th>
-                                    <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Acción</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -225,6 +289,7 @@ export default function PreInscripcionesPage() {
                                             </td>
                                             <td style={{ padding: '12px 16px' }}>{p.dni}</td>
                                             <td style={{ padding: '12px 16px', fontSize: 13 }}>{curso?.nombre || '—'}</td>
+                                            <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{p.numero_expediente || '—'}</td>
                                             <td style={{ padding: '12px 16px' }}>
                                                 <span style={{
                                                     display: 'inline-block',
@@ -238,22 +303,15 @@ export default function PreInscripcionesPage() {
                                                     {p.documentacion_completa ? 'Completa' : 'Pendiente'}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '12px 16px', fontSize: 13 }}>{p.fecha_preinscripcion || '—'}</td>
-                                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                                <button
-                                                    onClick={() => toggleDocumentacion(p.id, p.documentacion_completa)}
-                                                    style={{
-                                                        background: p.documentacion_completa ? '#fef3c7' : '#dcfce7',
-                                                        color: p.documentacion_completa ? '#92400e' : '#15803d',
-                                                        border: 'none',
-                                                        padding: '6px 12px',
-                                                        borderRadius: 6,
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    {p.documentacion_completa ? 'Marcar pendiente' : 'Marcar completa'}
+                                            <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                <button onClick={() => abrirModalDocs(p)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 6 }}>
+                                                    Documentos
+                                                </button>
+                                                <button onClick={() => abrirModalPagos(p)} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 6 }}>
+                                                    Pago
+                                                </button>
+                                                <button onClick={() => window.open(`/preceptor/comprobante/${p.id}`, '_blank')} style={{ background: '#6b7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                                    Comprobante
                                                 </button>
                                             </td>
                                         </tr>
@@ -266,6 +324,85 @@ export default function PreInscripcionesPage() {
                         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No hay pre-inscripciones</div>
                     )}
                 </div>
+
+                {/* MODAL DOCUMENTOS */}
+                {modalDocs && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalDocs(null)}>
+                        <div style={{ background: 'var(--surface)', borderRadius: 12, padding: 28, maxWidth: 500, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Documentación - {modalDocs.apellido}, {modalDocs.nombre}</h3>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Expediente: {modalDocs.numero_expediente || 'Pendiente'}</p>
+
+                            <div style={{ marginBottom: 20 }}>
+                                {DOCUMENTOS_REQUERIDOS.map(doc => (
+                                    <label key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 6, marginBottom: 8, cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={docForm[doc.id] || false}
+                                            onChange={(e) => setDocForm(prev => ({ ...prev, [doc.id]: e.target.checked }))}
+                                        />
+                                        <span style={{ fontSize: 14 }}>{doc.nombre} {doc.obligatorio && <span style={{ color: '#ef4444', fontSize: 11 }}>*</span>}</span>
+                                    </label>
+                                ))}
+                            </div>
+
+                            <div style={{ marginBottom: 20 }}>
+                                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Link de carpeta Google Drive (opcional)</label>
+                                <input type="url" value={linkDrive} onChange={(e) => setLinkDrive(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }} />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                <button onClick={() => setModalDocs(null)} style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '10px 20px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                                <button onClick={guardarDocumentos} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL PAGOS */}
+                {modalPagos && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalPagos(null)}>
+                        <div style={{ background: 'var(--surface)', borderRadius: 12, padding: 28, maxWidth: 500, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Registrar Pago</h3>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>{modalPagos.apellido}, {modalPagos.nombre} - {cursosFP.find(c => c.id === modalPagos.fp_curso_id)?.nombre}</p>
+
+                            <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Concepto *</label>
+                                    <select value={pagoForm.concepto} onChange={(e) => setPagoForm(prev => ({ ...prev, concepto: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
+                                        {CONCEPTOS_PAGO.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Monto *</label>
+                                    <input type="number" value={pagoForm.monto} onChange={(e) => setPagoForm(prev => ({ ...prev, monto: e.target.value }))} placeholder="0.00" style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Fecha *</label>
+                                    <input type="date" value={pagoForm.fecha_pago} onChange={(e) => setPagoForm(prev => ({ ...prev, fecha_pago: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>N° de Recibo</label>
+                                    <input type="text" value={pagoForm.numero_recibo} onChange={(e) => setPagoForm(prev => ({ ...prev, numero_recibo: e.target.value }))} placeholder="Opcional" style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Forma de pago</label>
+                                    <select value={pagoForm.forma_pago} onChange={(e) => setPagoForm(prev => ({ ...prev, forma_pago: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
+                                        {FORMAS_PAGO.map(f => <option key={f} value={f}>{f}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Observaciones</label>
+                                    <textarea value={pagoForm.observaciones} onChange={(e) => setPagoForm(prev => ({ ...prev, observaciones: e.target.value }))} rows={2} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14, resize: 'vertical' }} />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                <button onClick={() => setModalPagos(null)} style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '10px 20px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                                <button onClick={registrarPago} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Registrar Pago</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </Sidebar>
     );
