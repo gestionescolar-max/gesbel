@@ -290,12 +290,10 @@ function getMenuItems(docente) {
         if (!docente.es_docente) {
             items.push({ label: 'Mis materias', ruta: '/materias', icono: Iconos.materias });
         }
-        items.push({ label: 'Inscripciones', ruta: '/preceptor/inscribir', icono: Iconos.inscripciones });
+        items.push({ label: 'Inscripciones', ruta: '/preceptor/inscripciones', icono: Iconos.inscripciones });
         items.push({ label: 'Asistencias', ruta: '/preceptor/asistencias', icono: Iconos.asistencias });
         items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: Iconos.actas });
         items.push({ label: 'Legajo alumno', ruta: '/preceptor/legajo-alumno', icono: Iconos.legajo });
-        items.push({ label: 'Pre-inscripciones', ruta: '/preceptor/pre-inscribir', icono: Iconos.inscripciones });
-        items.push({ label: 'Gestión pre-inscripciones', ruta: '/preceptor/pre-inscripciones', icono: Iconos.legajo });
     }
 
     // SECRETARÍA
