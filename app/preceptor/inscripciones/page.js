@@ -5,7 +5,7 @@ import { useDocente } from '@/lib/useDocente';
 import Sidebar from '@/components/Sidebar';
 
 // Tu URL del Google Apps Script
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw0GURhJWTqYZahZ2nuo6ttMGXfvFk_iZ397v_Rbe32v32o8BR2tJ9-cmt-BA2ioben/exec';
+const APPS_SCRIPT_URL = 'https://script.googleusercontent.com/a/macros/escuelabeltran.com/echo?user_content_key=AUkAhnTvVC1KiVzH68TgwC27pIf4E-nQvSU48N2nu4sW6Wm9q1nOGvm9S-_WjeXfSx2KrRuGo1fz9-glNQMX2hs9_kFvs0LXGkso5ZB7HsHCaOu19NVS6P7_4EJC4CWvVpbcg0HJYBXObqcM4uUcJXBjeVk1dhNv_ZkdyIoElb0m7Wl2aw3ubeOJxgJPlr-6-nWYerlDQLqcI6mwXwsd6pdRN5_landnAqXE8_YhfzTRhAMH-3EHlUO8I5jjeAlTSOA2jS09xtBlAibLFbcIbFMMFL_gYhDLa9D6X9L4dVy4KwJNZqBtFDE&lib=MtKFw0CZYONTeTGaZPAUAemiaQzAGeml8';
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
