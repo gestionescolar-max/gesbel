@@ -5,7 +5,7 @@ import { useDocente } from '@/lib/useDocente';
 import Sidebar from '@/components/Sidebar';
 
 // Tu URL del Google Apps Script
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_El5HOJaPAxDs_5QjU3kUsvaLFEpKGM_x-JkX8z22gixC-hrFJSMU9K31nbJuPss/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw0GURhJWTqYZahZ2nuo6ttMGXfvFk_iZ397v_Rbe32v32o8BR2tJ9-cmt-BA2ioben/exec';
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
