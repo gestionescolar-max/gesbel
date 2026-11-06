@@ -290,7 +290,7 @@ function getMenuItems(docente) {
         if (!docente.es_docente) {
             items.push({ label: 'Mis materias', ruta: '/materias', icono: Iconos.materias });
         }
-        items.push({ label: 'Inscripciones', ruta: '/preceptor/inscripciones', icono: Iconos.inscripciones });
+        items.push({ label: 'Inscripciones FP', ruta: '/preceptor/inscripciones', icono: Iconos.inscripciones });
         items.push({ label: 'Asistencias', ruta: '/preceptor/asistencias', icono: Iconos.asistencias });
         items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: Iconos.actas });
         items.push({ label: 'Legajo alumno', ruta: '/preceptor/legajo-alumno', icono: Iconos.legajo });
