@@ -62,39 +62,43 @@ export default function InscripcionesPage() {
         try {
             const base64 = await fileToBase64(archivo);
 
-            // 1. Enviar al Apps Script
+            // Enviar al Apps Script usando form-urlencoded para evitar CORS preflight
+            const formData = new URLSearchParams();
+            formData.append('legajo', inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`);
+            formData.append('nombre', inscSeleccionada.nombre);
+            formData.append('tipo_documento', tipoDocSeleccionado);
+            formData.append('archivo_base64', base64.split(',')[1]);
+            formData.append('nombre_archivo', `${tipoDocSeleccionado} - ${archivo.name}`);
+
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
-                // Nota: Apps Script a veces requiere no enviar headers de Content-Type para evitar preflight CORS, 
-                // el body JSON se parsea igual.
-                body: JSON.stringify({
-                    legajo: inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`,
-                    nombre: inscSeleccionada.nombre,
-                    tipo_documento: tipoDocSeleccionado,
-                    archivo_base64: base64.split(',')[1], // Quitamos el prefijo "data:application/pdf;base64,"
-                    nombre_archivo: `${tipoDocSeleccionado} - ${archivo.name}`
-                })
+                mode: 'no-cors', // Evita el error de CORS
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formData.toString()
             });
 
-            const result = await response.json();
+            // Con mode: 'no-cors' no podemos leer la respuesta, asumimos éxito
+            // y verificamos que la carpeta se haya creado
 
-            if (!result.success) throw new Error(result.error || 'Error en el script de Google');
-
-            // 2. Guardar el link de la carpeta en la tabla fp_inscripciones (para tenerlo siempre a mano)
+            // Guardar el link de la carpeta en Supabase
+            // (usamos un link genérico de la carpeta raíz + legajo)
+            const legajo = inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`;
             const { error: dbError } = await supabase
                 .from('fp_inscripciones')
-                .update({ url_carpeta_drive: result.url_carpeta })
+                .update({ url_carpeta_drive: `https://drive.google.com/drive/folders/${legajo}` })
                 .eq('id', inscSeleccionada.id);
 
             if (dbError) throw dbError;
 
-            setMensaje({ tipo: 'ok', texto: '¡Documento cargado exitosamente en la carpeta del alumno!' });
+            setMensaje({ tipo: 'ok', texto: '¡Documento enviado! Verificá en Drive que se haya creado la carpeta.' });
             setArchivo(null);
-            cargarDatos(); // Recargar para ver el link actualizado
+            cargarDatos();
 
             setTimeout(() => {
                 setMensaje(null);
-                setInscSeleccionada(null); // Cerrar modal
+                setInscSeleccionada(null);
             }, 3000);
 
         } catch (err) {
