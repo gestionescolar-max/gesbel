@@ -32,27 +32,24 @@ const Iconos = {
 // ============================================
 function obtenerPeriodoInscripcion() {
     const ahora = new Date();
-    const mes = ahora.getMonth(); // 0-11 (enero=0, diciembre=11)
+    const mes = ahora.getMonth(); // 0-11
     const anio = ahora.getFullYear();
 
-    if (mes >= 10) { // Noviembre (10) o Diciembre (11)
-        // Período abierto para el ciclo del año siguiente
+    if (mes >= 10) { // Noviembre o Diciembre
         return {
             abierto: true,
             cicloLectivo: anio + 1,
             periodo: 'noviembre-diciembre',
             mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio + 1}`
         };
-    } else if (mes >= 0 && mes <= 5) { // Enero (0) a Junio (5)
-        // Período abierto para el ciclo del año actual
+    } else if (mes >= 0 && mes <= 5) { // Enero a Junio
         return {
             abierto: true,
             cicloLectivo: anio,
             periodo: 'enero-junio',
             mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio}`
         };
-    } else { // Julio (6) a Octubre (9)
-        // Período cerrado
+    } else { // Julio a Octubre
         return {
             abierto: false,
             cicloLectivo: anio,
@@ -78,7 +75,6 @@ export default function InscripcionesPage() {
     const [subiendoListado, setSubiendoListado] = useState(false);
     const [tipoDocListado, setTipoDocListado] = useState('Documentación General');
 
-    // Obtener período de inscripción
     const periodoInscripcion = obtenerPeriodoInscripcion();
 
     const [enviando, setEnviando] = useState(false);
@@ -159,7 +155,6 @@ export default function InscripcionesPage() {
     async function handleSubmitInscripcion(e) {
         e.preventDefault();
 
-        // Validar que el período esté abierto
         if (!periodoInscripcion.abierto) {
             setMensaje({ tipo: 'error', texto: 'El período de inscripción está cerrado.' });
             return;
@@ -221,8 +216,8 @@ export default function InscripcionesPage() {
             }
 
             const mensajeExito = estadoFinal === 'inscripto'
-                ? '✅ Alumno inscripto y dado de alta correctamente.'
-                : '⚠️ Pre-inscripción registrada. Faltan documentos obligatorios para completar la inscripción.';
+                ? 'Alumno inscripto y dado de alta correctamente.'
+                : 'Pre-inscripción registrada. Faltan documentos obligatorios para completar la inscripción.';
 
             setMensaje({ tipo: 'ok', texto: mensajeExito });
 
@@ -310,11 +305,11 @@ export default function InscripcionesPage() {
     const inscriptos = inscripciones.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length;
     const preinscritos = inscripciones.filter(p => p.estado === 'preinscrito').length;
 
+    // Estilos reutilizables
     const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
-    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', outline: 'none' };
-    const sectionTitle = { fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 };
+    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', outline: 'none', color: '#1e3a8a' };
+    const sectionTitle = { fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '0.05em' };
 
-    // Filtrar cursos solo del ciclo lectivo correspondiente al período actual
     const cursosCicloActual = cursosFP.filter(c => c.anio === periodoInscripcion.cicloLectivo);
 
     return (
@@ -381,7 +376,6 @@ export default function InscripcionesPage() {
                             </p>
                         </div>
 
-                        {/* AVISO DE PERÍODO DE INSCRIPCIÓN */}
                         {!periodoInscripcion.abierto && (
                             <div style={{
                                 background: '#fef2f2',
@@ -390,10 +384,10 @@ export default function InscripcionesPage() {
                                 padding: 20,
                                 marginBottom: 24,
                                 display: 'flex',
-                                alignItems: 'center',
+                                alignItems: 'flex-start',
                                 gap: 12
                             }}>
-                                <div style={{ color: '#b91c1c' }}>{Iconos.bloqueo}</div>
+                                <div style={{ color: '#b91c1c', flexShrink: 0 }}>{Iconos.bloqueo}</div>
                                 <div>
                                     <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 4 }}>Período de Inscripción Cerrado</div>
                                     <div style={{ fontSize: 14, color: '#7f1d1d' }}>{periodoInscripcion.mensaje}</div>
@@ -428,29 +422,22 @@ export default function InscripcionesPage() {
                         )}
 
                         <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
-                            <div style={{ marginBottom: 32 }}>
-                                <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso y Alumno</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
 
-                                    {/* CAMPO CICLO LECTIVO (Bloqueado al ciclo correspondiente) */}
+                            {/* SECCIÓN 1: DATOS DEL CURSO */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
                                     <div>
-                                        <label style={labelStyle}>Ciclo Lectivo *</label>
+                                        <label style={labelStyle}>Ciclo Lectivo</label>
                                         <input
                                             type="text"
                                             value={form.ciclo_lectivo}
                                             readOnly
                                             style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed', fontWeight: 600 }}
                                         />
-                                        <p style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
-                                            {periodoInscripcion.periodo === 'noviembre-diciembre'
-                                                ? 'Inscripción para el ciclo del año siguiente'
-                                                : 'Inscripción para el ciclo del año actual'}
-                                        </p>
                                     </div>
-
-                                    {/* SELECT DE CURSOS (Filtrado por ciclo lectivo y nombre limpio) */}
                                     <div style={{ gridColumn: '1 / -1' }}>
-                                        <label style={labelStyle}>Curso *</label>
+                                        <label style={labelStyle}>Curso</label>
                                         <select name="fp_curso_id" value={form.fp_curso_id} onChange={handleChangeForm} required style={inputStyle}>
                                             <option value="">Seleccione un curso...</option>
                                             {cursosCicloActual.length === 0 && (
@@ -466,22 +453,75 @@ export default function InscripcionesPage() {
                                             })}
                                         </select>
                                     </div>
-
-                                    <div><label style={labelStyle}>Apellido *</label><input type="text" name="apellido" value={form.apellido} onChange={handleChangeForm} required style={inputStyle} /></div>
-                                    <div><label style={labelStyle}>Nombre *</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
-                                    <div><label style={labelStyle}>DNI *</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
-                                    <div><label style={labelStyle}>Fecha de nacimiento *</label><input type="date" name="fecha_nac" value={form.fecha_nac} onChange={handleChangeForm} required style={inputStyle} /></div>
-                                    <div><label style={labelStyle}>Nacionalidad *</label>
-                                        <select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}>
-                                            <option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option>
-                                        </select>
-                                    </div>
-                                    <div><label style={labelStyle}>Teléfono *</label><input type="tel" name="telefono" value={form.telefono} onChange={handleChangeForm} required style={inputStyle} /></div>
-                                    <div><label style={labelStyle}>Email</label><input type="email" name="email" value={form.email} onChange={handleChangeForm} style={inputStyle} /></div>
-                                    <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Domicilio</label><input type="text" name="domicilio" value={form.domicilio} onChange={handleChangeForm} style={inputStyle} /></div>
                                 </div>
                             </div>
 
+                            {/* SECCIÓN 2: DATOS PERSONALES */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Datos Personales</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+                                    <div><label style={labelStyle}>Apellido</label><input type="text" name="apellido" value={form.apellido} onChange={handleChangeForm} required style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Nombre</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>DNI</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Fecha de Nacimiento</label><input type="date" name="fecha_nac" value={form.fecha_nac} onChange={handleChangeForm} required style={inputStyle} /></div>
+                                    <div>
+                                        <label style={labelStyle}>Nacionalidad</label>
+                                        <select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}>
+                                            <option value="argentino">Argentino</option>
+                                            <option value="naturalizado">Naturalizado</option>
+                                            <option value="extranjero">Extranjero</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 3: DATOS DE CONTACTO */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Datos de Contacto</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+                                    <div><label style={labelStyle}>Teléfono</label><input type="tel" name="telefono" value={form.telefono} onChange={handleChangeForm} required placeholder="2345-123456" style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Email</label><input type="email" name="email" value={form.email} onChange={handleChangeForm} placeholder="ejemplo@mail.com" style={inputStyle} /></div>
+                                    <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Domicilio</label><input type="text" name="domicilio" value={form.domicilio} onChange={handleChangeForm} placeholder="Calle, número, localidad" style={inputStyle} /></div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 4: DATOS ACADÉMICOS Y LABORALES */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Datos Académicos y Laborales</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+                                    <div>
+                                        <label style={labelStyle}>Estudios Obtenidos</label>
+                                        <select name="estudios_obtenidos" value={form.estudios_obtenidos} onChange={handleChangeForm} required style={inputStyle}>
+                                            <option value="primario_secundario">Primario / Secundario</option>
+                                            <option value="nivel_superior">Nivel Superior / Universitario</option>
+                                            <option value="formacion_profesional">Formación Profesional</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={labelStyle}>Situación Laboral</label>
+                                        <select name="situacion_laboral" value={form.situacion_laboral} onChange={handleChangeForm} required style={inputStyle}>
+                                            <option value="">Seleccione...</option>
+                                            <option value="estudiante">Estudiante</option>
+                                            <option value="desocupado">Desocupado</option>
+                                            <option value="empleado">Empleado</option>
+                                            <option value="trabajador_independiente">Trabajador Independiente</option>
+                                            <option value="jubilado">Jubilado</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 5: DATOS DE EMERGENCIA */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Datos de Emergencia</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+                                    <div><label style={labelStyle}>Nombre Completo</label><input type="text" name="emergencia_nombre" value={form.emergencia_nombre} onChange={handleChangeForm} style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Parentesco</label><input type="text" name="emergencia_parentesco" value={form.emergencia_parentesco} onChange={handleChangeForm} placeholder="Padre, madre, etc." style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Teléfono</label><input type="tel" name="emergencia_telefono" value={form.emergencia_telefono} onChange={handleChangeForm} style={inputStyle} /></div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 6: DOCUMENTACIÓN DIGITAL */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.subir} Documentación Digital</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -611,7 +651,7 @@ export default function InscripcionesPage() {
                     </div>
                 )}
 
-                {/* ================= VISTA 3: RESUMEN (DASHBOARD) ================= */}
+                {/* ================= VISTA 3: RESUMEN ================= */}
                 {vista === 'resumen' && (
                     <div>
                         <div style={{ marginBottom: 24 }}>
@@ -652,7 +692,7 @@ export default function InscripcionesPage() {
                     </div>
                 )}
 
-                {/* ================= MODAL: CARGA ADICIONAL DESDE LISTADO ================= */}
+                {/* ================= MODAL: CARGA ADICIONAL ================= */}
                 {inscSeleccionada && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setInscSeleccionada(null)}>
                         <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 520, width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
