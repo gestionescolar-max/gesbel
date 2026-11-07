@@ -58,7 +58,7 @@ export default function InscripcionesPage() {
     const [tipoDocListado, setTipoDocListado] = useState('Documentación General');
     const [inscripcionCompleta, setInscripcionCompleta] = useState(null);
     const [mostrarImpresion, setMostrarImpresion] = useState(false);
-    const printRef = useRef();
+    const fichaRef = useRef(null);
 
     const periodoInscripcion = obtenerPeriodoInscripcion();
     const [enviando, setEnviando] = useState(false);
@@ -160,7 +160,6 @@ export default function InscripcionesPage() {
         setMensaje(null);
 
         try {
-            // Verificar documentos obligatorios
             const docsObligatoriosOK = DOCUMENTOS_REQUERIDOS
                 .filter(d => d.obligatorio)
                 .every(d => {
@@ -170,7 +169,6 @@ export default function InscripcionesPage() {
 
             const estadoFinal = docsObligatoriosOK ? 'inscripto' : 'preinscrito';
 
-            // Preparar datos de documentos
             const datosDocumentos = {};
             DOCUMENTOS_REQUERIDOS.forEach(doc => {
                 const check = documentosChecklist[doc.id] || {};
@@ -182,15 +180,17 @@ export default function InscripcionesPage() {
                 ...form,
                 ...datosDocumentos,
                 fp_curso_id: Number(form.fp_curso_id),
-                preceptor_id: docente.id,
                 estado: estadoFinal,
                 fecha_inscripcion: new Date().toISOString().split('T')[0],
                 documentacion_completa: docsObligatoriosOK,
                 pago_cooperadora: pagoCooperadora.paga,
-                monto_cooperadora: pagoCooperadora.monto,
+                monto_cooperadora: pagoCooperadora.paga ? pagoCooperadora.monto : 0,
                 tipo_pago_cooperadora: pagoCooperadora.tipo_pago,
                 nro_comprobante_cooperadora: pagoCooperadora.nro_comprobante
             };
+
+            // Eliminar ciclo_lectivo si la tabla no lo acepta (por si acaso)
+            // delete datosInsert.ciclo_lectivo;
 
             const { data: nuevaInscripcion, error: dbError } = await supabase
                 .from('fp_inscripciones')
@@ -200,7 +200,6 @@ export default function InscripcionesPage() {
 
             if (dbError) throw dbError;
 
-            // Subir archivos digitales
             let urlCarpetaDrive = null;
             const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null);
 
@@ -230,7 +229,7 @@ export default function InscripcionesPage() {
                 : 'Pre-inscripción registrada. Faltan documentos obligatorios.';
 
             setMensaje({ tipo: 'ok', texto: mensajeExito });
-            setInscripcionCompleta({ ...nuevaInscripcion, ...datosDocumentos, pago: pagoCooperadora });
+            setInscripcionCompleta({ ...nuevaInscripcion, pago: pagoCooperadora });
             setMostrarImpresion(true);
 
             setForm({
@@ -284,7 +283,7 @@ export default function InscripcionesPage() {
 
     async function confirmarInscripcion(id) {
         if (!confirm('¿Confirmar inscripción y dar de alta al alumno?')) return;
-        const { error } = await supabase.from('fp_inscripciones').update({ estado: 'inscripto', fecha_confirmacion: new Date().toISOString().split('T')[0], documentacion_completa: true }).eq('id', id);
+        const { error } = await supabase.from('fp_inscripciones').update({ estado: 'inscripto', fecha_condicion: new Date().toISOString().split('T')[0], documentacion_completa: true }).eq('id', id);
 
         if (error) {
             setMensaje({ tipo: 'error', texto: error.message });
@@ -301,13 +300,55 @@ export default function InscripcionesPage() {
         if (filtroEstado !== 'todos') resultado = resultado.filter(p => p.estado === filtroEstado);
         if (busqueda) {
             const q = busqueda.toLowerCase();
-            resultado = resultado.filter(p => p.nombre.toLowerCase().includes(q) || (p.dni && p.dni.includes(q)));
+            resultado = resultado.filter(p =>
+                p.nombre.toLowerCase().includes(q) ||
+                (p.apellido && p.apellido.toLowerCase().includes(q)) ||
+                (p.dni && p.dni.includes(q))
+            );
         }
         return resultado;
     }
 
     function handleImprimir() {
-        window.print();
+        const contenido = fichaRef.current;
+        if (!contenido) return;
+
+        const ventana = window.open('', '_blank');
+        ventana.document.write(`
+      <html>
+        <head>
+          <title>Ficha de Inscripción</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+            .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { color: #1e3a8a; font-size: 22px; margin: 0 0 8px 0; }
+            .header h2 { color: #4b5563; font-size: 16px; margin: 0 0 4px 0; }
+            .header p { color: #6b7280; font-size: 13px; margin: 0; }
+            .seccion { margin-bottom: 24px; }
+            .seccion h3 { color: #1e3a8a; font-size: 14px; text-transform: uppercase; margin: 0 0 12px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+            .dato { font-size: 14px; color: #4b5563; margin-bottom: 6px; }
+            .dato strong { color: #1e3a8a; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            .doc-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 14px; }
+            .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+            .badge-fisico { background: #dcfce7; color: #15803d; }
+            .badge-digital { background: #dbeafe; color: #1e40af; }
+            .firmas { display: flex; justify-content: space-between; margin-top: 60px; font-size: 13px; color: #6b7280; }
+            .firma-box { width: 200px; }
+            .firma-linea { border-top: 1px solid #000; padding-top: 4px; margin-top: 40px; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          ${contenido.innerHTML}
+        </body>
+      </html>
+    `);
+        ventana.document.close();
+        setTimeout(() => {
+            ventana.print();
+            ventana.close();
+        }, 500);
     }
 
     if (cargando || !docente) return null;
@@ -406,7 +447,6 @@ export default function InscripcionesPage() {
 
                         <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
 
-                            {/* SECCIÓN 1: DATOS DEL CURSO */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -428,7 +468,6 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 2: DATOS PERSONALES */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Datos Personales</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -445,7 +484,6 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 3: DATOS DE CONTACTO */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Datos de Contacto</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -455,7 +493,6 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 4: DATOS ACADÉMICOS Y LABORALES */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Datos Académicos y Laborales</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -477,7 +514,6 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 5: DATOS DE EMERGENCIA */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Datos de Emergencia</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -487,7 +523,6 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 6: CHECKLIST DE DOCUMENTACIÓN */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.carpeta} Documentación Presentada</h3>
                                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
@@ -497,39 +532,24 @@ export default function InscripcionesPage() {
                                     {DOCUMENTOS_REQUERIDOS.map(doc => {
                                         const check = documentosChecklist[doc.id] || {};
                                         return (
-                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-                                                <div style={{ flex: 1 }}>
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+                                                <div style={{ flex: 1, minWidth: 200 }}>
                                                     <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', marginBottom: 4 }}>
                                                         {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11 }}>(Obligatorio)</span>}
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={check.fisico || false}
-                                                            onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)}
-                                                            style={{ width: 16, height: 16, cursor: 'pointer' }}
-                                                        />
+                                                        <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
                                                         <span>Físico</span>
                                                     </label>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={check.digital || false}
-                                                            onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)}
-                                                            style={{ width: 16, height: 16, cursor: 'pointer' }}
-                                                        />
+                                                        <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
                                                         <span>Digital</span>
                                                     </label>
                                                 </div>
                                                 <div style={{ width: 200 }}>
-                                                    <input
-                                                        type="file"
-                                                        accept=".pdf,.jpg,.jpeg,.png"
-                                                        onChange={(e) => handleFileChange(doc.id, e.target.files[0])}
-                                                        style={{ fontSize: 12, width: '100%' }}
-                                                    />
+                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
                                                     {archivosForm[doc.id] && (
                                                         <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                             {Iconos.check} {archivosForm[doc.id].name}
@@ -542,18 +562,12 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 7: PAGO DE COOPERADORA */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Pago de Cooperadora</h3>
                                 <div style={{ background: '#f9fafb', padding: 20, borderRadius: 6, border: '1px solid #e5e7eb' }}>
                                     <div style={{ marginBottom: 16 }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={pagoCooperadora.paga}
-                                                onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))}
-                                                style={{ width: 18, height: 18, cursor: 'pointer' }}
-                                            />
+                                            <input type="checkbox" checked={pagoCooperadora.paga} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))} style={{ width: 18, height: 18, cursor: 'pointer' }} />
                                             El alumno realiza aporte a cooperadora
                                         </label>
                                     </div>
@@ -562,35 +576,18 @@ export default function InscripcionesPage() {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                             <div>
                                                 <label style={labelStyle}>Monto</label>
-                                                <input
-                                                    type="number"
-                                                    value={pagoCooperadora.monto}
-                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))}
-                                                    placeholder="0.00"
-                                                    step="0.01"
-                                                    style={inputStyle}
-                                                />
+                                                <input type="number" value={pagoCooperadora.monto} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))} placeholder="0.00" step="0.01" style={inputStyle} />
                                             </div>
                                             <div>
                                                 <label style={labelStyle}>Tipo de Pago</label>
-                                                <select
-                                                    value={pagoCooperadora.tipo_pago}
-                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, tipo_pago: e.target.value }))}
-                                                    style={inputStyle}
-                                                >
+                                                <select value={pagoCooperadora.tipo_pago} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, tipo_pago: e.target.value }))} style={inputStyle}>
                                                     <option value="total">Total</option>
                                                     <option value="parcial">Parcial</option>
                                                 </select>
                                             </div>
                                             <div>
                                                 <label style={labelStyle}>N° de Comprobante</label>
-                                                <input
-                                                    type="text"
-                                                    value={pagoCooperadora.nro_comprobante}
-                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, nro_comprobante: e.target.value }))}
-                                                    placeholder="Ej: 0001-00001234"
-                                                    style={inputStyle}
-                                                />
+                                                <input type="text" value={pagoCooperadora.nro_comprobante} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, nro_comprobante: e.target.value }))} placeholder="Ej: 0001-00001234" style={inputStyle} />
                                             </div>
                                         </div>
                                     )}
@@ -641,7 +638,7 @@ export default function InscripcionesPage() {
                             </div>
                             <div>
                                 <label style={labelStyle}>Búsqueda</label>
-                                <input type="text" placeholder="Nombre o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} />
+                                <input type="text" placeholder="Nombre, apellido o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} />
                             </div>
                         </div>
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
@@ -661,7 +658,7 @@ export default function InscripcionesPage() {
                                         {filtradas.map((p, idx) => (
                                             <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                 <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
-                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.nombre}</td>
+                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
                                                 <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
                                                 <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
                                                 <td style={{ padding: '14px 16px' }}>
@@ -746,7 +743,7 @@ export default function InscripcionesPage() {
                             <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
                                 <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Carga de Documentación</h3>
                                 <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
-                                    Alumno: <strong style={{ color: '#1e3a8a' }}>{inscSeleccionada.nombre}</strong>
+                                    Alumno: <strong style={{ color: '#1e3a8a' }}>{inscSeleccionada.apellido ? `${inscSeleccionada.apellido}, ${inscSeleccionada.nombre}` : inscSeleccionada.nombre}</strong>
                                     {inscSeleccionada.legajo && <span> · Legajo: {inscSeleccionada.legajo}</span>}
                                 </p>
                             </div>
@@ -788,67 +785,67 @@ export default function InscripcionesPage() {
                 {mostrarImpresion && inscripcionCompleta && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setMostrarImpresion(false)}>
                         <div style={{ background: '#fff', borderRadius: 8, padding: 40, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-                            <div ref={printRef}>
-                                <div style={{ textAlign: 'center', marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #1e3a8a' }}>
-                                    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 8 }}>ESCUELA TÉCNICA FRAY LUIS BELTRÁN</h1>
+                            <div ref={fichaRef}>
+                                <div className="header" style={{ textAlign: 'center', marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #1e3a8a' }}>
+                                    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 8, marginTop: 0 }}>ESCUELA TÉCNICA FRAY LUIS BELTRÁN</h1>
                                     <h2 style={{ fontSize: 16, fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>FICHA DE INSCRIPCIÓN - FORMACIÓN PROFESIONAL</h2>
-                                    <div style={{ fontSize: 13, color: '#6b7280' }}>Ciclo Lectivo: {inscripcionCompleta.ciclo_lectivo} | Legajo: {inscripcionCompleta.legajo || 'Pendiente'}</div>
+                                    <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Ciclo Lectivo: {inscripcionCompleta.ciclo_lectivo} | Legajo: {inscripcionCompleta.legajo || 'Pendiente'}</p>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos del Curso</h3>
-                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos del Curso</h3>
+                                    <div className="dato" style={{ fontSize: 14, color: '#4b5563' }}>
                                         <strong>Curso:</strong> {cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.nombre || '—'} ({cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.turno})
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
-                                        <div><strong>Apellido y Nombre:</strong> {inscripcionCompleta.apellido}, {inscripcionCompleta.nombre}</div>
-                                        <div><strong>DNI:</strong> {inscripcionCompleta.dni}</div>
-                                        <div><strong>Fecha de Nacimiento:</strong> {inscripcionCompleta.fecha_nac}</div>
-                                        <div><strong>Nacionalidad:</strong> {inscripcionCompleta.nacionalidad}</div>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Personales</h3>
+                                    <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div className="dato"><strong>Apellido y Nombre:</strong> {inscripcionCompleta.apellido}, {inscripcionCompleta.nombre}</div>
+                                        <div className="dato"><strong>DNI:</strong> {inscripcionCompleta.dni}</div>
+                                        <div className="dato"><strong>Fecha de Nacimiento:</strong> {inscripcionCompleta.fecha_nac}</div>
+                                        <div className="dato"><strong>Nacionalidad:</strong> {inscripcionCompleta.nacionalidad}</div>
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
-                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.telefono}</div>
-                                        <div><strong>Email:</strong> {inscripcionCompleta.email || '—'}</div>
-                                        <div style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {inscripcionCompleta.domicilio || '—'}</div>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Contacto</h3>
+                                    <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div className="dato"><strong>Teléfono:</strong> {inscripcionCompleta.telefono}</div>
+                                        <div className="dato"><strong>Email:</strong> {inscripcionCompleta.email || '—'}</div>
+                                        <div className="dato" style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {inscripcionCompleta.domicilio || '—'}</div>
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos y Laborales</h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
-                                        <div><strong>Estudios Obtenidos:</strong> {inscripcionCompleta.estudios_obtenidos}</div>
-                                        <div><strong>Situación Laboral:</strong> {inscripcionCompleta.situacion_laboral}</div>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Académicos y Laborales</h3>
+                                    <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div className="dato"><strong>Estudios Obtenidos:</strong> {inscripcionCompleta.estudios_obtenidos}</div>
+                                        <div className="dato"><strong>Situación Laboral:</strong> {inscripcionCompleta.situacion_laboral}</div>
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
-                                        <div><strong>Nombre:</strong> {inscripcionCompleta.emergencia_nombre || '—'}</div>
-                                        <div><strong>Parentesco:</strong> {inscripcionCompleta.emergencia_parentesco || '—'}</div>
-                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.emergencia_telefono || '—'}</div>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Emergencia</h3>
+                                    <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div className="dato"><strong>Nombre:</strong> {inscripcionCompleta.emergencia_nombre || '—'}</div>
+                                        <div className="dato"><strong>Parentesco:</strong> {inscripcionCompleta.emergencia_parentesco || '—'}</div>
+                                        <div className="dato"><strong>Teléfono:</strong> {inscripcionCompleta.emergencia_telefono || '—'}</div>
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentación Presentada</h3>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Documentación Presentada</h3>
                                     <div style={{ fontSize: 14, color: '#4b5563' }}>
                                         {DOCUMENTOS_REQUERIDOS.map(doc => {
                                             const fisico = inscripcionCompleta[`doc_${doc.id}_fisico`];
                                             const digital = inscripcionCompleta[`doc_${doc.id}_digital`];
                                             return (
-                                                <div key={doc.id} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ fontWeight: 600 }}>{doc.nombre}:</span>
-                                                    {fisico && <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>Físico</span>}
-                                                    {digital && <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>Digital</span>}
+                                                <div key={doc.id} className="doc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                    <span style={{ fontWeight: 600, minWidth: 200 }}>{doc.nombre}:</span>
+                                                    {fisico && <span className="badge badge-fisico" style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dcfce7', color: '#15803d' }}>Físico</span>}
+                                                    {digital && <span className="badge badge-digital" style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>Digital</span>}
                                                     {!fisico && !digital && <span style={{ color: '#9ca3af', fontSize: 12 }}>No presentado</span>}
                                                 </div>
                                             );
@@ -856,14 +853,14 @@ export default function InscripcionesPage() {
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h3>
+                                <div className="seccion" style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Pago de Cooperadora</h3>
                                     <div style={{ fontSize: 14, color: '#4b5563' }}>
                                         {inscripcionCompleta.pago?.paga ? (
                                             <>
-                                                <div><strong>Monto:</strong> ${inscripcionCompleta.pago.monto}</div>
-                                                <div><strong>Tipo de Pago:</strong> {inscripcionCompleta.pago.tipo_pago}</div>
-                                                <div><strong>N° de Comprobante:</strong> {inscripcionCompleta.pago.nro_comprobante || '—'}</div>
+                                                <div className="dato"><strong>Monto:</strong> ${inscripcionCompleta.pago.monto}</div>
+                                                <div className="dato"><strong>Tipo de Pago:</strong> {inscripcionCompleta.pago.tipo_pago}</div>
+                                                <div className="dato"><strong>N° de Comprobante:</strong> {inscripcionCompleta.pago.nro_comprobante || '—'}</div>
                                             </>
                                         ) : (
                                             <div style={{ color: '#9ca3af' }}>No realiza aporte a cooperadora</div>
@@ -871,14 +868,14 @@ export default function InscripcionesPage() {
                                     </div>
                                 </div>
 
-                                <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
-                                    <div>
+                                <div className="firmas" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60, fontSize: 13, color: '#6b7280' }}>
+                                    <div className="firma-box" style={{ width: 200 }}>
                                         <div style={{ marginBottom: 40 }}>Firma del Alumno / Tutor</div>
-                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4, width: 200 }}>Aclaración y Firma</div>
+                                        <div className="firma-linea" style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div>
                                     </div>
-                                    <div>
+                                    <div className="firma-box" style={{ width: 200 }}>
                                         <div style={{ marginBottom: 40 }}>Firma del Preceptor</div>
-                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4, width: 200 }}>Aclaración y Firma</div>
+                                        <div className="firma-linea" style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div>
                                     </div>
                                 </div>
                             </div>
@@ -895,14 +892,6 @@ export default function InscripcionesPage() {
                     </div>
                 )}
             </div>
-
-            <style jsx global>{`
-        @media print {
-          body * { visibility: hidden; }
-          ${printRef.current ? `#${printRef.current.id}, #${printRef.current.id} *` : ''} { visibility: visible; }
-          ${printRef.current ? `#${printRef.current.id}` : ''} { position: absolute; left: 0; top: 0; width: 100%; }
-        }
-      `}</style>
         </Sidebar>
     );
 }
