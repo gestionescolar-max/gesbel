@@ -55,44 +55,63 @@ export default function InscripcionesPage() {
     }
 
     async function handleSubirArchivo() {
-        if (!archivo || !inscSeleccionada) return;
+        if (!archivo || !inscSeleccionada) {
+            setMensaje({ tipo: 'error', texto: 'Seleccioná un archivo primero' });
+            return;
+        }
+
         setSubiendo(true);
-        setMensaje({ tipo: 'loading', texto: 'Subiendo archivo a Drive y guardando link...' });
+        setMensaje({ tipo: 'loading', texto: 'Subiendo archivo a Drive...' });
 
         try {
             const base64 = await fileToBase64(archivo);
 
-            // Enviar al Apps Script usando form-urlencoded para evitar CORS preflight
-            const formData = new URLSearchParams();
-            formData.append('legajo', inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`);
-            formData.append('nombre', inscSeleccionada.nombre);
-            formData.append('tipo_documento', tipoDocSeleccionado);
-            formData.append('archivo_base64', base64.split(',')[1]);
-            formData.append('nombre_archivo', `${tipoDocSeleccionado} - ${archivo.name}`);
+            // Preparar los datos
+            const payload = {
+                legajo: inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`,
+                nombre: inscSeleccionada.nombre,
+                tipo_documento: tipoDocSeleccionado,
+                archivo_base64: base64.split(',')[1],
+                nombre_archivo: `${tipoDocSeleccionado} - ${archivo.name}`
+            };
 
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors', // Evita el error de CORS
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: formData.toString()
+            console.log('Enviando datos al script:', {
+                legajo: payload.legajo,
+                nombre: payload.nombre,
+                tipo: payload.tipo_documento,
+                archivo: payload.nombre_archivo
             });
 
-            // Con mode: 'no-cors' no podemos leer la respuesta, asumimos éxito
-            // y verificamos que la carpeta se haya creado
+            // Enviar al Apps Script
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            console.log('Status de respuesta:', response.status);
+
+            const result = await response.json();
+            console.log('Respuesta del script:', result);
+
+            if (!result.success) {
+                throw new Error(result.error || 'Error desconocido en el script');
+            }
 
             // Guardar el link de la carpeta en Supabase
-            // (usamos un link genérico de la carpeta raíz + legajo)
-            const legajo = inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`;
             const { error: dbError } = await supabase
                 .from('fp_inscripciones')
-                .update({ url_carpeta_drive: `https://drive.google.com/drive/folders/${legajo}` })
+                .update({ url_carpeta_drive: result.url_carpeta })
                 .eq('id', inscSeleccionada.id);
 
-            if (dbError) throw dbError;
+            if (dbError) {
+                console.error('Error al guardar en Supabase:', dbError);
+                throw dbError;
+            }
 
-            setMensaje({ tipo: 'ok', texto: '¡Documento enviado! Verificá en Drive que se haya creado la carpeta.' });
+            setMensaje({ tipo: 'ok', texto: '✅ Documento cargado exitosamente en Drive' });
             setArchivo(null);
             cargarDatos();
 
@@ -102,8 +121,11 @@ export default function InscripcionesPage() {
             }, 3000);
 
         } catch (err) {
-            console.error(err);
-            setMensaje({ tipo: 'error', texto: `Error al subir: ${err.message}` });
+            console.error('Error completo:', err);
+            setMensaje({
+                tipo: 'error',
+                texto: `Error: ${err.message}. Revisá la consola (F12) para más detalles.`
+            });
         } finally {
             setSubiendo(false);
         }
