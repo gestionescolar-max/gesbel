@@ -51,6 +51,7 @@ export default function InscripcionesPage() {
     const [archivoListado, setArchivoListado] = useState(null);
     const [subiendoListado, setSubiendoListado] = useState(false);
     const [tipoDocListado, setTipoDocListado] = useState('Documentación General');
+    const [checklistModal, setChecklistModal] = useState({});
     const [inscripcionCompleta, setInscripcionCompleta] = useState(null);
     const [mostrarImpresion, setMostrarImpresion] = useState(false);
     const fichaRef = useRef(null);
@@ -227,6 +228,38 @@ export default function InscripcionesPage() {
         return resultado;
     }
 
+    function handleChecklistModal(docId, tipo, valor) {
+        setChecklistModal(prev => ({
+            ...prev,
+            [docId]: { ...prev[docId], [tipo]: valor }
+        }));
+    }
+
+    async function guardarChecklistModal() {
+        if (!inscSeleccionada) return;
+
+        try {
+            const datosUpdate = {};
+            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                const check = checklistModal[doc.id] || {};
+                datosUpdate[`doc_${doc.id}_fisico`] = check.fisico || false;
+                datosUpdate[`doc_${doc.id}_digital`] = check.digital || false;
+            });
+
+            const { error } = await supabase
+                .from('fp_inscripciones')
+                .update(datosUpdate)
+                .eq('id', inscSeleccionada.id);
+
+            if (error) throw error;
+
+            setMensaje({ tipo: 'ok', texto: 'Checklist actualizado correctamente' });
+            cargarDatos();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        }
+    }
     function handleImprimir() {
         const contenido = fichaRef.current;
         if (!contenido) return;
@@ -468,17 +501,24 @@ export default function InscripcionesPage() {
                                     <tbody>
                                         {filtradas.map((p, idx) => (
                                             <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
-                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
-                                                <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
-                                                <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
-                                                <td style={{ padding: '14px 16px' }}>
-                                                    <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7', color: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e', border: `1px solid ${p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a'}` }}>{p.estado}</span>
-                                                </td>
                                                 <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>{Iconos.subir} Cargar Doc.</button>
-                                                    {p.url_carpeta_drive && (<a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6, textDecoration: 'none' }}>{Iconos.externo} Ver Carpeta</a>)}
-                                                    {p.estado === 'preinscrito' && (<button onClick={() => confirmarInscripcion(p.id)} style={{ background: '#fff', color: '#15803d', border: '1px solid #15803d', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Confirmar</button>)}
+                                                    <button
+                                                        onClick={() => {
+                                                            setInscSeleccionada(p);
+                                                            setArchivoListado(null);
+                                                            const checklistActual = {};
+                                                            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                checklistActual[doc.id] = {
+                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                    digital: p[`doc_${doc.id}_digital`] || false
+                                                                };
+                                                            });
+                                                            setChecklistModal(checklistActual);
+                                                        }}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
+                                                    >
+                                                        {Iconos.subir} Cargar Doc.
+                                                    </button>)}
                                                 </td>
                                             </tr>
                                         ))}
@@ -522,16 +562,100 @@ export default function InscripcionesPage() {
                 {/* ================= MODAL: CARGA ADICIONAL ================= */}
                 {inscSeleccionada && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setInscSeleccionada(null)}>
-                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 520, width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
                                 <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Carga de Documentación</h3>
-                                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Alumno: <strong style={{ color: '#1e3a8a' }}>{inscSeleccionada.apellido ? `${inscSeleccionada.apellido}, ${inscSeleccionada.nombre}` : inscSeleccionada.nombre}</strong>{inscSeleccionada.legajo && <span> · Legajo: {inscSeleccionada.legajo}</span>}</p>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                                    Alumno: <strong style={{ color: '#1e3a8a' }}>{inscSeleccionada.apellido ? `${inscSeleccionada.apellido}, ${inscSeleccionada.nombre}` : inscSeleccionada.nombre}</strong>
+                                    {inscSeleccionada.legajo && <span> · Legajo: {inscSeleccionada.legajo}</span>}
+                                </p>
                             </div>
-                            <div style={{ marginBottom: 20 }}><label style={labelStyle}>Tipo de documento</label><select value={tipoDocListado} onChange={(e) => setTipoDocListado(e.target.value)} style={inputStyle}><option value="Documentación General">Documentación General</option><option value="DNI">DNI</option><option value="Certificado de Estudios">Certificado de Estudios</option><option value="Certificado Médico">Certificado Médico</option><option value="Comprobante de Pago">Comprobante de Pago / Cooperadora</option></select></div>
-                            <div style={{ marginBottom: 24 }}><label style={labelStyle}>Archivo (PDF, JPG, PNG)</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setArchivoListado(e.target.files[0])} style={{ width: '100%', padding: '12px', borderRadius: 6, border: '1px dashed #d1d5db', fontSize: 14, background: '#f9fafb' }} />{archivoListado && (<div style={{ fontSize: 12, color: '#15803d', marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 4, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 6 }}>{Iconos.check} {archivoListado.name} ({(archivoListado.size / 1024).toFixed(1)} KB)</div>)}</div>
+
+                            {/* CHECKLIST DE DOCUMENTACIÓN */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentación Presentada</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                        const check = checklistModal[doc.id] || {};
+                                        return (
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: '#f9fafb', borderRadius: 4, border: '1px solid #e5e7eb' }}>
+                                                <div style={{ flex: 1, fontSize: 13, color: '#1e3a8a', fontWeight: 500 }}>
+                                                    {doc.nombre}
+                                                    {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 12 }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={check.fisico || false}
+                                                            onChange={(e) => handleChecklistModal(doc.id, 'fisico', e.target.checked)}
+                                                            style={{ width: 14, height: 14, cursor: 'pointer' }}
+                                                        />
+                                                        <span>Físico</span>
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={check.digital || false}
+                                                            onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)}
+                                                            style={{ width: 14, height: 14, cursor: 'pointer' }}
+                                                        />
+                                                        <span>Digital</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <button
+                                    onClick={guardarChecklistModal}
+                                    style={{
+                                        marginTop: 12,
+                                        background: '#fff',
+                                        color: '#1e3a8a',
+                                        border: '1px solid #1e3a8a',
+                                        padding: '6px 12px',
+                                        borderRadius: 4,
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Guardar cambios del checklist
+                                </button>
+                            </div>
+
+                            {/* CARGA DE ARCHIVO */}
+                            <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Subir Archivo Digital</h4>
+                                <div style={{ marginBottom: 12 }}>
+                                    <label style={labelStyle}>Tipo de documento</label>
+                                    <select value={tipoDocListado} onChange={(e) => setTipoDocListado(e.target.value)} style={inputStyle}>
+                                        <option value="Documentación General">Documentación General</option>
+                                        <option value="DNI">DNI</option>
+                                        <option value="Certificado de Estudios">Certificado de Estudios</option>
+                                        <option value="Certificado Médico">Certificado Médico</option>
+                                        <option value="Comprobante de Pago">Comprobante de Pago / Cooperadora</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Archivo (PDF, JPG, PNG)</label>
+                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setArchivoListado(e.target.files[0])} style={{ width: '100%', padding: '12px', borderRadius: 6, border: '1px dashed #d1d5db', fontSize: 14, background: '#f9fafb' }} />
+                                    {archivoListado && (
+                                        <div style={{ fontSize: 12, color: '#15803d', marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 4, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            {Iconos.check} {archivoListado.name} ({(archivoListado.size / 1024).toFixed(1)} KB)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                                <button onClick={() => setInscSeleccionada(null)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
-                                <button onClick={handleSubirArchivoListado} disabled={subiendoListado || !archivoListado} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: subiendoListado || !archivoListado ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: subiendoListado || !archivoListado ? 'not-allowed' : 'pointer' }}>{Iconos.subir} {subiendoListado ? 'Subiendo...' : 'Guardar en Drive'}</button>
+                                <button onClick={() => setInscSeleccionada(null)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                                    Cancelar
+                                </button>
+                                <button onClick={handleSubirArchivoListado} disabled={subiendoListado || !archivoListado} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: subiendoListado || !archivoListado ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: subiendoListado || !archivoListado ? 'not-allowed' : 'pointer' }}>
+                                    {Iconos.subir} {subiendoListado ? 'Subiendo...' : 'Guardar en Drive'}
+                                </button>
                             </div>
                         </div>
                     </div>
