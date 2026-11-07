@@ -223,26 +223,37 @@ export default function InscripcionesPage() {
 
             // 7. Subir archivos digitales a Drive
             let urlCarpetaDrive = null;
-            const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null);
+            const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null && file !== undefined);
 
             if (archivosASubir.length > 0) {
                 setMensaje({ tipo: 'loading', texto: `Subiendo ${archivosASubir.length} documento(s) digitales a Drive...` });
 
+                const datosAlumno = {
+                    legajo: nuevaInscripcion.legajo || `PRE-${nuevaInscripcion.dni || nuevaInscripcion.id}`,
+                    dni: nuevaInscripcion.dni || 'SIN-DNI',
+                    apellido: nuevaInscripcion.apellido || form.apellido || 'Sin apellido',
+                    nombre: nuevaInscripcion.nombre || form.nombre || 'Sin nombre'
+                };
+
                 for (const [docId, file] of archivosASubir) {
                     const docInfo = DOCUMENTOS_REQUERIDOS.find(d => d.id === docId);
-                    const resultado = await subirArchivoADrive(file, docInfo.nombre, {
-                        legajo: nuevaInscripcion.legajo,
-                        dni: nuevaInscripcion.dni,
-                        apellido: nuevaInscripcion.apellido,
-                        nombre: nuevaInscripcion.nombre
-                    });
-                    if (resultado.success && !urlCarpetaDrive) {
-                        urlCarpetaDrive = resultado.url_carpeta;
+
+                    try {
+                        const resultado = await subirArchivoADrive(file, docInfo.nombre, datosAlumno);
+
+                        if (resultado.success && resultado.url_carpeta) {
+                            urlCarpetaDrive = resultado.url_carpeta;
+                        }
+                    } catch (err) {
+                        console.error('Error al subir archivo:', docInfo.nombre, err);
                     }
                 }
 
                 if (urlCarpetaDrive) {
-                    await supabase.from('fp_inscripciones').update({ url_carpeta_drive: urlCarpetaDrive }).eq('id', nuevaInscripcion.id);
+                    await supabase
+                        .from('fp_inscripciones')
+                        .update({ url_carpeta_drive: urlCarpetaDrive })
+                        .eq('id', nuevaInscripcion.id);
                 }
             }
 
