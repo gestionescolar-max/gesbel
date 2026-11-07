@@ -160,15 +160,38 @@ export default function InscripcionesPage() {
         setMensaje(null);
 
         try {
-            const docsObligatoriosOK = DOCUMENTOS_REQUERIDOS
+            // 1. Evaluar documentos obligatorios marcados (físico o digital)
+            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS
                 .filter(d => d.obligatorio)
-                .every(d => {
+                .filter(d => {
                     const doc = documentosChecklist[d.id] || {};
                     return doc.fisico || doc.digital;
                 });
 
-            const estadoFinal = docsObligatoriosOK ? 'inscripto' : 'preinscrito';
+            const todosDocsObligatoriosOK = docsObligatoriosMarcados.length === DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length;
 
+            // 2. Evaluar cooperadora
+            const cooperadoraOK = pagoCooperadora.paga && pagoCooperadora.monto > 0;
+
+            // 3. Determinar estado final
+            const estadoFinal = (todosDocsObligatoriosOK && cooperadoraOK) ? 'inscripto' : 'preinscrito';
+
+            // 4. Construir mensaje explicativo
+            const faltantes = [];
+            if (!todosDocsObligatoriosOK) {
+                const docsFaltantes = DOCUMENTOS_REQUERIDOS
+                    .filter(d => d.obligatorio)
+                    .filter(d => {
+                        const doc = documentosChecklist[d.id] || {};
+                        return !doc.fisico && !doc.digital;
+                    });
+                faltantes.push(`Documentos faltantes: ${docsFaltantes.map(d => d.nombre).join(', ')}`);
+            }
+            if (!cooperadoraOK) {
+                faltantes.push('No se registró pago de cooperadora');
+            }
+
+            // 5. Preparar datos de documentos para la BD
             const datosDocumentos = {};
             DOCUMENTOS_REQUERIDOS.forEach(doc => {
                 const check = documentosChecklist[doc.id] || {};
@@ -176,21 +199,19 @@ export default function InscripcionesPage() {
                 datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false;
             });
 
+            // 6. Insertar en la base de datos
             const datosInsert = {
                 ...form,
                 ...datosDocumentos,
                 fp_curso_id: Number(form.fp_curso_id),
                 estado: estadoFinal,
                 fecha_inscripcion: new Date().toISOString().split('T')[0],
-                documentacion_completa: docsObligatoriosOK,
+                documentacion_completa: todosDocsObligatoriosOK,
                 pago_cooperadora: pagoCooperadora.paga,
                 monto_cooperadora: pagoCooperadora.paga ? pagoCooperadora.monto : 0,
                 tipo_pago_cooperadora: pagoCooperadora.tipo_pago,
                 nro_comprobante_cooperadora: pagoCooperadora.nro_comprobante
             };
-
-            // Eliminar ciclo_lectivo si la tabla no lo acepta (por si acaso)
-            // delete datosInsert.ciclo_lectivo;
 
             const { data: nuevaInscripcion, error: dbError } = await supabase
                 .from('fp_inscripciones')
@@ -200,6 +221,7 @@ export default function InscripcionesPage() {
 
             if (dbError) throw dbError;
 
+            // 7. Subir archivos digitales a Drive
             let urlCarpetaDrive = null;
             const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null);
 
@@ -224,14 +246,19 @@ export default function InscripcionesPage() {
                 }
             }
 
-            const mensajeExito = estadoFinal === 'inscripto'
-                ? 'Alumno inscripto y dado de alta correctamente.'
-                : 'Pre-inscripción registrada. Faltan documentos obligatorios.';
+            // 8. Mensaje final según estado
+            let mensajeFinal = '';
+            if (estadoFinal === 'inscripto') {
+                mensajeFinal = '✅ Alumno INSCRIPTO correctamente. Documentación completa y cooperadora registrada.';
+            } else {
+                mensajeFinal = `⚠️ Alumno PRE-INSCRIPTO. Queda pendiente: ${faltantes.join(' · ')}`;
+            }
 
-            setMensaje({ tipo: 'ok', texto: mensajeExito });
+            setMensaje({ tipo: estadoFinal === 'inscripto' ? 'ok' : 'warning', texto: mensajeFinal });
             setInscripcionCompleta({ ...nuevaInscripcion, pago: pagoCooperadora });
             setMostrarImpresion(true);
 
+            // 9. Limpiar formulario
             setForm({
                 fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(), apellido: '', nombre: '', dni: '', fecha_nac: '',
                 nacionalidad: 'argentino', telefono: '', email: '', domicilio: '',
@@ -244,7 +271,7 @@ export default function InscripcionesPage() {
             setPagoCooperadora({ paga: false, monto: 0, tipo_pago: 'total', nro_comprobante: '' });
             cargarDatos();
 
-            setTimeout(() => setMensaje(null), 4000);
+            setTimeout(() => setMensaje(null), 6000);
         } catch (err) {
             console.error('Error:', err);
             setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
@@ -370,21 +397,33 @@ export default function InscripcionesPage() {
 
                 {mensaje && (
                     <div style={{
-                        background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff',
-                        border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0' : mensaje.tipo === 'error' ? '#fecaca' : '#bfdbfe'}`,
-                        color: mensaje.tipo === 'ok' ? '#15803d' : mensaje.tipo === 'error' ? '#b91c1c' : '#1e40af',
+                        background: mensaje.tipo === 'ok' ? '#f0fdf4'
+                            : mensaje.tipo === 'error' ? '#fef2f2'
+                                : mensaje.tipo === 'warning' ? '#fef3c7'
+                                    : '#eff6ff',
+                        border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0'
+                            : mensaje.tipo === 'error' ? '#fecaca'
+                                : mensaje.tipo === 'warning' ? '#fde68a'
+                                    : '#bfdbfe'}`,
+                        color: mensaje.tipo === 'ok' ? '#15803d'
+                            : mensaje.tipo === 'error' ? '#b91c1c'
+                                : mensaje.tipo === 'warning' ? '#92400e'
+                                    : '#1e40af',
                         padding: 14,
                         borderRadius: 8,
                         marginBottom: 20,
                         fontSize: 14,
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         gap: 8
                     }}>
-                        {mensaje.tipo === 'loading' && <span style={{ opacity: 0.7 }}>⏳</span>}
-                        {mensaje.tipo === 'ok' && <span style={{ color: '#15803d' }}>{Iconos.check}</span>}
-                        {mensaje.tipo === 'error' && <span style={{ color: '#b91c1c' }}>{Iconos.alerta}</span>}
-                        {mensaje.texto}
+                        <span style={{ flexShrink: 0, marginTop: 2 }}>
+                            {mensaje.tipo === 'loading' && '⏳'}
+                            {mensaje.tipo === 'ok' && '✅'}
+                            {mensaje.tipo === 'error' && '❌'}
+                            {mensaje.tipo === 'warning' && '⚠️'}
+                        </span>
+                        <span>{mensaje.texto}</span>
                     </div>
                 )}
 
@@ -523,11 +562,36 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
+                            {/* SECCIÓN 6: CHECKLIST DE DOCUMENTACIÓN (CON RESUMEN) */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.carpeta} Documentación Presentada</h3>
+
+                                {/* RESUMEN DE ESTADO EN TIEMPO REAL */}
+                                <div style={{
+                                    background: '#eff6ff',
+                                    border: '1px solid #bfdbfe',
+                                    borderRadius: 6,
+                                    padding: 12,
+                                    marginBottom: 16,
+                                    fontSize: 13,
+                                    color: '#1e40af'
+                                }}>
+                                    <strong>Estado actual:</strong> Se marcaron {
+                                        DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => {
+                                            const doc = documentosChecklist[d.id] || {};
+                                            return doc.fisico || doc.digital;
+                                        }).length
+                                    } de {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length} documentos obligatorios.
+                                    {pagoCooperadora.paga && pagoCooperadora.monto > 0
+                                        ? ' · ✅ Cooperadora registrada'
+                                        : ' · ⚠️ Cooperadora pendiente'}
+                                </div>
+
                                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-                                    Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital. Ambas opciones son válidas.
+                                    Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital.
+                                    Si faltan documentos obligatorios o no se registra el pago de cooperadora, el alumno quedará como <strong>pre-inscripto</strong>.
                                 </p>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {DOCUMENTOS_REQUERIDOS.map(doc => {
                                         const check = documentosChecklist[doc.id] || {};
