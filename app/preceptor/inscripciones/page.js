@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useDocente } from '@/lib/useDocente';
 import Sidebar from '@/components/Sidebar';
@@ -24,45 +24,28 @@ const Iconos = {
     externo: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>,
     alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>,
     calendario: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
-    bloqueo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+    bloqueo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>,
+    imprimir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>,
+    carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
 };
 
-// ============================================
-// LÓGICA DE PERÍODO DE INSCRIPCIÓN
-// ============================================
 function obtenerPeriodoInscripcion() {
     const ahora = new Date();
-    const mes = ahora.getMonth(); // 0-11
+    const mes = ahora.getMonth();
     const anio = ahora.getFullYear();
 
-    if (mes >= 10) { // Noviembre o Diciembre
-        return {
-            abierto: true,
-            cicloLectivo: anio + 1,
-            periodo: 'noviembre-diciembre',
-            mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio + 1}`
-        };
-    } else if (mes >= 0 && mes <= 5) { // Enero a Junio
-        return {
-            abierto: true,
-            cicloLectivo: anio,
-            periodo: 'enero-junio',
-            mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio}`
-        };
-    } else { // Julio a Octubre
-        return {
-            abierto: false,
-            cicloLectivo: anio,
-            periodo: 'cerrado',
-            mensaje: 'Período de inscripción cerrado. El próximo período abrirá en noviembre.'
-        };
+    if (mes >= 10) {
+        return { abierto: true, cicloLectivo: anio + 1, periodo: 'noviembre-diciembre', mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio + 1}` };
+    } else if (mes >= 0 && mes <= 5) {
+        return { abierto: true, cicloLectivo: anio, periodo: 'enero-junio', mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio}` };
+    } else {
+        return { abierto: false, cicloLectivo: anio, periodo: 'cerrado', mensaje: 'Período de inscripción cerrado. El próximo período abrirá en noviembre.' };
     }
 }
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
     const [vista, setVista] = useState('inscripcion');
-
     const [inscripciones, setInscripciones] = useState([]);
     const [cursosFP, setCursosFP] = useState([]);
     const [inscSeleccionada, setInscSeleccionada] = useState(null);
@@ -70,15 +53,24 @@ export default function InscripcionesPage() {
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [busqueda, setBusqueda] = useState('');
-
     const [archivoListado, setArchivoListado] = useState(null);
     const [subiendoListado, setSubiendoListado] = useState(false);
     const [tipoDocListado, setTipoDocListado] = useState('Documentación General');
+    const [inscripcionCompleta, setInscripcionCompleta] = useState(null);
+    const [mostrarImpresion, setMostrarImpresion] = useState(false);
+    const printRef = useRef();
 
     const periodoInscripcion = obtenerPeriodoInscripcion();
-
     const [enviando, setEnviando] = useState(false);
+    const [documentosChecklist, setDocumentosChecklist] = useState({});
     const [archivosForm, setArchivosForm] = useState({});
+    const [pagoCooperadora, setPagoCooperadora] = useState({
+        paga: false,
+        monto: 0,
+        tipo_pago: 'total',
+        nro_comprobante: ''
+    });
+
     const [form, setForm] = useState({
         fp_curso_id: '',
         ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(),
@@ -134,7 +126,6 @@ export default function InscripcionesPage() {
             archivo_base64: base64.split(',')[1],
             nombre_archivo: `${tipoDoc} - ${archivo.name}`
         };
-
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -148,35 +139,57 @@ export default function InscripcionesPage() {
         setForm(prev => ({ ...prev, [name]: value }));
     }
 
+    function handleDocumentoCheck(docId, tipo, valor) {
+        setDocumentosChecklist(prev => ({
+            ...prev,
+            [docId]: { ...prev[docId], [tipo]: valor }
+        }));
+    }
+
     function handleFileChange(docId, file) {
         setArchivosForm(prev => ({ ...prev, [docId]: file }));
     }
 
     async function handleSubmitInscripcion(e) {
         e.preventDefault();
-
         if (!periodoInscripcion.abierto) {
             setMensaje({ tipo: 'error', texto: 'El período de inscripción está cerrado.' });
             return;
         }
-
         setEnviando(true);
         setMensaje(null);
 
         try {
-            const docsObligatoriosCargados = DOCUMENTOS_REQUERIDOS
+            // Verificar documentos obligatorios
+            const docsObligatoriosOK = DOCUMENTOS_REQUERIDOS
                 .filter(d => d.obligatorio)
-                .every(d => archivosForm[d.id]);
+                .every(d => {
+                    const doc = documentosChecklist[d.id] || {};
+                    return doc.fisico || doc.digital;
+                });
 
-            const estadoFinal = docsObligatoriosCargados ? 'inscripto' : 'preinscrito';
+            const estadoFinal = docsObligatoriosOK ? 'inscripto' : 'preinscrito';
+
+            // Preparar datos de documentos
+            const datosDocumentos = {};
+            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                const check = documentosChecklist[doc.id] || {};
+                datosDocumentos[`doc_${doc.id}_fisico`] = check.fisico || false;
+                datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false;
+            });
 
             const datosInsert = {
                 ...form,
+                ...datosDocumentos,
                 fp_curso_id: Number(form.fp_curso_id),
                 preceptor_id: docente.id,
                 estado: estadoFinal,
                 fecha_inscripcion: new Date().toISOString().split('T')[0],
-                documentacion_completa: docsObligatoriosCargados
+                documentacion_completa: docsObligatoriosOK,
+                pago_cooperadora: pagoCooperadora.paga,
+                monto_cooperadora: pagoCooperadora.monto,
+                tipo_pago_cooperadora: pagoCooperadora.tipo_pago,
+                nro_comprobante_cooperadora: pagoCooperadora.nro_comprobante
             };
 
             const { data: nuevaInscripcion, error: dbError } = await supabase
@@ -187,11 +200,12 @@ export default function InscripcionesPage() {
 
             if (dbError) throw dbError;
 
+            // Subir archivos digitales
             let urlCarpetaDrive = null;
             const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null);
 
             if (archivosASubir.length > 0) {
-                setMensaje({ tipo: 'loading', texto: `Registrando y subiendo ${archivosASubir.length} documento(s) a Drive...` });
+                setMensaje({ tipo: 'loading', texto: `Subiendo ${archivosASubir.length} documento(s) digitales a Drive...` });
 
                 for (const [docId, file] of archivosASubir) {
                     const docInfo = DOCUMENTOS_REQUERIDOS.find(d => d.id === docId);
@@ -201,25 +215,23 @@ export default function InscripcionesPage() {
                         apellido: nuevaInscripcion.apellido,
                         nombre: nuevaInscripcion.nombre
                     });
-
                     if (resultado.success && !urlCarpetaDrive) {
                         urlCarpetaDrive = resultado.url_carpeta;
                     }
                 }
 
                 if (urlCarpetaDrive) {
-                    await supabase
-                        .from('fp_inscripciones')
-                        .update({ url_carpeta_drive: urlCarpetaDrive })
-                        .eq('id', nuevaInscripcion.id);
+                    await supabase.from('fp_inscripciones').update({ url_carpeta_drive: urlCarpetaDrive }).eq('id', nuevaInscripcion.id);
                 }
             }
 
             const mensajeExito = estadoFinal === 'inscripto'
                 ? 'Alumno inscripto y dado de alta correctamente.'
-                : 'Pre-inscripción registrada. Faltan documentos obligatorios para completar la inscripción.';
+                : 'Pre-inscripción registrada. Faltan documentos obligatorios.';
 
             setMensaje({ tipo: 'ok', texto: mensajeExito });
+            setInscripcionCompleta({ ...nuevaInscripcion, ...datosDocumentos, pago: pagoCooperadora });
+            setMostrarImpresion(true);
 
             setForm({
                 fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(), apellido: '', nombre: '', dni: '', fecha_nac: '',
@@ -228,7 +240,9 @@ export default function InscripcionesPage() {
                 emergencia_nombre: '', emergencia_parentesco: '', emergencia_telefono: '',
                 observaciones: ''
             });
+            setDocumentosChecklist({});
             setArchivosForm({});
+            setPagoCooperadora({ paga: false, monto: 0, tipo_pago: 'total', nro_comprobante: '' });
             cargarDatos();
 
             setTimeout(() => setMensaje(null), 4000);
@@ -255,10 +269,7 @@ export default function InscripcionesPage() {
 
             if (!resultado.success) throw new Error(resultado.error);
 
-            await supabase
-                .from('fp_inscripciones')
-                .update({ url_carpeta_drive: resultado.url_carpeta })
-                .eq('id', inscSeleccionada.id);
+            await supabase.from('fp_inscripciones').update({ url_carpeta_drive: resultado.url_carpeta }).eq('id', inscSeleccionada.id);
 
             setMensaje({ tipo: 'ok', texto: 'Documento cargado exitosamente' });
             setArchivoListado(null);
@@ -273,10 +284,7 @@ export default function InscripcionesPage() {
 
     async function confirmarInscripcion(id) {
         if (!confirm('¿Confirmar inscripción y dar de alta al alumno?')) return;
-        const { error } = await supabase
-            .from('fp_inscripciones')
-            .update({ estado: 'inscripto', fecha_confirmacion: new Date().toISOString().split('T')[0], documentacion_completa: true })
-            .eq('id', id);
+        const { error } = await supabase.from('fp_inscripciones').update({ estado: 'inscripto', fecha_confirmacion: new Date().toISOString().split('T')[0], documentacion_completa: true }).eq('id', id);
 
         if (error) {
             setMensaje({ tipo: 'error', texto: error.message });
@@ -298,6 +306,10 @@ export default function InscripcionesPage() {
         return resultado;
     }
 
+    function handleImprimir() {
+        window.print();
+    }
+
     if (cargando || !docente) return null;
 
     const filtradas = filtrarInscripciones();
@@ -305,7 +317,6 @@ export default function InscripcionesPage() {
     const inscriptos = inscripciones.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length;
     const preinscritos = inscripciones.filter(p => p.estado === 'preinscrito').length;
 
-    // Estilos reutilizables
     const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
     const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', outline: 'none', color: '#1e3a8a' };
     const sectionTitle = { fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '0.05em' };
@@ -372,52 +383,24 @@ export default function InscripcionesPage() {
                         <div style={{ marginBottom: 24 }}>
                             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha de Inscripción</h2>
                             <p style={{ fontSize: 14, color: '#6b7280' }}>
-                                Complete los datos y adjunte la documentación digital. Si faltan documentos obligatorios, el alumno quedará como <strong>pre-inscripto</strong>.
+                                Complete los datos, marque la documentación presentada (física y/o digital) y registre el pago de cooperadora.
                             </p>
                         </div>
 
                         {!periodoInscripcion.abierto && (
-                            <div style={{
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                borderRadius: 8,
-                                padding: 20,
-                                marginBottom: 24,
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: 12
-                            }}>
+                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 20, marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                                 <div style={{ color: '#b91c1c', flexShrink: 0 }}>{Iconos.bloqueo}</div>
                                 <div>
                                     <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 4 }}>Período de Inscripción Cerrado</div>
                                     <div style={{ fontSize: 14, color: '#7f1d1d' }}>{periodoInscripcion.mensaje}</div>
-                                    <div style={{ fontSize: 13, color: '#991b1b', marginTop: 8 }}>
-                                        <strong>Calendario institucional:</strong>
-                                        <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                                            <li>Noviembre - Diciembre: Inscripción para el ciclo del año siguiente</li>
-                                            <li>Enero - Junio: Inscripción para el ciclo del año actual</li>
-                                            <li>Julio - Octubre: Período cerrado</li>
-                                        </ul>
-                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {periodoInscripcion.abierto && (
-                            <div style={{
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
-                                borderRadius: 8,
-                                padding: 16,
-                                marginBottom: 24,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 12
-                            }}>
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{ color: '#1e40af' }}>{Iconos.calendario}</div>
-                                <div style={{ fontSize: 14, color: '#1e40af' }}>
-                                    <strong>{periodoInscripcion.mensaje}</strong>
-                                </div>
+                                <div style={{ fontSize: 14, color: '#1e40af' }}><strong>{periodoInscripcion.mensaje}</strong></div>
                             </div>
                         )}
 
@@ -429,27 +412,16 @@ export default function InscripcionesPage() {
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
                                     <div>
                                         <label style={labelStyle}>Ciclo Lectivo</label>
-                                        <input
-                                            type="text"
-                                            value={form.ciclo_lectivo}
-                                            readOnly
-                                            style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed', fontWeight: 600 }}
-                                        />
+                                        <input type="text" value={form.ciclo_lectivo} readOnly style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed', fontWeight: 600 }} />
                                     </div>
                                     <div style={{ gridColumn: '1 / -1' }}>
                                         <label style={labelStyle}>Curso</label>
                                         <select name="fp_curso_id" value={form.fp_curso_id} onChange={handleChangeForm} required style={inputStyle}>
                                             <option value="">Seleccione un curso...</option>
-                                            {cursosCicloActual.length === 0 && (
-                                                <option disabled>No hay cursos disponibles para el ciclo {periodoInscripcion.cicloLectivo}</option>
-                                            )}
+                                            {cursosCicloActual.length === 0 && <option disabled>No hay cursos disponibles para el ciclo {periodoInscripcion.cicloLectivo}</option>}
                                             {cursosCicloActual.map(c => {
                                                 const nombreLimpio = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
-                                                return (
-                                                    <option key={c.id} value={c.id}>
-                                                        {nombreLimpio} ({c.turno}) — Cupo: {c.cupo}
-                                                    </option>
-                                                );
+                                                return <option key={c.id} value={c.id}>{nombreLimpio} ({c.turno}) — Cupo: {c.cupo}</option>;
                                             })}
                                         </select>
                                     </div>
@@ -467,9 +439,7 @@ export default function InscripcionesPage() {
                                     <div>
                                         <label style={labelStyle}>Nacionalidad</label>
                                         <select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}>
-                                            <option value="argentino">Argentino</option>
-                                            <option value="naturalizado">Naturalizado</option>
-                                            <option value="extranjero">Extranjero</option>
+                                            <option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option>
                                         </select>
                                     </div>
                                 </div>
@@ -501,11 +471,7 @@ export default function InscripcionesPage() {
                                         <label style={labelStyle}>Situación Laboral</label>
                                         <select name="situacion_laboral" value={form.situacion_laboral} onChange={handleChangeForm} required style={inputStyle}>
                                             <option value="">Seleccione...</option>
-                                            <option value="estudiante">Estudiante</option>
-                                            <option value="desocupado">Desocupado</option>
-                                            <option value="empleado">Empleado</option>
-                                            <option value="trabajador_independiente">Trabajador Independiente</option>
-                                            <option value="jubilado">Jubilado</option>
+                                            <option value="estudiante">Estudiante</option><option value="desocupado">Desocupado</option><option value="empleado">Empleado</option><option value="trabajador_independiente">Trabajador Independiente</option><option value="jubilado">Jubilado</option>
                                         </select>
                                     </div>
                                 </div>
@@ -521,36 +487,117 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 6: DOCUMENTACIÓN DIGITAL */}
+                            {/* SECCIÓN 6: CHECKLIST DE DOCUMENTACIÓN */}
                             <div style={{ marginBottom: 32 }}>
-                                <h3 style={sectionTitle}>{Iconos.subir} Documentación Digital</h3>
+                                <h3 style={sectionTitle}>{Iconos.carpeta} Documentación Presentada</h3>
+                                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+                                    Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital. Ambas opciones son válidas.
+                                </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    {DOCUMENTOS_REQUERIDOS.map(doc => (
-                                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 12, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
-                                                    {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 12 }}>(Obligatorio)</span>}
+                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                        const check = documentosChecklist[doc.id] || {};
+                                        return (
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', marginBottom: 4 }}>
+                                                        {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11 }}>(Obligatorio)</span>}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={check.fisico || false}
+                                                            onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)}
+                                                            style={{ width: 16, height: 16, cursor: 'pointer' }}
+                                                        />
+                                                        <span>Físico</span>
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={check.digital || false}
+                                                            onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)}
+                                                            style={{ width: 16, height: 16, cursor: 'pointer' }}
+                                                        />
+                                                        <span>Digital</span>
+                                                    </label>
+                                                </div>
+                                                <div style={{ width: 200 }}>
+                                                    <input
+                                                        type="file"
+                                                        accept=".pdf,.jpg,.jpeg,.png"
+                                                        onChange={(e) => handleFileChange(doc.id, e.target.files[0])}
+                                                        style={{ fontSize: 12, width: '100%' }}
+                                                    />
+                                                    {archivosForm[doc.id] && (
+                                                        <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            {Iconos.check} {archivosForm[doc.id].name}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div style={{ width: 250 }}>
-                                                <input
-                                                    type="file"
-                                                    accept=".pdf,.jpg,.jpeg,.png"
-                                                    onChange={(e) => handleFileChange(doc.id, e.target.files[0])}
-                                                    style={{ fontSize: 13, width: '100%' }}
-                                                />
-                                                {archivosForm[doc.id] && (
-                                                    <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                        {Iconos.check} {archivosForm[doc.id].name}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
+                            {/* SECCIÓN 7: PAGO DE COOPERADORA */}
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Pago de Cooperadora</h3>
+                                <div style={{ background: '#f9fafb', padding: 20, borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                    <div style={{ marginBottom: 16 }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={pagoCooperadora.paga}
+                                                onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))}
+                                                style={{ width: 18, height: 18, cursor: 'pointer' }}
+                                            />
+                                            El alumno realiza aporte a cooperadora
+                                        </label>
+                                    </div>
+
+                                    {pagoCooperadora.paga && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                            <div>
+                                                <label style={labelStyle}>Monto</label>
+                                                <input
+                                                    type="number"
+                                                    value={pagoCooperadora.monto}
+                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))}
+                                                    placeholder="0.00"
+                                                    step="0.01"
+                                                    style={inputStyle}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={labelStyle}>Tipo de Pago</label>
+                                                <select
+                                                    value={pagoCooperadora.tipo_pago}
+                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, tipo_pago: e.target.value }))}
+                                                    style={inputStyle}
+                                                >
+                                                    <option value="total">Total</option>
+                                                    <option value="parcial">Parcial</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={labelStyle}>N° de Comprobante</label>
+                                                <input
+                                                    type="text"
+                                                    value={pagoCooperadora.nro_comprobante}
+                                                    onChange={(e) => setPagoCooperadora(prev => ({ ...prev, nro_comprobante: e.target.value }))}
+                                                    placeholder="Ej: 0001-00001234"
+                                                    style={inputStyle}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
                                 <button
                                     type="submit"
                                     disabled={enviando || !periodoInscripcion.abierto}
@@ -736,7 +783,126 @@ export default function InscripcionesPage() {
                         </div>
                     </div>
                 )}
+
+                {/* ================= MODAL: FICHA IMPRIMIBLE ================= */}
+                {mostrarImpresion && inscripcionCompleta && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setMostrarImpresion(false)}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 40, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div ref={printRef}>
+                                <div style={{ textAlign: 'center', marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #1e3a8a' }}>
+                                    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 8 }}>ESCUELA TÉCNICA FRAY LUIS BELTRÁN</h1>
+                                    <h2 style={{ fontSize: 16, fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>FICHA DE INSCRIPCIÓN - FORMACIÓN PROFESIONAL</h2>
+                                    <div style={{ fontSize: 13, color: '#6b7280' }}>Ciclo Lectivo: {inscripcionCompleta.ciclo_lectivo} | Legajo: {inscripcionCompleta.legajo || 'Pendiente'}</div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos del Curso</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        <strong>Curso:</strong> {cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.nombre || '—'} ({cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.turno})
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Apellido y Nombre:</strong> {inscripcionCompleta.apellido}, {inscripcionCompleta.nombre}</div>
+                                        <div><strong>DNI:</strong> {inscripcionCompleta.dni}</div>
+                                        <div><strong>Fecha de Nacimiento:</strong> {inscripcionCompleta.fecha_nac}</div>
+                                        <div><strong>Nacionalidad:</strong> {inscripcionCompleta.nacionalidad}</div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.telefono}</div>
+                                        <div><strong>Email:</strong> {inscripcionCompleta.email || '—'}</div>
+                                        <div style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {inscripcionCompleta.domicilio || '—'}</div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos y Laborales</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Estudios Obtenidos:</strong> {inscripcionCompleta.estudios_obtenidos}</div>
+                                        <div><strong>Situación Laboral:</strong> {inscripcionCompleta.situacion_laboral}</div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Nombre:</strong> {inscripcionCompleta.emergencia_nombre || '—'}</div>
+                                        <div><strong>Parentesco:</strong> {inscripcionCompleta.emergencia_parentesco || '—'}</div>
+                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.emergencia_telefono || '—'}</div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentación Presentada</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                            const fisico = inscripcionCompleta[`doc_${doc.id}_fisico`];
+                                            const digital = inscripcionCompleta[`doc_${doc.id}_digital`];
+                                            return (
+                                                <div key={doc.id} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontWeight: 600 }}>{doc.nombre}:</span>
+                                                    {fisico && <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>Físico</span>}
+                                                    {digital && <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>Digital</span>}
+                                                    {!fisico && !digital && <span style={{ color: '#9ca3af', fontSize: 12 }}>No presentado</span>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        {inscripcionCompleta.pago?.paga ? (
+                                            <>
+                                                <div><strong>Monto:</strong> ${inscripcionCompleta.pago.monto}</div>
+                                                <div><strong>Tipo de Pago:</strong> {inscripcionCompleta.pago.tipo_pago}</div>
+                                                <div><strong>N° de Comprobante:</strong> {inscripcionCompleta.pago.nro_comprobante || '—'}</div>
+                                            </>
+                                        ) : (
+                                            <div style={{ color: '#9ca3af' }}>No realiza aporte a cooperadora</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
+                                    <div>
+                                        <div style={{ marginBottom: 40 }}>Firma del Alumno / Tutor</div>
+                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4, width: 200 }}>Aclaración y Firma</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ marginBottom: 40 }}>Firma del Preceptor</div>
+                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4, width: 200 }}>Aclaración y Firma</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                <button onClick={() => setMostrarImpresion(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                                    Cerrar
+                                </button>
+                                <button onClick={handleImprimir} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                    {Iconos.imprimir} Imprimir Ficha
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            <style jsx global>{`
+        @media print {
+          body * { visibility: hidden; }
+          ${printRef.current ? `#${printRef.current.id}, #${printRef.current.id} *` : ''} { visibility: visible; }
+          ${printRef.current ? `#${printRef.current.id}` : ''} { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
         </Sidebar>
     );
 }
