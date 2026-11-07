@@ -766,6 +766,7 @@ export default function InscripcionesPage() {
                                 </div>
 
                                 {/* FILTRO 2: CURSO (filtrado por ciclo) */}
+                                {/* FILTRO 2: CURSO (filtrado por ciclo) */}
                                 <div>
                                     <label style={labelStyle}>Curso</label>
                                     <select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}>
@@ -773,8 +774,14 @@ export default function InscripcionesPage() {
                                         {cursosFP
                                             .filter(c => filtroCiclo === 'todos' || c.anio === Number(filtroCiclo))
                                             .map(c => {
-                                                const nombreLimpio = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
-                                                return <option key={c.id} value={c.id}>{nombreLimpio}</option>;
+                                                // Quitar el año del nombre si lo tiene
+                                                const nombreConAnio = c.nombre;
+                                                const nombreSinAnio = nombreConAnio.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
+                                                return (
+                                                    <option key={c.id} value={c.id}>
+                                                        {nombreSinAnio} {c.turno ? `(${c.turno})` : ''}
+                                                    </option>
+                                                );
                                             })}
                                     </select>
                                 </div>
