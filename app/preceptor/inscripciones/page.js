@@ -615,7 +615,18 @@ export default function InscripcionesPage() {
                                                 <div style={{ width: 200 }}>
                                                     <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
                                                     {archivosForm[doc.id] && (
-                                                        <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <div style={{
+                                                            fontSize: 11,
+                                                            color: '#15803d',
+                                                            marginTop: 4,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            maxWidth: 200,
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap'
+                                                        }} title={archivosForm[doc.id].name}>
                                                             {Iconos.check} {archivosForm[doc.id].name}
                                                         </div>
                                                     )}
