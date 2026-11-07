@@ -501,11 +501,32 @@ export default function InscripcionesPage() {
                                     <tbody>
                                         {filtradas.map((p, idx) => (
                                             <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                {/* COLUMNA 1: Legajo */}
+                                                <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
+
+                                                {/* COLUMNA 2: Alumno */}
+                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
+
+                                                {/* COLUMNA 3: DNI */}
+                                                <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
+
+                                                {/* COLUMNA 4: Curso */}
+                                                <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
+
+                                                {/* COLUMNA 5: Estado */}
+                                                <td style={{ padding: '14px 16px' }}>
+                                                    <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7', color: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e', border: `1px solid ${p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a'}` }}>
+                                                        {p.estado}
+                                                    </span>
+                                                </td>
+
+                                                {/* COLUMNA 6: Acciones */}
                                                 <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     <button
                                                         onClick={() => {
                                                             setInscSeleccionada(p);
                                                             setArchivoListado(null);
+                                                            // Cargar el checklist actual del alumno en el modal
                                                             const checklistActual = {};
                                                             DOCUMENTOS_REQUERIDOS.forEach(doc => {
                                                                 checklistActual[doc.id] = {
@@ -518,12 +539,23 @@ export default function InscripcionesPage() {
                                                         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
                                                     >
                                                         {Iconos.subir} Cargar Doc.
-                                                    </button>)}
+                                                    </button>
+
+                                                    {p.url_carpeta_drive && (
+                                                        <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6, textDecoration: 'none' }}>
+                                                            {Iconos.externo} Ver Carpeta
+                                                        </a>
+                                                    )}
+
+                                                    {p.estado === 'preinscrito' && (
+                                                        <button onClick={() => confirmarInscripcion(p.id)} style={{ background: '#fff', color: '#15803d', border: '1px solid #15803d', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                                                            Confirmar
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </tbody>                                </table>
                             </div>
                             {filtradas.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron registros con los filtros seleccionados.</div>}
                         </div>
