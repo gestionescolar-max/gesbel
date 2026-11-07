@@ -22,14 +22,50 @@ const Iconos = {
     subir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
     check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
     externo: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>,
-    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>,
+    calendario: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+    bloqueo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
 };
+
+// ============================================
+// LÓGICA DE PERÍODO DE INSCRIPCIÓN
+// ============================================
+function obtenerPeriodoInscripcion() {
+    const ahora = new Date();
+    const mes = ahora.getMonth(); // 0-11 (enero=0, diciembre=11)
+    const anio = ahora.getFullYear();
+
+    if (mes >= 10) { // Noviembre (10) o Diciembre (11)
+        // Período abierto para el ciclo del año siguiente
+        return {
+            abierto: true,
+            cicloLectivo: anio + 1,
+            periodo: 'noviembre-diciembre',
+            mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio + 1}`
+        };
+    } else if (mes >= 0 && mes <= 5) { // Enero (0) a Junio (5)
+        // Período abierto para el ciclo del año actual
+        return {
+            abierto: true,
+            cicloLectivo: anio,
+            periodo: 'enero-junio',
+            mensaje: `Período de inscripción abierto para el ciclo lectivo ${anio}`
+        };
+    } else { // Julio (6) a Octubre (9)
+        // Período cerrado
+        return {
+            abierto: false,
+            cicloLectivo: anio,
+            periodo: 'cerrado',
+            mensaje: 'Período de inscripción cerrado. El próximo período abrirá en noviembre.'
+        };
+    }
+}
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
-    const [vista, setVista] = useState('inscripcion'); // Orden: inscripcion, listado, resumen
+    const [vista, setVista] = useState('inscripcion');
 
-    // Estados para listado y resumen
     const [inscripciones, setInscripciones] = useState([]);
     const [cursosFP, setCursosFP] = useState([]);
     const [inscSeleccionada, setInscSeleccionada] = useState(null);
@@ -38,16 +74,18 @@ export default function InscripcionesPage() {
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [busqueda, setBusqueda] = useState('');
 
-    // Estados para carga de documentos desde el listado
     const [archivoListado, setArchivoListado] = useState(null);
     const [subiendoListado, setSubiendoListado] = useState(false);
     const [tipoDocListado, setTipoDocListado] = useState('Documentación General');
 
-    // Estados para el formulario de inscripción
+    // Obtener período de inscripción
+    const periodoInscripcion = obtenerPeriodoInscripcion();
+
     const [enviando, setEnviando] = useState(false);
-    const [archivosForm, setArchivosForm] = useState({}); // { dni: File, foto: File, ... }
+    const [archivosForm, setArchivosForm] = useState({});
     const [form, setForm] = useState({
         fp_curso_id: '',
+        ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(),
         apellido: '',
         nombre: '',
         dni: '',
@@ -82,7 +120,6 @@ export default function InscripcionesPage() {
         }
     }
 
-    // --- LÓGICA DE ARCHIVOS ---
     function fileToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -110,7 +147,6 @@ export default function InscripcionesPage() {
         return await response.json();
     }
 
-    // --- LÓGICA DEL FORMULARIO DE INSCRIPCIÓN ---
     function handleChangeForm(e) {
         const { name, value } = e.target;
         setForm(prev => ({ ...prev, [name]: value }));
@@ -122,34 +158,40 @@ export default function InscripcionesPage() {
 
     async function handleSubmitInscripcion(e) {
         e.preventDefault();
+
+        // Validar que el período esté abierto
+        if (!periodoInscripcion.abierto) {
+            setMensaje({ tipo: 'error', texto: 'El período de inscripción está cerrado.' });
+            return;
+        }
+
         setEnviando(true);
         setMensaje(null);
 
         try {
-            // 1. Determinar estado inicial según documentos obligatorios cargados
             const docsObligatoriosCargados = DOCUMENTOS_REQUERIDOS
                 .filter(d => d.obligatorio)
                 .every(d => archivosForm[d.id]);
 
             const estadoFinal = docsObligatoriosCargados ? 'inscripto' : 'preinscrito';
 
-            // 2. Guardar registro en BD primero para obtener el ID
+            const datosInsert = {
+                ...form,
+                fp_curso_id: Number(form.fp_curso_id),
+                preceptor_id: docente.id,
+                estado: estadoFinal,
+                fecha_inscripcion: new Date().toISOString().split('T')[0],
+                documentacion_completa: docsObligatoriosCargados
+            };
+
             const { data: nuevaInscripcion, error: dbError } = await supabase
                 .from('fp_inscripciones')
-                .insert({
-                    ...form,
-                    fp_curso_id: Number(form.fp_curso_id),
-                    preceptor_id: docente.id,
-                    estado: estadoFinal,
-                    fecha_inscripcion: new Date().toISOString().split('T')[0],
-                    documentacion_completa: docsObligatoriosCargados
-                })
+                .insert(datosInsert)
                 .select()
                 .single();
 
             if (dbError) throw dbError;
 
-            // 3. Subir archivos a Drive (si hay)
             let urlCarpetaDrive = null;
             const archivosASubir = Object.entries(archivosForm).filter(([_, file]) => file !== null);
 
@@ -170,7 +212,6 @@ export default function InscripcionesPage() {
                     }
                 }
 
-                // Actualizar BD con el link de la carpeta
                 if (urlCarpetaDrive) {
                     await supabase
                         .from('fp_inscripciones')
@@ -185,9 +226,8 @@ export default function InscripcionesPage() {
 
             setMensaje({ tipo: 'ok', texto: mensajeExito });
 
-            // Limpiar formulario
             setForm({
-                fp_curso_id: '', apellido: '', nombre: '', dni: '', fecha_nac: '',
+                fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(), apellido: '', nombre: '', dni: '', fecha_nac: '',
                 nacionalidad: 'argentino', telefono: '', email: '', domicilio: '',
                 estudios_obtenidos: 'primario_secundario', situacion_laboral: '',
                 emergencia_nombre: '', emergencia_parentesco: '', emergencia_telefono: '',
@@ -205,7 +245,6 @@ export default function InscripcionesPage() {
         }
     }
 
-    // --- LÓGICA DEL LISTADO (Carga adicional de documentos) ---
     async function handleSubirArchivoListado() {
         if (!archivoListado || !inscSeleccionada) return;
         setSubiendoListado(true);
@@ -275,6 +314,9 @@ export default function InscripcionesPage() {
     const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', outline: 'none' };
     const sectionTitle = { fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 };
 
+    // Filtrar cursos solo del ciclo lectivo correspondiente al período actual
+    const cursosCicloActual = cursosFP.filter(c => c.anio === periodoInscripcion.cicloLectivo);
+
     return (
         <Sidebar docente={docente} titulo="Gestión de Inscripciones FP">
             <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -299,7 +341,6 @@ export default function InscripcionesPage() {
                     </div>
                 )}
 
-                {/* Navegación por tabs (Orden solicitado) */}
                 <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb' }}>
                     {[
                         { id: 'inscripcion', label: 'Inscripción', icon: Iconos.formulario },
@@ -340,17 +381,92 @@ export default function InscripcionesPage() {
                             </p>
                         </div>
 
-                        <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32 }}>
+                        {/* AVISO DE PERÍODO DE INSCRIPCIÓN */}
+                        {!periodoInscripcion.abierto && (
+                            <div style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                borderRadius: 8,
+                                padding: 20,
+                                marginBottom: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12
+                            }}>
+                                <div style={{ color: '#b91c1c' }}>{Iconos.bloqueo}</div>
+                                <div>
+                                    <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 4 }}>Período de Inscripción Cerrado</div>
+                                    <div style={{ fontSize: 14, color: '#7f1d1d' }}>{periodoInscripcion.mensaje}</div>
+                                    <div style={{ fontSize: 13, color: '#991b1b', marginTop: 8 }}>
+                                        <strong>Calendario institucional:</strong>
+                                        <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                                            <li>Noviembre - Diciembre: Inscripción para el ciclo del año siguiente</li>
+                                            <li>Enero - Junio: Inscripción para el ciclo del año actual</li>
+                                            <li>Julio - Octubre: Período cerrado</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {periodoInscripcion.abierto && (
+                            <div style={{
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: 8,
+                                padding: 16,
+                                marginBottom: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12
+                            }}>
+                                <div style={{ color: '#1e40af' }}>{Iconos.calendario}</div>
+                                <div style={{ fontSize: 14, color: '#1e40af' }}>
+                                    <strong>{periodoInscripcion.mensaje}</strong>
+                                </div>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso y Alumno</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+
+                                    {/* CAMPO CICLO LECTIVO (Bloqueado al ciclo correspondiente) */}
+                                    <div>
+                                        <label style={labelStyle}>Ciclo Lectivo *</label>
+                                        <input
+                                            type="text"
+                                            value={form.ciclo_lectivo}
+                                            readOnly
+                                            style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed', fontWeight: 600 }}
+                                        />
+                                        <p style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                            {periodoInscripcion.periodo === 'noviembre-diciembre'
+                                                ? 'Inscripción para el ciclo del año siguiente'
+                                                : 'Inscripción para el ciclo del año actual'}
+                                        </p>
+                                    </div>
+
+                                    {/* SELECT DE CURSOS (Filtrado por ciclo lectivo y nombre limpio) */}
                                     <div style={{ gridColumn: '1 / -1' }}>
                                         <label style={labelStyle}>Curso *</label>
                                         <select name="fp_curso_id" value={form.fp_curso_id} onChange={handleChangeForm} required style={inputStyle}>
                                             <option value="">Seleccione un curso...</option>
-                                            {cursosFP.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.turno}) — Cupo: {c.cupo}</option>)}
+                                            {cursosCicloActual.length === 0 && (
+                                                <option disabled>No hay cursos disponibles para el ciclo {periodoInscripcion.cicloLectivo}</option>
+                                            )}
+                                            {cursosCicloActual.map(c => {
+                                                const nombreLimpio = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
+                                                return (
+                                                    <option key={c.id} value={c.id}>
+                                                        {nombreLimpio} ({c.turno}) — Cupo: {c.cupo}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
+
                                     <div><label style={labelStyle}>Apellido *</label><input type="text" name="apellido" value={form.apellido} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>Nombre *</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>DNI *</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
@@ -397,12 +513,12 @@ export default function InscripcionesPage() {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
                                 <button
                                     type="submit"
-                                    disabled={enviando}
+                                    disabled={enviando || !periodoInscripcion.abierto}
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', gap: 8,
-                                        background: enviando ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none',
+                                        background: enviando || !periodoInscripcion.abierto ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none',
                                         padding: '12px 32px', borderRadius: 4, fontSize: 14, fontWeight: 600,
-                                        cursor: enviando ? 'not-allowed' : 'pointer', transition: 'background 0.2s'
+                                        cursor: enviando || !periodoInscripcion.abierto ? 'not-allowed' : 'pointer', transition: 'background 0.2s'
                                     }}
                                 >
                                     {Iconos.check} {enviando ? 'Procesando...' : 'Registrar Inscripción'}
