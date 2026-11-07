@@ -1,11 +1,21 @@
+
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useDocente } from '@/lib/useDocente';
 import Sidebar from '@/components/Sidebar';
 
-// Tu URL del Google Apps Script
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec;
+// ⚠️ REEMPLAZÁ ESTA URL con la tuya del Apps Script
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec';
+
+// Iconos SVG profesionales
+const Iconos = {
+    carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
+    documento: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>,
+    subir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
+    check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
+    externo: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+};
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
@@ -14,13 +24,9 @@ export default function InscripcionesPage() {
     const [cursosFP, setCursosFP] = useState([]);
     const [inscSeleccionada, setInscSeleccionada] = useState(null);
     const [mensaje, setMensaje] = useState(null);
-
-    // Filtros
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [busqueda, setBusqueda] = useState('');
-
-    // Estado para carga de archivos
     const [archivo, setArchivo] = useState(null);
     const [subiendo, setSubiendo] = useState(false);
     const [tipoDocSeleccionado, setTipoDocSeleccionado] = useState('Documentación General');
@@ -31,20 +37,18 @@ export default function InscripcionesPage() {
     }, [docente]);
 
     async function cargarDatos() {
-        const [{ data: cursos }, { data: insc }] = await Promise.all([
-            supabase.from('fp_cursos').select('id, nombre, anio, turno').order('nombre'),
-            supabase.from('fp_inscripciones').select('*').order('creado_en', { ascending: false })
-        ]);
-        setCursosFP(cursos || []);
-        setInscripciones(insc || []);
+        try {
+            const [{ data: cursos }, { data: insc }] = await Promise.all([
+                supabase.from('fp_cursos').select('id, nombre, anio, turno').order('nombre'),
+                supabase.from('fp_inscripciones').select('*').order('creado_en', { ascending: false })
+            ]);
+            setCursosFP(cursos || []);
+            setInscripciones(insc || []);
+        } catch (error) {
+            console.error('Error al cargar datos:', error);
+        }
     }
 
-    function handleChange(e) {
-        const { name, value } = e.target;
-        setForm(prev => ({ ...prev, [name]: value }));
-    }
-
-    // --- LÓGICA DE CARGA DE ARCHIVOS A DRIVE ---
     function fileToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -66,7 +70,6 @@ export default function InscripcionesPage() {
         try {
             const base64 = await fileToBase64(archivo);
 
-            // Preparar los datos
             const payload = {
                 legajo: inscSeleccionada.legajo || `SIN-LEG-${inscSeleccionada.id}`,
                 nombre: inscSeleccionada.nombre,
@@ -75,43 +78,26 @@ export default function InscripcionesPage() {
                 nombre_archivo: `${tipoDocSeleccionado} - ${archivo.name}`
             };
 
-            console.log('Enviando datos al script:', {
-                legajo: payload.legajo,
-                nombre: payload.nombre,
-                tipo: payload.tipo_documento,
-                archivo: payload.nombre_archivo
-            });
-
-            // Enviar al Apps Script
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8'
-                },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             });
 
-            console.log('Status de respuesta:', response.status);
-
             const result = await response.json();
-            console.log('Respuesta del script:', result);
 
             if (!result.success) {
-                throw new Error(result.error || 'Error desconocido en el script');
+                throw new Error(result.error || 'Error en el script');
             }
 
-            // Guardar el link de la carpeta en Supabase
             const { error: dbError } = await supabase
                 .from('fp_inscripciones')
                 .update({ url_carpeta_drive: result.url_carpeta })
                 .eq('id', inscSeleccionada.id);
 
-            if (dbError) {
-                console.error('Error al guardar en Supabase:', dbError);
-                throw dbError;
-            }
+            if (dbError) throw dbError;
 
-            setMensaje({ tipo: 'ok', texto: '✅ Documento cargado exitosamente en Drive' });
+            setMensaje({ tipo: 'ok', texto: 'Documento cargado exitosamente' });
             setArchivo(null);
             cargarDatos();
 
@@ -121,18 +107,15 @@ export default function InscripcionesPage() {
             }, 3000);
 
         } catch (err) {
-            console.error('Error completo:', err);
-            setMensaje({
-                tipo: 'error',
-                texto: `Error: ${err.message}. Revisá la consola (F12) para más detalles.`
-            });
+            console.error('Error:', err);
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
         } finally {
             setSubiendo(false);
         }
     }
 
     async function confirmarInscripcion(id) {
-        if (!confirm('¿Confirmar esta inscripción? El alumno pasará a estado "inscripto".')) return;
+        if (!confirm('¿Confirmar esta inscripción?')) return;
 
         const { error } = await supabase
             .from('fp_inscripciones')
@@ -145,7 +128,7 @@ export default function InscripcionesPage() {
         if (error) {
             setMensaje({ tipo: 'error', texto: error.message });
         } else {
-            setMensaje({ tipo: 'ok', texto: 'Inscripción confirmada correctamente' });
+            setMensaje({ tipo: 'ok', texto: 'Inscripción confirmada' });
             cargarDatos();
             setTimeout(() => setMensaje(null), 3000);
         }
@@ -173,7 +156,9 @@ export default function InscripcionesPage() {
 
     return (
         <Sidebar docente={docente} titulo="Gestión de Inscripciones FP">
-            <div>
+            <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+
+                {/* Mensajes */}
                 {mensaje && (
                     <div style={{
                         background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff',
@@ -187,15 +172,14 @@ export default function InscripcionesPage() {
                         alignItems: 'center',
                         gap: 8
                     }}>
-                        {mensaje.tipo === 'loading' && '⏳'}
-                        {mensaje.tipo === 'ok' && '✅'}
-                        {mensaje.tipo === 'error' && '❌'}
+                        {mensaje.tipo === 'loading' && <span style={{ opacity: 0.7 }}>⏳</span>}
+                        {mensaje.tipo === 'ok' && <span style={{ color: '#15803d' }}>{Iconos.check}</span>}
                         {mensaje.texto}
                     </div>
                 )}
 
-                {/* NAVEGACIÓN POR TABS */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '2px solid var(--border)' }}>
+                {/* Navegación por tabs */}
+                <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb' }}>
                     {[
                         { id: 'dashboard', label: 'Dashboard' },
                         { id: 'lista', label: 'Listado de Alumnos' },
@@ -204,15 +188,16 @@ export default function InscripcionesPage() {
                             key={tab.id}
                             onClick={() => setVista(tab.id)}
                             style={{
-                                padding: '12px 20px',
-                                background: vista === tab.id ? 'var(--accent)' : 'transparent',
-                                color: vista === tab.id ? '#fff' : 'var(--text-muted)',
+                                padding: '12px 24px',
+                                background: vista === tab.id ? '#1e3a8a' : 'transparent',
+                                color: vista === tab.id ? '#fff' : '#4b5563',
                                 border: 'none',
-                                borderBottom: vista === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                                borderBottom: vista === tab.id ? '2px solid #1e3a8a' : '2px solid transparent',
                                 fontSize: 14,
                                 fontWeight: vista === tab.id ? 600 : 400,
                                 cursor: 'pointer',
-                                marginBottom: -2
+                                marginBottom: -2,
+                                transition: 'all 0.2s'
                             }}
                         >
                             {tab.label}
@@ -223,33 +208,42 @@ export default function InscripcionesPage() {
                 {/* VISTA: DASHBOARD */}
                 {vista === 'dashboard' && (
                     <div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Total Registros</div>
-                                <div style={{ fontSize: 32, fontWeight: 700 }}>{totalGeneral}</div>
+                        <div style={{ marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Panel de Control</h2>
+                            <p style={{ fontSize: 14, color: '#6b7280' }}>Resumen de inscripciones en Formación Profesional</p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total de registros</div>
+                                <div style={{ fontSize: 32, fontWeight: 700, color: '#1e3a8a' }}>{totalGeneral}</div>
                             </div>
-                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 20 }}>
-                                <div style={{ fontSize: 12, color: '#15803d', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Inscriptos / En Curso</div>
+                            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#15803d', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Inscriptos / En curso</div>
                                 <div style={{ fontSize: 32, fontWeight: 700, color: '#15803d' }}>{inscriptos}</div>
                             </div>
-                            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10, padding: 20 }}>
-                                <div style={{ fontSize: 12, color: '#92400e', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Pre-inscriptos</div>
+                            <div style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#92400e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Pre-inscriptos</div>
                                 <div style={{ fontSize: 32, fontWeight: 700, color: '#92400e' }}>{preinscritos}</div>
                             </div>
                         </div>
 
-                        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Inscripciones por curso</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                            Inscripciones por curso
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
                             {cursosFP.map(curso => {
                                 const inscCurso = inscripciones.filter(p => p.fp_curso_id === curso.id);
                                 const enCurso = inscCurso.filter(p => p.estado === 'en_curso' || p.estado === 'inscripto').length;
 
                                 return (
-                                    <div key={curso.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-                                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{curso.nombre}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{curso.turno} · {curso.anio}</div>
-                                        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{enCurso}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>alumnos activos</div>
+                                    <div key={curso.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', marginBottom: 4 }}>{curso.nombre}</div>
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>{curso.turno} · {curso.anio}</div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                            <div style={{ fontSize: 24, fontWeight: 700, color: '#1e3a8a' }}>{enCurso}</div>
+                                            <div style={{ fontSize: 12, color: '#6b7280' }}>alumnos activos</div>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -260,66 +254,135 @@ export default function InscripcionesPage() {
                 {/* VISTA: LISTADO */}
                 {vista === 'lista' && (
                     <div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-                            <select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={{ padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
-                                <option value="todos">Todos los cursos</option>
-                                {cursosFP.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                            </select>
-                            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
-                                <option value="todos">Todos los estados</option>
-                                <option value="preinscrito">Pre-inscripto</option>
-                                <option value="inscripto">Inscripto</option>
-                                <option value="en_curso">En curso</option>
-                            </select>
-                            <input type="text" placeholder="Buscar por nombre o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }} />
+                        <div style={{ marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Listado de Alumnos</h2>
+                            <p style={{ fontSize: 14, color: '#6b7280' }}>Gestión de inscripciones y documentación</p>
                         </div>
 
-                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                        {/* Filtros */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Curso</label>
+                                <select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff' }}>
+                                    <option value="todos">Todos los cursos</option>
+                                    {cursosFP.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado</label>
+                                <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff' }}>
+                                    <option value="todos">Todos los estados</option>
+                                    <option value="preinscrito">Pre-inscripto</option>
+                                    <option value="inscripto">Inscripto</option>
+                                    <option value="en_curso">En curso</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Búsqueda</label>
+                                <input type="text" placeholder="Nombre o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff' }} />
+                            </div>
+                        </div>
+
+                        {/* Tabla */}
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                                     <thead>
-                                        <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left' }}>Legajo</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left' }}>Alumno</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left' }}>DNI</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left' }}>Curso</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left' }}>Estado</th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'right' }}>Acciones</th>
+                                        <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Legajo</th>
+                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Alumno</th>
+                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>DNI</th>
+                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Curso</th>
+                                            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Estado</th>
+                                            <th style={{ padding: '14px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filtradas.map((p, idx) => (
-                                            <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                                <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{p.legajo || 'Pendiente'}</td>
-                                                <td style={{ padding: '12px 16px', fontWeight: 600 }}>{p.nombre}</td>
-                                                <td style={{ padding: '12px 16px' }}>{p.dni || '—'}</td>
-                                                <td style={{ padding: '12px 16px', fontSize: 13 }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
-                                                <td style={{ padding: '12px 16px' }}>
+                                            <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
+                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.nombre}</td>
+                                                <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
+                                                <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
+                                                <td style={{ padding: '14px 16px' }}>
                                                     <span style={{
+                                                        display: 'inline-block',
                                                         padding: '4px 12px',
-                                                        borderRadius: 20,
-                                                        fontSize: 12,
+                                                        borderRadius: 4,
+                                                        fontSize: 11,
                                                         fontWeight: 600,
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.05em',
                                                         background: p.estado === 'en_curso' || p.estado === 'inscripto' ? '#dcfce7' : '#fef3c7',
-                                                        color: p.estado === 'en_curso' || p.estado === 'inscripto' ? '#15803d' : '#92400e'
+                                                        color: p.estado === 'en_curso' || p.estado === 'inscripto' ? '#15803d' : '#92400e',
+                                                        border: `1px solid ${p.estado === 'en_curso' || p.estado === 'inscripto' ? '#bbf7d0' : '#fde68a'}`
                                                     }}>
                                                         {p.estado}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     <button
                                                         onClick={() => { setInscSeleccionada(p); setArchivo(null); }}
-                                                        style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 6,
+                                                            background: '#1e3a8a',
+                                                            color: '#fff',
+                                                            border: 'none',
+                                                            padding: '6px 12px',
+                                                            borderRadius: 4,
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            marginRight: 6,
+                                                            transition: 'background 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.background = '#1e40af'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.background = '#1e3a8a'}
                                                     >
-                                                        📁 Cargar Doc.
+                                                        {Iconos.subir}
+                                                        Cargar Doc.
                                                     </button>
                                                     {p.url_carpeta_drive && (
-                                                        <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 6, textDecoration: 'none', display: 'inline-block' }}>
+                                                        <a
+                                                            href={p.url_carpeta_drive}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: 6,
+                                                                background: '#fff',
+                                                                color: '#1e3a8a',
+                                                                border: '1px solid #1e3a8a',
+                                                                padding: '6px 12px',
+                                                                borderRadius: 4,
+                                                                fontSize: 12,
+                                                                fontWeight: 500,
+                                                                cursor: 'pointer',
+                                                                marginRight: 6,
+                                                                textDecoration: 'none'
+                                                            }}
+                                                        >
+                                                            {Iconos.externo}
                                                             Ver Carpeta
                                                         </a>
                                                     )}
                                                     {p.estado === 'preinscrito' && (
-                                                        <button onClick={() => confirmarInscripcion(p.id)} style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                                        <button
+                                                            onClick={() => confirmarInscripcion(p.id)}
+                                                            style={{
+                                                                background: '#fff',
+                                                                color: '#15803d',
+                                                                border: '1px solid #15803d',
+                                                                padding: '6px 12px',
+                                                                borderRadius: 4,
+                                                                fontSize: 12,
+                                                                fontWeight: 500,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
                                                             Confirmar
                                                         </button>
                                                     )}
@@ -330,7 +393,9 @@ export default function InscripcionesPage() {
                                 </table>
                             </div>
                             {filtradas.length === 0 && (
-                                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No se encontraron registros con estos filtros.</div>
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>
+                                    No se encontraron registros con los filtros seleccionados.
+                                </div>
                             )}
                         </div>
                     </div>
@@ -339,15 +404,24 @@ export default function InscripcionesPage() {
                 {/* MODAL: CARGA DE DOCUMENTACIÓN */}
                 {inscSeleccionada && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setInscSeleccionada(null)}>
-                        <div style={{ background: 'var(--surface)', borderRadius: 12, padding: 28, maxWidth: 500, width: '100%' }} onClick={(e) => e.stopPropagation()}>
-                            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Cargar Documentación Digital</h3>
-                            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 20 }}>
-                                Alumno: <strong>{inscSeleccionada.nombre}</strong> (Legajo: {inscSeleccionada.legajo || 'Pendiente'})
-                            </p>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 520, width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
+                                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Carga de Documentación Digital</h3>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                                    Alumno: <strong style={{ color: '#1e3a8a' }}>{inscSeleccionada.nombre}</strong>
+                                    {inscSeleccionada.legajo && <span> · Legajo: {inscSeleccionada.legajo}</span>}
+                                </p>
+                            </div>
 
                             <div style={{ marginBottom: 20 }}>
-                                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Tipo de documento</label>
-                                <select value={tipoDocSeleccionado} onChange={(e) => setTipoDocSeleccionado(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 14 }}>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Tipo de documento
+                                </label>
+                                <select
+                                    value={tipoDocSeleccionado}
+                                    onChange={(e) => setTipoDocSeleccionado(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff' }}
+                                >
                                     <option value="Documentación General">Documentación General</option>
                                     <option value="DNI">DNI</option>
                                     <option value="Certificado de Estudios">Certificado de Estudios</option>
@@ -358,35 +432,58 @@ export default function InscripcionesPage() {
                             </div>
 
                             <div style={{ marginBottom: 24 }}>
-                                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-muted)' }}>Seleccionar archivo (PDF, JPG, PNG)</label>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Archivo (PDF, JPG, PNG)
+                                </label>
                                 <input
                                     type="file"
                                     accept=".pdf,.jpg,.jpeg,.png"
                                     onChange={(e) => setArchivo(e.target.files[0])}
-                                    style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1px dashed var(--border-strong)', fontSize: 14, background: 'var(--surface-2)' }}
+                                    style={{ width: '100%', padding: '12px', borderRadius: 6, border: '1px dashed #d1d5db', fontSize: 14, background: '#f9fafb' }}
                                 />
-                                {archivo && <div style={{ fontSize: 12, color: '#15803d', marginTop: 6 }}>✅ {archivo.name} ({(archivo.size / 1024).toFixed(1)} KB)</div>}
+                                {archivo && (
+                                    <div style={{ fontSize: 12, color: '#15803d', marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+                                        {Iconos.check} {archivo.name} ({(archivo.size / 1024).toFixed(1)} KB)
+                                    </div>
+                                )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                                <button onClick={() => setInscSeleccionada(null)} style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border-strong)', padding: '10px 20px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                <button
+                                    onClick={() => setInscSeleccionada(null)}
+                                    style={{
+                                        background: '#fff',
+                                        color: '#4b5563',
+                                        border: '1px solid #d1d5db',
+                                        padding: '10px 20px',
+                                        borderRadius: 4,
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        cursor: 'pointer'
+                                    }}
+                                >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={handleSubirArchivo}
                                     disabled={subiendo || !archivo}
                                     style={{
-                                        background: subiendo || !archivo ? 'var(--text-muted)' : '#3b82f6',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        background: subiendo || !archivo ? '#9ca3af' : '#1e3a8a',
                                         color: '#fff',
                                         border: 'none',
                                         padding: '10px 20px',
-                                        borderRadius: 6,
+                                        borderRadius: 4,
                                         fontSize: 13,
                                         fontWeight: 600,
-                                        cursor: subiendo || !archivo ? 'not-allowed' : 'pointer'
+                                        cursor: subiendo || !archivo ? 'not-allowed' : 'pointer',
+                                        transition: 'background 0.2s'
                                     }}
                                 >
-                                    {subiendo ? 'Subiendo a Drive...' : 'Guardar en Carpeta del Alumno'}
+                                    {Iconos.subir}
+                                    {subiendo ? 'Subiendo...' : 'Guardar en Drive'}
                                 </button>
                             </div>
                         </div>
