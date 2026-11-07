@@ -47,6 +47,7 @@ export default function InscripcionesPage() {
     const [filtroCiclo, setFiltroCiclo] = useState('todos');
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
+    const [filtroCicloResumen, setFiltroCicloResumen] = useState(periodoInscripcion.cicloLectivo.toString());
     const [busqueda, setBusqueda] = useState('');
     const [archivoListado, setArchivoListado] = useState(null);
     const [subiendoListado, setSubiendoListado] = useState(false);
@@ -280,6 +281,23 @@ export default function InscripcionesPage() {
     const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', outline: 'none', color: '#1e3a8a' };
     const sectionTitle = { fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '0.05em' };
     const cursosCicloActual = cursosFP.filter(c => c.anio === periodoInscripcion.cicloLectivo);
+    // Cálculos específicos para el Resumen por Ciclo Lectivo
+    const cursosDelCicloResumen = cursosFP.filter(c => c.anio === Number(filtroCicloResumen));
+    const inscripcionesDelCiclo = inscripciones.filter(p => {
+        const curso = cursosFP.find(c => c.id === p.fp_curso_id);
+        return curso && curso.anio === Number(filtroCicloResumen);
+    });
+
+    const totalCupos = cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0);
+    // Los pre-inscriptos reservan el cupo, por eso se suman a los ocupados
+    const ocupados = inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
+    const disponibles = Math.max(0, totalCupos - ocupados);
+    const pendientesDoc = inscripcionesDelCiclo.filter(p => !p.documentacion_completa || p.estado === 'preinscrito').length;
+
+    // Últimos 5 alumnos con documentación pendiente (la lista ya viene ordenada por fecha descendente)
+    const ultimosPendientes = inscripcionesDelCiclo
+        .filter(p => !p.documentacion_completa || p.estado === 'preinscrito')
+        .slice(0, 5);
 
     return (
         <Sidebar docente={docente} titulo="Gestión de Inscripciones FP">
@@ -565,28 +583,133 @@ export default function InscripcionesPage() {
                 {/* ================= VISTA 3: RESUMEN ================= */}
                 {vista === 'resumen' && (
                     <div>
-                        <div style={{ marginBottom: 24 }}>
-                            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Resumen de Inscripciones</h2>
-                            <p style={{ fontSize: 14, color: '#6b7280' }}>Estadísticas generales de Formación Profesional</p>
+                        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                            <div>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Resumen de Inscripciones</h2>
+                                <p style={{ fontSize: 14, color: '#6b7280' }}>Estadísticas generales de Formación Profesional</p>
+                            </div>
+                            <div style={{ width: 200 }}>
+                                <label style={labelStyle}>Ciclo Lectivo</label>
+                                <select value={filtroCicloResumen} onChange={(e) => setFiltroCicloResumen(e.target.value)} style={inputStyle}>
+                                    {obtenerCiclosUnicos().map(anio => (
+                                        <option key={anio} value={anio.toString()}>Ciclo {anio}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
+
+                        {/* TARJETAS DE RESUMEN GENERAL */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}><div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total de registros</div><div style={{ fontSize: 32, fontWeight: 700, color: '#1e3a8a' }}>{totalGeneral}</div></div>
-                            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 8, padding: 20 }}><div style={{ fontSize: 11, color: '#15803d', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Inscriptos / En curso</div><div style={{ fontSize: 32, fontWeight: 700, color: '#15803d' }}>{inscriptos}</div></div>
-                            <div style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: 20 }}><div style={{ fontSize: 11, color: '#92400e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Pre-inscriptos</div><div style={{ fontSize: 32, fontWeight: 700, color: '#92400e' }}>{preinscritos}</div></div>
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Cupos Totales</div>
+                                <div style={{ fontSize: 32, fontWeight: 700, color: '#1e3a8a' }}>{totalCupos}</div>
+                            </div>
+                            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#15803d', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Ocupados (Incluye Reservas)</div>
+                                <div style={{ fontSize: 32, fontWeight: 700, color: '#15803d' }}>{ocupados}</div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Inscriptos + Pre-inscriptos</div>
+                            </div>
+                            <div style={{ background: '#fff', border: '1px solid #3b82f6', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#1d4ed8', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Cupos Disponibles</div>
+                                <div style={{ fontSize: 32, fontWeight: 700, color: '#1d4ed8' }}>{disponibles}</div>
+                            </div>
+                            <div style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: 20 }}>
+                                <div style={{ fontSize: 11, color: '#92400e', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Pendientes de Documentación</div>
+                                <div style={{ fontSize: 32, fontWeight: 700, color: '#92400e' }}>{pendientesDoc}</div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Requieren acción del preceptor</div>
+                            </div>
                         </div>
-                        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>Inscripciones por curso</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-                            {cursosFP.map(curso => {
-                                const inscCurso = inscripciones.filter(p => p.fp_curso_id === curso.id);
-                                const enCurso = inscCurso.filter(p => p.estado === 'en_curso' || p.estado === 'inscripto').length;
+
+                        {/* INSCRIPCIONES POR CURSO CON BARRA DE PROGRESO */}
+                        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>Cupos por Curso</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
+                            {cursosDelCicloResumen.map(curso => {
+                                const inscCurso = inscripcionesDelCiclo.filter(p => p.fp_curso_id === curso.id);
+                                const ocupadosCurso = inscCurso.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
+                                const disponiblesCurso = Math.max(0, (curso.cupo || 0) - ocupadosCurso);
+                                const porcentaje = curso.cupo > 0 ? Math.min(100, Math.round((ocupadosCurso / curso.cupo) * 100)) : 0;
+
                                 return (
-                                    <div key={curso.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
-                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', marginBottom: 4 }}>{curso.nombre}</div>
-                                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>{curso.turno} · {curso.anio} · Cupo: {curso.cupo}</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><div style={{ fontSize: 24, fontWeight: 700, color: '#1e3a8a' }}>{enCurso}</div><div style={{ fontSize: 12, color: '#6b7280' }}>alumnos activos</div></div>
+                                    <div key={curso.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', marginBottom: 4 }}>
+                                            {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>{curso.turno} · {curso.anio}</div>
+
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#4b5563', marginBottom: 8 }}>
+                                            <span>Ocupados: <strong>{ocupadosCurso}</strong></span>
+                                            <span>Disponibles: <strong style={{ color: '#1d4ed8' }}>{disponiblesCurso}</strong> de {curso.cupo}</span>
+                                        </div>
+
+                                        {/* Barra de progreso visual */}
+                                        <div style={{ height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
+                                            <div style={{
+                                                height: '100%',
+                                                width: `${porcentaje}%`,
+                                                background: porcentaje >= 90 ? '#ef4444' : porcentaje >= 70 ? '#f59e0b' : '#10b981',
+                                                transition: 'width 0.3s ease'
+                                            }} />
+                                        </div>
                                     </div>
                                 );
                             })}
+                        </div>
+
+                        {/* LISTADO RÁPIDO DE PENDIENTES */}
+                        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {Iconos.alerta} Alumnos con Documentación Pendiente (Últimos 5)
+                        </h3>
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                            {ultimosPendientes.length === 0 ? (
+                                <div style={{ padding: 24, textAlign: 'center', color: '#15803d', fontSize: 14, fontWeight: 500 }}>
+                                    ✅ ¡Excelente! No hay alumnos con documentación pendiente en este ciclo.
+                                </div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                                    <thead>
+                                        <tr style={{ background: '#fef3c7', borderBottom: '2px solid #fde68a' }}>
+                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600, letterSpacing: '0.05em' }}>Alumno</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600, letterSpacing: '0.05em' }}>Curso</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600, letterSpacing: '0.05em' }}>Estado</th>
+                                            <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600, letterSpacing: '0.05em' }}>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {ultimosPendientes.map((p, idx) => (
+                                            <tr key={p.id} style={{ borderBottom: idx < ultimosPendientes.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
+                                                <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>
+                                                    {cursosFP.find(c => c.id === p.fp_curso_id)?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                </td>
+                                                <td style={{ padding: '12px 16px' }}>
+                                                    <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                        {p.estado}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            setInscSeleccionada(p);
+                                                            setArchivoListado(null);
+                                                            const checklistActual = {};
+                                                            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                checklistActual[doc.id] = {
+                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                    digital: p[`doc_${doc.id}_digital`] || false
+                                                                };
+                                                            });
+                                                            setChecklistModal(checklistActual);
+                                                        }}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                                                    >
+                                                        {Iconos.subir} Regularizar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 )}
