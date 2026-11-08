@@ -411,6 +411,51 @@ export default function InscripcionesPage() {
                                     <div><label style={labelStyle}>Teléfono</label><input type="tel" name="emergencia_telefono" value={form.emergencia_telefono} onChange={handleChangeForm} style={inputStyle} /></div>
                                 </div>
                             </div>
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={{ ...sectionTitle, marginBottom: 8 }}>{Iconos.carpeta} Documentación Presentada</h3>
+
+                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 8, fontSize: 13, color: '#1e40af' }}>
+                                    <strong>Estado actual:</strong> Se marcaron {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return doc.fisico || doc.digital; }).length} de {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length} documentos obligatorios.
+                                    {pagoCooperadora.paga && pagoCooperadora.monto > 0 ? ' · ✅ Cooperadora registrada' : ' · ⚠️ Cooperadora pendiente'}
+                                </div>
+
+                                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
+                                    Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital. Si faltan documentos obligatorios o no se registra el pago de cooperadora, el alumno quedará como <strong>pre-inscripto</strong>.
+                                </p>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                        const check = documentosChecklist[doc.id] || {};
+                                        return (
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+                                                <div style={{ width: 280, minWidth: 280 }}>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
+                                                        {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                        <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                                        <span>Físico</span>
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                        <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                                        <span>Digital</span>
+                                                    </label>
+                                                </div>
+                                                <div style={{ width: 200 }}>
+                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
+                                                    {archivosForm[doc.id] && (
+                                                        <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
+                                                            {Iconos.check} {archivosForm[doc.id].name}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div> {/* ← ¡ACÁ ESTÁ EL CIERRE QUE FALTABA! */}
 
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Pago de Cooperadora</h3>
