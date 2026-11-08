@@ -428,8 +428,8 @@ export default function InscripcionesPage() {
                                     {DOCUMENTOS_REQUERIDOS.map(doc => {
                                         const check = documentosChecklist[doc.id] || {};
                                         return (
-                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
-                                                <div style={{ flex: 1, minWidth: 200 }}>
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+                                                <div style={{ width: 280, minWidth: 280 }}>
                                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
                                                         {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
                                                     </div>
@@ -456,25 +456,24 @@ export default function InscripcionesPage() {
                                         );
                                     })}
                                 </div>
-                            </div>
 
-                            <div style={{ marginBottom: 32 }}>
-                                <h3 style={sectionTitle}>Pago de Cooperadora</h3>
-                                <div style={{ background: '#f9fafb', padding: 20, borderRadius: 6, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ marginBottom: 16 }}><label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}><input type="checkbox" checked={pagoCooperadora.paga} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))} style={{ width: 18, height: 18, cursor: 'pointer' }} />El alumno realiza aporte a cooperadora</label></div>
-                                    {pagoCooperadora.paga && (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                                            <div><label style={labelStyle}>Monto</label><input type="number" value={pagoCooperadora.monto} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))} placeholder="0.00" step="0.01" style={inputStyle} /></div>
-                                            <div><label style={labelStyle}>Tipo de Pago</label><select value={pagoCooperadora.tipo_pago} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, tipo_pago: e.target.value }))} style={inputStyle}><option value="total">Total</option><option value="parcial">Parcial</option></select></div>
-                                            <div><label style={labelStyle}>N° de Comprobante</label><input type="text" value={pagoCooperadora.nro_comprobante} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, nro_comprobante: e.target.value }))} placeholder="Ej: 0001-00001234" style={inputStyle} /></div>
-                                        </div>
-                                    )}
+                                <div style={{ marginBottom: 32 }}>
+                                    <h3 style={sectionTitle}>Pago de Cooperadora</h3>
+                                    <div style={{ background: '#f9fafb', padding: 20, borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                                        <div style={{ marginBottom: 16 }}><label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}><input type="checkbox" checked={pagoCooperadora.paga} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))} style={{ width: 18, height: 18, cursor: 'pointer' }} />El alumno realiza aporte a cooperadora</label></div>
+                                        {pagoCooperadora.paga && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                                <div><label style={labelStyle}>Monto</label><input type="number" value={pagoCooperadora.monto} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))} placeholder="0.00" step="0.01" style={inputStyle} /></div>
+                                                <div><label style={labelStyle}>Tipo de Pago</label><select value={pagoCooperadora.tipo_pago} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, tipo_pago: e.target.value }))} style={inputStyle}><option value="total">Total</option><option value="parcial">Parcial</option></select></div>
+                                                <div><label style={labelStyle}>N° de Comprobante</label><input type="text" value={pagoCooperadora.nro_comprobante} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, nro_comprobante: e.target.value }))} placeholder="Ej: 0001-00001234" style={inputStyle} /></div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
-                                <button type="submit" disabled={enviando || !periodoInscripcion.abierto} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: enviando || !periodoInscripcion.abierto ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '12px 32px', borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: enviando || !periodoInscripcion.abierto ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>{Iconos.check} {enviando ? 'Procesando...' : 'Registrar Inscripción'}</button>
-                            </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
+                                    <button type="submit" disabled={enviando || !periodoInscripcion.abierto} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: enviando || !periodoInscripcion.abierto ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '12px 32px', borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: enviando || !periodoInscripcion.abierto ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>{Iconos.check} {enviando ? 'Procesando...' : 'Registrar Inscripción'}</button>
+                                </div>
                         </form>
                     </div>
                 )}
