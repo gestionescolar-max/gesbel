@@ -39,7 +39,9 @@ function obtenerPeriodoInscripcion() {
 
 export default function InscripcionesPage() {
     const { docente, cargando } = useDocente();
+    const periodoInscripcion = obtenerPeriodoInscripcion();
     const [vista, setVista] = useState('inscripcion');
+    const [filtroCicloResumen, setFiltroCicloResumen] = useState(periodoInscripcion.cicloLectivo.toString());
     const [inscripciones, setInscripciones] = useState([]);
     const [cursosFP, setCursosFP] = useState([]);
     const [inscSeleccionada, setInscSeleccionada] = useState(null);
@@ -47,7 +49,6 @@ export default function InscripcionesPage() {
     const [filtroCiclo, setFiltroCiclo] = useState('todos');
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
-    const [filtroCicloResumen, setFiltroCicloResumen] = useState(periodoInscripcion.cicloLectivo.toString());
     const [busqueda, setBusqueda] = useState('');
     const [archivoListado, setArchivoListado] = useState(null);
     const [subiendoListado, setSubiendoListado] = useState(false);
@@ -56,8 +57,6 @@ export default function InscripcionesPage() {
     const [inscripcionCompleta, setInscripcionCompleta] = useState(null);
     const [mostrarImpresion, setMostrarImpresion] = useState(false);
     const fichaRef = useRef(null);
-
-    const periodoInscripcion = obtenerPeriodoInscripcion();
     const [enviando, setEnviando] = useState(false);
     const [documentosChecklist, setDocumentosChecklist] = useState({});
     const [archivosForm, setArchivosForm] = useState({});
