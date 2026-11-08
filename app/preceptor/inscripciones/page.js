@@ -456,6 +456,10 @@ export default function InscripcionesPage() {
                                         );
                                     })}
                                 </div>
+                            </div> {/* ← ¡ACÁ ESTÁ EL CIERRE QUE FALTABA! */}
+
+                            <div style={{ marginBottom: 32 }}>
+                                <h3 style={sectionTitle}>Pago de Cooperadora</h3>
 
                                 <div style={{ marginBottom: 32 }}>
                                     <h3 style={sectionTitle}>Pago de Cooperadora</h3>
