@@ -777,7 +777,7 @@ export default function DetalleCursoPage() {
                                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                         <button onClick={() => setModalAnularAbierto(false)} disabled={cargandoAnulacion} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: cargandoAnulacion ? 'not-allowed' : 'pointer' }}>Cancelar</button>
                                         <button onClick={anularActa} disabled={cargandoAnulacion || !motivoAnulacion.trim()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoAnulacion || !motivoAnulacion.trim() ? '#9ca3af' : '#b91c1c', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoAnulacion || !motivoAnulacion.trim() ? 'not-allowed' : 'pointer' }}>
-                                            {cargandoAnulacion ? 'Anulando...' : <><Iconos.anular} Confirmar Anulación</>}
+                                            {cargandoAnulacion ? 'Anulando...' : <>{Iconos.anular} Confirmar Anulación</>}
                                         </button>
                                     </div>
                                 </div>
