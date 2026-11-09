@@ -17,14 +17,12 @@ const Iconos = {
     anular: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
 };
 
-// Función para convertir números a texto en español
 function numeroALetras(num) {
     const unidades = ['Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciséis', 'Diecisiete', 'Dieciocho', 'Diecinueve', 'Veinte'];
     if (num >= 0 && num <= 20) return unidades[num];
     return num.toString();
 }
 
-// Meses en español
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 export default function DetalleCursoPage() {
@@ -41,7 +39,6 @@ export default function DetalleCursoPage() {
     const [cargandoDatos, setCargandoDatos] = useState(true);
     const [actaExistente, setActaExistente] = useState(null);
 
-    // Estados del modal de acta
     const [modalActaAbierto, setModalActaAbierto] = useState(false);
     const [numeroManual, setNumeroManual] = useState(false);
     const [numeroActa, setNumeroActa] = useState('');
@@ -53,7 +50,11 @@ export default function DetalleCursoPage() {
     const [mostrarImpresion, setMostrarImpresion] = useState(false);
     const fichaRef = useRef(null);
 
-    // Modal de anulación
+    // Nuevos estados para modales de alumno
+    const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
+    const [modalFichaAbierto, setModalFichaAbierto] = useState(false);
+    const [modalDocumentacionAbierto, setModalDocumentacionAbierto] = useState(false);
+
     const [modalAnularAbierto, setModalAnularAbierto] = useState(false);
     const [motivoAnulacion, setMotivoAnulacion] = useState('');
     const [cargandoAnulacion, setCargandoAnulacion] = useState(false);
@@ -68,62 +69,31 @@ export default function DetalleCursoPage() {
     async function cargarDatos() {
         setCargandoDatos(true);
         try {
-            const { data: cursoData, error: errorCurso } = await supabase
-                .from('fp_cursos')
-                .select('*')
-                .eq('id', cursoId)
-                .single();
-
+            const { data: cursoData, error: errorCurso } = await supabase.from('fp_cursos').select('*').eq('id', cursoId).single();
             if (errorCurso) throw errorCurso;
-
             setCurso(cursoData);
 
-            // Cargar perfil profesional
             if (cursoData.fp_perfil_id) {
-                const { data: perfilData } = await supabase
-                    .from('fp_perfiles')
-                    .select('*')
-                    .eq('id', cursoData.fp_perfil_id)
-                    .single();
+                const { data: perfilData } = await supabase.from('fp_perfiles').select('*').eq('id', cursoData.fp_perfil_id).single();
                 setPerfil(perfilData);
             }
 
-            const { data: modulosData } = await supabase
-                .from('fp_modulos')
-                .select('*')
-                .eq('fp_perfil_id', cursoData.fp_perfil_id)
-                .order('numero');
+            const { data: modulosData } = await supabase.from('fp_modulos').select('*').eq('fp_perfil_id', cursoData.fp_perfil_id).order('numero');
             setModulos(modulosData || []);
 
-            const { data: inscripciones } = await supabase
-                .from('fp_inscripciones')
-                .select('*')
-                .eq('fp_curso_id', cursoId)
-                .order('apellido');
+            const { data: inscripciones } = await supabase.from('fp_inscripciones').select('*').eq('fp_curso_id', cursoId).order('apellido');
 
             const alumnosConDatos = await Promise.all(
                 (inscripciones || []).map(async (insc) => {
-                    const { data: asistencias } = await supabase
-                        .from('fp_asistencia')
-                        .select('estado')
-                        .eq('fp_inscripcion_id', insc.id);
-
+                    const { data: asistencias } = await supabase.from('fp_asistencia').select('estado').eq('fp_inscripcion_id', insc.id);
                     const total = asistencias?.length || 0;
                     const presentes = asistencias?.filter(a => a.estado === 'presente').length || 0;
                     const porcentajeAsistencia = total > 0 ? Math.round((presentes / total) * 100) : 0;
 
-                    const { data: modulosAlumno } = await supabase
-                        .from('fp_alumno_modulos')
-                        .select('fp_modulo_id, estado')
-                        .eq('fp_inscripcion_id', insc.id);
-
+                    const { data: modulosAlumno } = await supabase.from('fp_alumno_modulos').select('fp_modulo_id, estado').eq('fp_inscripcion_id', insc.id);
                     const modulosAprobados = modulosAlumno?.filter(m => m.estado === 'aprobado').length || 0;
 
-                    const { data: detalleActa } = await supabase
-                        .from('fp_actas_detalle')
-                        .select('condicion, observacion')
-                        .eq('fp_inscripcion_id', insc.id)
-                        .maybeSingle();
+                    const { data: detalleActa } = await supabase.from('fp_actas_detalle').select('condicion, observacion').eq('fp_inscripcion_id', insc.id).maybeSingle();
 
                     return {
                         ...insc,
@@ -139,45 +109,21 @@ export default function DetalleCursoPage() {
 
             const seleccionInicial = {};
             alumnosConDatos.forEach(a => {
-                seleccionInicial[a.id] = {
-                    seleccionado: true,
-                    condicion: 'aprobado',
-                    observacion: ''
-                };
+                seleccionInicial[a.id] = { seleccionado: true, condicion: 'aprobado', observacion: '' };
             });
             setAlumnosSeleccionados(seleccionInicial);
 
-            // Buscar acta existente para este curso
-            const { data: acta } = await supabase
-                .from('fp_actas')
-                .select('*')
-                .eq('fp_curso_id', cursoId)
-                .order('creado_en', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
+            const { data: acta } = await supabase.from('fp_actas').select('*').eq('fp_curso_id', cursoId).order('creado_en', { ascending: false }).limit(1).maybeSingle();
             setActaExistente(acta);
 
-            // Generar número de acta
-            const { count } = await supabase
-                .from('fp_actas')
-                .select('*', { count: 'exact', head: true })
-                .eq('fp_curso_id', cursoId);
-
+            const { count } = await supabase.from('fp_actas').select('*', { count: 'exact', head: true }).eq('fp_curso_id', cursoId);
             const siguienteNumero = (count || 0) + 1;
             const anioCurso = cursoData.anio || new Date().getFullYear();
             setNumeroActa(`FP-${anioCurso}-${String(siguienteNumero).padStart(3, '0')}`);
 
-            // Pre-cargar equipo docente con el profesor principal
             if (cursoData.profesor_id) {
-                const { data: profesor } = await supabase
-                    .from('profesores')
-                    .select('nombre')
-                    .eq('id', cursoData.profesor_id)
-                    .single();
-                if (profesor) {
-                    setEquipoDocente(`Prof. ${profesor.nombre}`);
-                }
+                const { data: profesor } = await supabase.from('profesores').select('nombre').eq('id', cursoData.profesor_id).single();
+                if (profesor) setEquipoDocente(`Prof. ${profesor.nombre}`);
             }
         } catch (err) {
             console.error('Error al cargar datos:', err);
@@ -192,7 +138,6 @@ export default function DetalleCursoPage() {
         const anioActual = new Date().getFullYear();
         const mesActual = new Date().getMonth();
         const anioCurso = curso.anio;
-
         if (anioCurso < anioActual) return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         if (anioCurso > anioActual) return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
         if (anioCurso === anioActual && mesActual >= 10) return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
@@ -201,11 +146,7 @@ export default function DetalleCursoPage() {
 
     function formatearFecha(fecha) {
         if (!fecha) return '—';
-        try {
-            return new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        } catch {
-            return '—';
-        }
+        try { return new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return '—'; }
     }
 
     function formatearFechaLarga(fecha) {
@@ -229,107 +170,49 @@ export default function DetalleCursoPage() {
     const actaAnulada = actaExistente?.anulada;
 
     function toggleSeleccionAlumno(id) {
-        setAlumnosSeleccionados(prev => ({
-            ...prev,
-            [id]: { ...prev[id], seleccionado: !prev[id]?.seleccionado }
-        }));
+        setAlumnosSeleccionados(prev => ({ ...prev, [id]: { ...prev[id], seleccionado: !prev[id]?.seleccionado } }));
     }
-
     function actualizarCondicionAlumno(id, condicion) {
-        setAlumnosSeleccionados(prev => ({
-            ...prev,
-            [id]: { ...prev[id], condicion }
-        }));
+        setAlumnosSeleccionados(prev => ({ ...prev, [id]: { ...prev[id], condicion } }));
     }
-
     function actualizarObservacionAlumno(id, observacion) {
-        setAlumnosSeleccionados(prev => ({
-            ...prev,
-            [id]: { ...prev[id], observacion }
-        }));
+        setAlumnosSeleccionados(prev => ({ ...prev, [id]: { ...prev[id], observacion } }));
     }
-
     function seleccionarTodos() {
         const todos = {};
-        alumnos.forEach(a => {
-            todos[a.id] = { ...alumnosSeleccionados[a.id], seleccionado: true };
-        });
+        alumnos.forEach(a => { todos[a.id] = { ...alumnosSeleccionados[a.id], seleccionado: true }; });
         setAlumnosSeleccionados(todos);
     }
-
     function deseleccionarTodos() {
         const ninguno = {};
-        alumnos.forEach(a => {
-            ninguno[a.id] = { ...alumnosSeleccionados[a.id], seleccionado: false };
-        });
+        alumnos.forEach(a => { ninguno[a.id] = { ...alumnosSeleccionados[a.id], seleccionado: false }; });
         setAlumnosSeleccionados(ninguno);
     }
 
     async function confirmarActa() {
         const alumnosActa = alumnos.filter(a => alumnosSeleccionados[a.id]?.seleccionado);
-
-        if (alumnosActa.length === 0) {
-            setMensaje({ tipo: 'error', texto: 'Debes seleccionar al menos un alumno' });
-            return;
-        }
-
-        if (!numeroActa.trim()) {
-            setMensaje({ tipo: 'error', texto: 'El número de acta es obligatorio' });
-            return;
-        }
-
-        if (!fechaActa) {
-            setMensaje({ tipo: 'error', texto: 'La fecha del acta es obligatoria' });
-            return;
-        }
+        if (alumnosActa.length === 0) { setMensaje({ tipo: 'error', texto: 'Debes seleccionar al menos un alumno' }); return; }
+        if (!numeroActa.trim()) { setMensaje({ tipo: 'error', texto: 'El número de acta es obligatorio' }); return; }
+        if (!fechaActa) { setMensaje({ tipo: 'error', texto: 'La fecha del acta es obligatoria' }); return; }
 
         setCargandoActa(true);
         try {
-            // 1. Crear el acta
-            const { data: actaData, error: errorActa } = await supabase
-                .from('fp_actas')
-                .insert({
-                    fp_curso_id: cursoId,
-                    numero: numeroActa,
-                    fecha: fechaActa,
-                    estado: 'firmada',
-                    cargada_por: docente.userId,
-                    observaciones: `Equipo docente: ${equipoDocente}`
-                })
-                .select()
-                .single();
-
+            const { data: actaData, error: errorActa } = await supabase.from('fp_actas').insert({
+                fp_curso_id: cursoId, numero: numeroActa, fecha: fechaActa, estado: 'firmada', cargada_por: docente.userId, observaciones: `Equipo docente: ${equipoDocente}`
+            }).select().single();
             if (errorActa) throw errorActa;
 
-            // 2. Crear detalles guardando estado original
             const detalles = alumnosActa.map(a => ({
-                fp_acta_id: actaData.id,
-                fp_inscripcion_id: a.id,
-                condicion: alumnosSeleccionados[a.id].condicion,
-                observacion: alumnosSeleccionados[a.id].observacion || null,
-                estado_original: a.estado
+                fp_acta_id: actaData.id, fp_inscripcion_id: a.id, condicion: alumnosSeleccionados[a.id].condicion, observacion: alumnosSeleccionados[a.id].observacion || null, estado_original: a.estado
             }));
-
-            const { error: errorDetalles } = await supabase
-                .from('fp_actas_detalle')
-                .insert(detalles);
-
+            const { error: errorDetalles } = await supabase.from('fp_actas_detalle').insert(detalles);
             if (errorDetalles) throw errorDetalles;
 
-            // 3. Actualizar estado de alumnos aprobados
             const aprobados = alumnosActa.filter(a => alumnosSeleccionados[a.id].condicion === 'aprobado');
             if (aprobados.length > 0) {
-                await supabase
-                    .from('fp_inscripciones')
-                    .update({ estado: 'egresado' })
-                    .in('id', aprobados.map(a => a.id));
+                await supabase.from('fp_inscripciones').update({ estado: 'egresado' }).in('id', aprobados.map(a => a.id));
             }
-
-            // 4. Cerrar el curso
-            await supabase
-                .from('fp_cursos')
-                .update({ estado: 'finalizado', fecha_finalizacion: fechaActa })
-                .eq('id', cursoId);
+            await supabase.from('fp_cursos').update({ estado: 'finalizado', fecha_finalizacion: fechaActa }).eq('id', cursoId);
 
             setActaCreada({ ...actaData, alumnos: alumnosActa });
             setModalActaAbierto(false);
@@ -344,52 +227,19 @@ export default function DetalleCursoPage() {
     }
 
     async function anularActa() {
-        if (!motivoAnulacion.trim()) {
-            setMensaje({ tipo: 'error', texto: 'Debes indicar el motivo de anulación' });
-            return;
-        }
-
-        if (!confirm(`¿Confirmar anulación del acta ${actaExistente.numero}?\n\nEsta acción revertirá el estado de los alumnos y reabrirá el curso.`)) {
-            return;
-        }
+        if (!motivoAnulacion.trim()) { setMensaje({ tipo: 'error', texto: 'Debes indicar el motivo de anulación' }); return; }
+        if (!confirm(`¿Confirmar anulación del acta ${actaExistente.numero}?\n\nEsta acción revertirá el estado de los alumnos y reabrirá el curso.`)) return;
 
         setCargandoAnulacion(true);
         try {
-            // 1. Marcar acta como anulada
-            await supabase
-                .from('fp_actas')
-                .update({
-                    anulada: true,
-                    motivo_anulacion: motivoAnulacion,
-                    anulada_por: docente.userId,
-                    fecha_anulacion: new Date().toISOString().split('T')[0]
-                })
-                .eq('id', actaExistente.id);
-
-            // 2. Obtener detalles del acta para revertir estados
-            const { data: detalles } = await supabase
-                .from('fp_actas_detalle')
-                .select('fp_inscripcion_id, estado_original')
-                .eq('fp_acta_id', actaExistente.id);
-
-            // 3. Revertir estado de cada alumno
+            await supabase.from('fp_actas').update({ anulada: true, motivo_anulacion: motivoAnulacion, anulada_por: docente.userId, fecha_anulacion: new Date().toISOString().split('T')[0] }).eq('id', actaExistente.id);
+            const { data: detalles } = await supabase.from('fp_actas_detalle').select('fp_inscripcion_id, estado_original').eq('fp_acta_id', actaExistente.id);
             if (detalles && detalles.length > 0) {
                 for (const detalle of detalles) {
-                    if (detalle.estado_original) {
-                        await supabase
-                            .from('fp_inscripciones')
-                            .update({ estado: detalle.estado_original })
-                            .eq('id', detalle.fp_inscripcion_id);
-                    }
+                    if (detalle.estado_original) await supabase.from('fp_inscripciones').update({ estado: detalle.estado_original }).eq('id', detalle.fp_inscripcion_id);
                 }
             }
-
-            // 4. Reabrir el curso
-            await supabase
-                .from('fp_cursos')
-                .update({ estado: 'en_cursada', fecha_finalizacion: null })
-                .eq('id', cursoId);
-
+            await supabase.from('fp_cursos').update({ estado: 'en_cursada', fecha_finalizacion: null }).eq('id', cursoId);
             setMensaje({ tipo: 'ok', texto: `Acta ${actaExistente.numero} anulada correctamente. El curso fue reabierto.` });
             setModalAnularAbierto(false);
             setMotivoAnulacion('');
@@ -406,37 +256,9 @@ export default function DetalleCursoPage() {
         const contenido = fichaRef.current;
         if (!contenido) return;
         const ventana = window.open('', '_blank');
-        ventana.document.write(`
-      <html>
-        <head>
-          <title>Acta de Finalización - ${actaExistente?.numero || actaCreada?.numero}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #000; font-size: 12px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .header h1 { font-size: 16px; margin: 0 0 4px 0; }
-            .header h2 { font-size: 14px; margin: 0 0 4px 0; font-weight: normal; }
-            .dato-row { margin-bottom: 8px; }
-            .dato-label { font-weight: bold; display: inline-block; min-width: 200px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
-            th { background: #f0f0f0; font-weight: bold; }
-            .resumen { margin: 20px 0; line-height: 1.6; }
-            .firmas { display: flex; justify-content: space-between; margin-top: 60px; }
-            .firma-box { width: 200px; text-align: center; }
-            .firma-linea { border-top: 1px solid #000; padding-top: 4px; margin-top: 40px; }
-            @media print { body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          ${contenido.innerHTML}
-        </body>
-      </html>
-    `);
+        ventana.document.write(`<html><head><title>Acta de Finalización - ${actaExistente?.numero || actaCreada?.numero}</title><style>body { font-family: Arial, sans-serif; padding: 40px; color: #000; font-size: 12px; } .header { text-align: center; margin-bottom: 20px; } .header h1 { font-size: 16px; margin: 0 0 4px 0; } .header h2 { font-size: 14px; margin: 0 0 4px 0; font-weight: normal; } table { width: 100%; border-collapse: collapse; margin: 20px 0; } th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; } th { background: #f0f0f0; font-weight: bold; } .firmas { display: flex; justify-content: space-between; margin-top: 60px; } .firma-box { width: 200px; text-align: center; } .firma-linea { border-top: 1px solid #000; padding-top: 4px; margin-top: 40px; } @media print { body { padding: 20px; } }</style></head><body>${contenido.innerHTML}</body></html>`);
         ventana.document.close();
-        setTimeout(() => {
-            ventana.print();
-            ventana.close();
-        }, 500);
+        setTimeout(() => { ventana.print(); ventana.close(); }, 500);
     }
 
     if (cargando || !docente) return null;
@@ -446,34 +268,16 @@ export default function DetalleCursoPage() {
 
     const alumnosActa = actaCreada?.alumnos || alumnos.filter(a => alumnosSeleccionados[a.id]?.seleccionado);
     const totalSeleccionados = alumnosActa.length;
-    const aprobados = alumnosActa.filter(a => {
-        const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion;
-        return cond === 'aprobado';
-    }).length;
-    const desaprobados = alumnosActa.filter(a => {
-        const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion;
-        return cond === 'desaprobado';
-    }).length;
-    const ausentes = alumnosActa.filter(a => {
-        const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion;
-        return cond === 'ausente';
-    }).length;
-    const libres = alumnosActa.filter(a => {
-        const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion;
-        return cond === 'libre';
-    }).length;
+    const aprobados = alumnosActa.filter(a => { const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion; return cond === 'aprobado'; }).length;
+    const desaprobados = alumnosActa.filter(a => { const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion; return cond === 'desaprobado'; }).length;
+    const ausentes = alumnosActa.filter(a => { const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion; return cond === 'ausente'; }).length;
+    const libres = alumnosActa.filter(a => { const cond = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion; return cond === 'libre'; }).length;
 
     return (
         <Sidebar docente={docente} titulo="Detalle del Curso">
             <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-
                 {mensaje && (
-                    <div style={{
-                        background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff',
-                        border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0' : mensaje.tipo === 'error' ? '#fecaca' : '#bfdbfe'}`,
-                        color: mensaje.tipo === 'ok' ? '#15803d' : mensaje.tipo === 'error' ? '#b91c1c' : '#1e40af',
-                        padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14
-                    }}>
+                    <div style={{ background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff', border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0' : mensaje.tipo === 'error' ? '#fecaca' : '#bfdbfe'}`, color: mensaje.tipo === 'ok' ? '#15803d' : mensaje.tipo === 'error' ? '#b91c1c' : '#1e40af', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
                         {mensaje.texto}
                     </div>
                 )}
@@ -487,92 +291,30 @@ export default function DetalleCursoPage() {
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, marginBottom: 24 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
                                 <div style={{ flex: 1 }}>
-                                    <button
-                                        onClick={() => router.push('/docente/cursos')}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', marginBottom: 12, padding: 0 }}
-                                    >
+                                    <button onClick={() => router.push('/docente/cursos')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', marginBottom: 12, padding: 0 }}>
                                         {Iconos.volver} Volver a Mis Cursos
                                     </button>
-                                    <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>
-                                        {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
-                                    </h2>
-                                    <div style={{ fontSize: 14, color: '#6b7280' }}>
-                                        {curso.turno} · {curso.anio} · Cohorte {curso.cohorte}
-                                    </div>
+                                    <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>{curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}</h2>
+                                    <div style={{ fontSize: 14, color: '#6b7280' }}>{curso.turno} · {curso.anio} · Cohorte {curso.cohorte}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                                    {estadoCurso && (
-                                        <div style={{
-                                            background: estadoCurso.color,
-                                            color: '#fff',
-                                            padding: '6px 14px',
-                                            borderRadius: 4,
-                                            fontSize: 12,
-                                            fontWeight: 600
-                                        }}>
-                                            {estadoCurso.label}
-                                        </div>
-                                    )}
-                                    {actaExistente && !actaAnulada && (
-                                        <>
-                                            <button
-                                                onClick={() => setMostrarImpresion(true)}
-                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                                            >
-                                                {Iconos.imprimir} Ver Acta
-                                            </button>
-                                            <button
-                                                onClick={() => setModalAnularAbierto(true)}
-                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#b91c1c', border: '1px solid #b91c1c', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                                            >
-                                                {Iconos.anular} Anular Acta
-                                            </button>
-                                        </>
-                                    )}
-                                    {puedeCargarActa && (
-                                        <button
-                                            onClick={() => setModalActaAbierto(true)}
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                                        >
-                                            {Iconos.acta} {actaAnulada ? 'Nueva Acta' : 'Cargar Acta'}
-                                        </button>
-                                    )}
+                                    {estadoCurso && (<div style={{ background: estadoCurso.color, color: '#fff', padding: '6px 14px', borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{estadoCurso.label}</div>)}
+                                    {actaExistente && !actaAnulada && (<>
+                                        <button onClick={() => setMostrarImpresion(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.imprimir} Ver Acta</button>
+                                        <button onClick={() => setModalAnularAbierto(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#b91c1c', border: '1px solid #b91c1c', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.anular} Anular Acta</button>
+                                    </>)}
+                                    {puedeCargarActa && (<button onClick={() => setModalActaAbierto(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.acta} {actaAnulada ? 'Nueva Acta' : 'Cargar Acta'}</button>)}
                                 </div>
                             </div>
-
-                            {actaAnulada && (
-                                <div style={{ marginTop: 16, padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 13, color: '#b91c1c' }}>
-                                    <strong>⚠️ Acta anterior anulada:</strong> {actaExistente.numero} — Motivo: {actaExistente.motivo_anulacion}
-                                </div>
-                            )}
-
+                            {actaAnulada && (<div style={{ marginTop: 16, padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 13, color: '#b91c1c' }}><strong>⚠️ Acta anterior anulada:</strong> {actaExistente.numero} — Motivo: {actaExistente.motivo_anulacion}</div>)}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginTop: 20, paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
-                                <div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Período</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>
-                                        {Iconos.calendario}
-                                        {formatearFecha(curso.fecha_inicio)} → {formatearFecha(curso.fecha_fin)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Alumnos</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>
-                                        {Iconos.usuarios}
-                                        <strong>{alumnos.length}</strong> inscriptos
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Módulos</div>
-                                    <div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{modulos.length} módulos</div>
-                                </div>
-                                <div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Asistencia mínima</div>
-                                    <div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{curso.asistencia_minima || 75}%</div>
-                                </div>
+                                <div><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Período</div><div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{Iconos.calendario} {formatearFecha(curso.fecha_inicio)} → {formatearFecha(curso.fecha_fin)}</div></div>
+                                <div><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Alumnos</div><div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{Iconos.usuarios} <strong>{alumnos.length}</strong> inscriptos</div></div>
+                                <div><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Módulos</div><div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{modulos.length} módulos</div></div>
+                                <div><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Asistencia mínima</div><div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>{curso.asistencia_minima || 75}%</div></div>
                             </div>
                         </div>
 
-                        {/* Tabla de alumnos */}
                         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                             <div style={{ width: 200 }}>
                                 <label style={labelStyle}>Estado</label>
@@ -629,16 +371,23 @@ export default function DetalleCursoPage() {
                                                         <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', background: a.estado === 'inscripto' || a.estado === 'en_curso' ? '#dcfce7' : a.estado === 'egresado' ? '#dbeafe' : '#fef3c7', color: a.estado === 'inscripto' || a.estado === 'en_curso' ? '#15803d' : a.estado === 'egresado' ? '#1e40af' : '#92400e', border: `1px solid ${a.estado === 'inscripto' || a.estado === 'en_curso' ? '#bbf7d0' : a.estado === 'egresado' ? '#bfdbfe' : '#fde68a'}` }}>{a.estado}</span>
                                                     </td>
                                                     <td style={{ padding: '12px 16px' }}>
-                                                        {a.condicion_acta ? (
-                                                            <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: a.condicion_acta === 'aprobado' ? '#dcfce7' : '#fef3c7', color: a.condicion_acta === 'aprobado' ? '#15803d' : '#92400e' }}>{a.condicion_acta}</span>
-                                                        ) : (
-                                                            <span style={{ fontSize: 12, color: '#9ca3af' }}>Sin acta</span>
-                                                        )}
+                                                        {a.condicion_acta ? (<span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: a.condicion_acta === 'aprobado' ? '#dcfce7' : '#fef3c7', color: a.condicion_acta === 'aprobado' ? '#15803d' : '#92400e' }}>{a.condicion_acta}</span>) : (<span style={{ fontSize: 12, color: '#9ca3af' }}>Sin acta</span>)}
                                                     </td>
                                                     <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                        {a.url_carpeta_drive && (
-                                                            <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1e3a8a', fontSize: 12, textDecoration: 'none', marginRight: 8 }} title="Ver carpeta de Drive">{Iconos.externo}</a>
-                                                        )}
+                                                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                                            {a.url_carpeta_drive && (
+                                                                <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1e3a8a', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: '#eff6ff', borderRadius: 4 }} title="Ver carpeta de Drive">{Iconos.externo}</a>
+                                                            )}
+                                                            <div style={{ position: 'relative' }}>
+                                                                <button onClick={() => setAlumnoSeleccionado(alumnoSeleccionado?.id === a.id ? null : a)} style={{ background: '#f3f4f6', color: '#1e3a8a', border: '1px solid #d1d5db', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>Acciones ▾</button>
+                                                                {alumnoSeleccionado?.id === a.id && (
+                                                                    <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 200 }}>
+                                                                        <button onClick={() => { setModalFichaAbierto(true); setAlumnoSeleccionado(null); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1e3a8a', borderBottom: '1px solid #f3f4f6' }}>👤 Ver ficha completa</button>
+                                                                        <button onClick={() => { setModalDocumentacionAbierto(true); setAlumnoSeleccionado(null); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#1e3a8a' }}>📄 Ver documentación</button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -646,32 +395,24 @@ export default function DetalleCursoPage() {
                                     </tbody>
                                 </table>
                             </div>
-                            {alumnosFiltrados.length === 0 && (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron alumnos con los filtros seleccionados.</div>
-                            )}
+                            {alumnosFiltrados.length === 0 && (<div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron alumnos con los filtros seleccionados.</div>)}
                         </div>
 
                         {/* MODAL DE CARGA DE ACTA */}
                         {modalActaAbierto && (
                             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => !cargandoActa && setModalActaAbierto(false)}>
                                 <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 1000, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-
                                     <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
                                         <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Cargar Acta de Finalización</h3>
                                         <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>{curso.nombre} · {curso.turno} {curso.anio}</p>
                                     </div>
-
-                                    {/* Datos del acta */}
                                     <div style={{ marginBottom: 24 }}>
                                         <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos del Acta</h4>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                             <div>
                                                 <label style={labelStyle}>Número de Acta</label>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4b5563', cursor: 'pointer' }}>
-                                                        <input type="checkbox" checked={numeroManual} onChange={(e) => setNumeroManual(e.target.checked)} style={{ width: 14, height: 14 }} />
-                                                        Ingresar manualmente
-                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4b5563', cursor: 'pointer' }}><input type="checkbox" checked={numeroManual} onChange={(e) => setNumeroManual(e.target.checked)} style={{ width: 14, height: 14 }} /> Ingresar manualmente</label>
                                                 </div>
                                                 <input type="text" value={numeroActa} onChange={(e) => setNumeroActa(e.target.value)} style={inputStyle} placeholder="FP-2026-001" />
                                             </div>
@@ -685,13 +426,9 @@ export default function DetalleCursoPage() {
                                             <textarea value={equipoDocente} onChange={(e) => setEquipoDocente(e.target.value)} style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }} placeholder="Prof. Nombre Apellido, Prof. Nombre Apellido..." />
                                         </div>
                                     </div>
-
-                                    {/* Tabla de alumnos */}
                                     <div style={{ marginBottom: 24 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', textTransform: 'uppercase', margin: 0 }}>
-                                                Alumnos ({alumnos.filter(a => alumnosSeleccionados[a.id]?.seleccionado).length} seleccionados)
-                                            </h4>
+                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', textTransform: 'uppercase', margin: 0 }}>Alumnos ({alumnos.filter(a => alumnosSeleccionados[a.id]?.seleccionado).length} seleccionados)</h4>
                                             <div style={{ display: 'flex', gap: 8 }}>
                                                 <button onClick={seleccionarTodos} style={{ background: '#f3f4f6', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: 4, fontSize: 11, cursor: 'pointer' }}>Seleccionar todos</button>
                                                 <button onClick={deseleccionarTodos} style={{ background: '#f3f4f6', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: 4, fontSize: 11, cursor: 'pointer' }}>Deseleccionar todos</button>
@@ -699,36 +436,27 @@ export default function DetalleCursoPage() {
                                         </div>
                                         <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 6 }}>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                                                <thead>
-                                                    <tr style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
-                                                        <th style={{ padding: '8px 12px', textAlign: 'center', width: 40 }}>✓</th>
-                                                        <th style={{ padding: '8px 12px', textAlign: 'left' }}>DNI</th>
-                                                        <th style={{ padding: '8px 12px', textAlign: 'left' }}>Apellido y Nombre</th>
-                                                        <th style={{ padding: '8px 12px', textAlign: 'center', width: 140 }}>Condición</th>
-                                                        <th style={{ padding: '8px 12px', textAlign: 'left' }}>Observación</th>
-                                                    </tr>
-                                                </thead>
+                                                <thead><tr style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
+                                                    <th style={{ padding: '8px 12px', textAlign: 'center', width: 40 }}>✓</th>
+                                                    <th style={{ padding: '8px 12px', textAlign: 'left' }}>DNI</th>
+                                                    <th style={{ padding: '8px 12px', textAlign: 'left' }}>Apellido y Nombre</th>
+                                                    <th style={{ padding: '8px 12px', textAlign: 'center', width: 140 }}>Condición</th>
+                                                    <th style={{ padding: '8px 12px', textAlign: 'left' }}>Observación</th>
+                                                </tr></thead>
                                                 <tbody>
                                                     {alumnos.map(a => {
                                                         const seleccion = alumnosSeleccionados[a.id] || { seleccionado: true, condicion: 'aprobado', observacion: '' };
                                                         return (
                                                             <tr key={a.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                                                    <input type="checkbox" checked={seleccion.seleccionado} onChange={() => toggleSeleccionAlumno(a.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                                                                </td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}><input type="checkbox" checked={seleccion.seleccionado} onChange={() => toggleSeleccionAlumno(a.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} /></td>
                                                                 <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>{a.dni || '—'}</td>
                                                                 <td style={{ padding: '8px 12px', fontWeight: 500 }}>{a.apellido ? `${a.apellido}, ${a.nombre}` : a.nombre}</td>
                                                                 <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                                                     <select value={seleccion.condicion} onChange={(e) => actualizarCondicionAlumno(a.id, e.target.value)} disabled={!seleccion.seleccionado} style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 12, background: seleccion.seleccionado ? '#fff' : '#f3f4f6' }}>
-                                                                        <option value="aprobado">Aprobado</option>
-                                                                        <option value="libre">Libre</option>
-                                                                        <option value="ausente">Ausente</option>
-                                                                        <option value="desaprobado">Desaprobado</option>
+                                                                        <option value="aprobado">Aprobado</option><option value="libre">Libre</option><option value="ausente">Ausente</option><option value="desaprobado">Desaprobado</option>
                                                                     </select>
                                                                 </td>
-                                                                <td style={{ padding: '8px 12px' }}>
-                                                                    <input type="text" value={seleccion.observacion} onChange={(e) => actualizarObservacionAlumno(a.id, e.target.value)} disabled={!seleccion.seleccionado} placeholder="Opcional" style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 12, background: seleccion.seleccionado ? '#fff' : '#f3f4f6' }} />
-                                                                </td>
+                                                                <td style={{ padding: '8px 12px' }}><input type="text" value={seleccion.observacion} onChange={(e) => actualizarObservacionAlumno(a.id, e.target.value)} disabled={!seleccion.seleccionado} placeholder="Opcional" style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: 12, background: seleccion.seleccionado ? '#fff' : '#f3f4f6' }} /></td>
                                                             </tr>
                                                         );
                                                     })}
@@ -736,8 +464,6 @@ export default function DetalleCursoPage() {
                                             </table>
                                         </div>
                                     </div>
-
-                                    {/* Resumen */}
                                     <div style={{ marginBottom: 24, padding: 16, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
                                         <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Resumen</h4>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
@@ -748,12 +474,9 @@ export default function DetalleCursoPage() {
                                             <div><div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 4 }}>Desaprobados</div><div style={{ fontSize: 20, fontWeight: 700, color: '#b91c1c' }}>{desaprobados}</div></div>
                                         </div>
                                     </div>
-
                                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                         <button onClick={() => setModalActaAbierto(false)} disabled={cargandoActa} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: cargandoActa ? 'not-allowed' : 'pointer' }}>Cancelar</button>
-                                        <button onClick={confirmarActa} disabled={cargandoActa} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoActa ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoActa ? 'not-allowed' : 'pointer' }}>
-                                            {cargandoActa ? 'Cargando...' : <>{Iconos.check} Confirmar y Firmar Acta</>}
-                                        </button>
+                                        <button onClick={confirmarActa} disabled={cargandoActa} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoActa ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoActa ? 'not-allowed' : 'pointer' }}>{cargandoActa ? 'Cargando...' : <>{Iconos.check} Confirmar y Firmar Acta</>}</button>
                                     </div>
                                 </div>
                             </div>
@@ -776,9 +499,7 @@ export default function DetalleCursoPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                         <button onClick={() => setModalAnularAbierto(false)} disabled={cargandoAnulacion} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: cargandoAnulacion ? 'not-allowed' : 'pointer' }}>Cancelar</button>
-                                        <button onClick={anularActa} disabled={cargandoAnulacion || !motivoAnulacion.trim()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoAnulacion || !motivoAnulacion.trim() ? '#9ca3af' : '#b91c1c', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoAnulacion || !motivoAnulacion.trim() ? 'not-allowed' : 'pointer' }}>
-                                            {cargandoAnulacion ? 'Anulando...' : <>{Iconos.anular} Confirmar Anulación</>}
-                                        </button>
+                                        <button onClick={anularActa} disabled={cargandoAnulacion || !motivoAnulacion.trim()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoAnulacion || !motivoAnulacion.trim() ? '#9ca3af' : '#b91c1c', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoAnulacion || !motivoAnulacion.trim() ? 'not-allowed' : 'pointer' }}>{cargandoAnulacion ? 'Anulando...' : <>{Iconos.anular} Confirmar Anulación</>}</button>
                                     </div>
                                 </div>
                             </div>
@@ -795,27 +516,22 @@ export default function DetalleCursoPage() {
                                             <div style={{ fontSize: 12 }}>Acta N°: <strong>{actaExistente?.numero || actaCreada?.numero}</strong></div>
                                             <div style={{ fontSize: 12 }}>Resolución N°: <strong>{perfil?.resolucion || '5036/16'}</strong></div>
                                         </div>
-
                                         <div style={{ marginBottom: 16 }}>
                                             <div style={{ marginBottom: 8 }}><strong>SECTOR:</strong> {perfil?.sector || '—'}</div>
                                             <div style={{ marginBottom: 8 }}><strong>PERFIL PROFESIONAL:</strong> {curso?.nombre?.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</div>
                                             <div style={{ marginBottom: 8 }}><strong>NIVEL DE CUALIFICACIÓN:</strong> {perfil?.nivel_certificacion ? `Nivel ${perfil.nivel_certificacion}` : '—'}</div>
                                             <div style={{ marginBottom: 8 }}><strong>Duración Total en Horas:</strong> {perfil?.carga_horaria || '—'}</div>
                                         </div>
-
                                         <div style={{ marginBottom: 16, lineHeight: 1.6 }}>
                                             A los <strong>{formatearFechaLarga(actaExistente?.fecha || actaCreada?.fecha || fechaActa)}</strong>, reunido el equipo Docente correspondiente al Perfil Profesional mencionado, integrado por: <strong>{equipoDocente || '—'}</strong>, proceden a registrar las Calificaciones Finales. Luego de aplicar oportunamente las Evidencias de: Conocimiento, Desempeño y Producto, vinculadas con las Capacidades expresadas en el Proyecto vinculado al Perfil Profesional, obteniéndose los resultados expresados a continuación:
                                         </div>
-
                                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 40 }}>Nº</th>
-                                                    <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 100 }}>D.N.I. Nº</th>
-                                                    <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>APELLIDO Y NOMBRE</th>
-                                                    <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 140 }}>CALIFICACIÓN DEFINITIVA</th>
-                                                </tr>
-                                            </thead>
+                                            <thead><tr>
+                                                <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 40 }}>Nº</th>
+                                                <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 100 }}>D.N.I. Nº</th>
+                                                <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>APELLIDO Y NOMBRE</th>
+                                                <th style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', width: 140 }}>CALIFICACIÓN DEFINITIVA</th>
+                                            </tr></thead>
                                             <tbody>
                                                 {alumnosActa.map((a, idx) => {
                                                     const condicion = actaCreada ? a.condicion_acta : alumnosSeleccionados[a.id]?.condicion;
@@ -830,36 +546,139 @@ export default function DetalleCursoPage() {
                                                 })}
                                             </tbody>
                                         </table>
-
                                         <div style={{ lineHeight: 1.8, marginBottom: 40 }}>
                                             Se hace constar que examinados <strong>{totalSeleccionados}</strong> ({numeroALetras(totalSeleccionados)}) alumnos, resultaron <strong>{aprobados}</strong> ({numeroALetras(aprobados)}) APROBADOS, <strong>{desaprobados}</strong> ({numeroALetras(desaprobados)}) DESAPROBADOS, <strong>{ausentes}</strong> ({numeroALetras(ausentes)}) AUSENTES y <strong>{libres}</strong> ({numeroALetras(libres)}) LIBRES. Total de Alumnos: <strong>{totalSeleccionados}</strong> ({numeroALetras(totalSeleccionados)}).
                                         </div>
-
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60 }}>
-                                            <div style={{ width: 200, textAlign: 'center' }}>
-                                                <div style={{ marginBottom: 40 }}>Firma y Aclaración</div>
-                                                <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Docente</div>
-                                            </div>
-                                            <div style={{ width: 200, textAlign: 'center' }}>
-                                                <div style={{ marginBottom: 40 }}>Firma y Aclaración</div>
-                                                <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Directivo</div>
-                                            </div>
-                                            <div style={{ width: 200, textAlign: 'center' }}>
-                                                <div style={{ marginBottom: 40 }}>Firma y Aclaración</div>
-                                                <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Secretario</div>
-                                            </div>
+                                            <div style={{ width: 200, textAlign: 'center' }}><div style={{ marginBottom: 40 }}>Firma y Aclaración</div><div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Docente</div></div>
+                                            <div style={{ width: 200, textAlign: 'center' }}><div style={{ marginBottom: 40 }}>Firma y Aclaración</div><div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Directivo</div></div>
+                                            <div style={{ width: 200, textAlign: 'center' }}><div style={{ marginBottom: 40 }}>Firma y Aclaración</div><div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Secretario</div></div>
                                         </div>
                                     </div>
-
                                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                         <button onClick={() => setMostrarImpresion(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
-                                        <button onClick={handleImprimir} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                                            {Iconos.imprimir} Imprimir Acta
-                                        </button>
+                                        <button onClick={handleImprimir} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.imprimir} Imprimir Acta</button>
                                     </div>
                                 </div>
                             </div>
                         )}
+
+                        {/* MODAL: FICHA COMPLETA DEL ALUMNO */}
+                        {modalFichaAbierto && alumnoSeleccionado && (
+                            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalFichaAbierto(false)}>
+                                <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                                    <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha del Alumno</h3>
+                                        <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>{alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}</p>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                                        <div>
+                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h4>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
+                                        </div>
+                                        <div>
+                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h4>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.telefono || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Email:</strong> {alumnoSeleccionado.email || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Domicilio:</strong> {alumnoSeleccionado.domicilio || '—'}</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                                        <div>
+                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos</h4>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estudios Obtenidos:</strong> {alumnoSeleccionado.estudios_obtenidos || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Situación Laboral:</strong> {alumnoSeleccionado.situacion_laboral || '—'}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Módulos Aprobados:</strong> {alumnoSeleccionado.modulos?.aprobados || 0} / {alumnoSeleccionado.modulos?.total || 0}</div>
+                                        </div>
+                                        <div>
+                                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Asistencia</h4>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Porcentaje:</strong> <span style={{ marginLeft: 8, fontWeight: 700, color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>{alumnoSeleccionado.asistencia?.porcentaje || 0}%</span></div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Clases:</strong> {alumnoSeleccionado.asistencia?.presentes || 0} / {alumnoSeleccionado.asistencia?.total || 0}</div>
+                                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estado:</strong> <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#fef2f2' : '#f0fdf4', color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>{alumnoSeleccionado.asistencia?.porcentaje < 75 ? 'Insuficiente' : 'Suficiente'}</span></div>
+                                        </div>
+                                    </div>
+                                    <div style={{ marginBottom: 24 }}>
+                                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h4>
+                                        <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nombre:</strong> {alumnoSeleccionado.emergencia_nombre || '—'}</div>
+                                        <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Parentesco:</strong> {alumnoSeleccionado.emergencia_parentesco || '—'}</div>
+                                        <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.emergencia_telefono || '—'}</div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                        <button onClick={() => setModalFichaAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MODAL: DOCUMENTACIÓN DEL ALUMNO */}
+                        {modalDocumentacionAbierto && alumnoSeleccionado && (
+                            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalDocumentacionAbierto(false)}>
+                                <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                                    <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Documentación del Alumno</h3>
+                                        <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>{alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}</p>
+                                    </div>
+                                    <div style={{ marginBottom: 24, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
+                                        <div style={{ fontSize: 14, color: '#1e40af' }}>
+                                            <strong>Estado de Documentación:</strong>
+                                            {(() => {
+                                                const docsObligatorios = ['dni', 'foto', 'certificado_estudios', 'certificado_medico'];
+                                                const completos = docsObligatorios.filter(doc => {
+                                                    const fisico = alumnoSeleccionado[`doc_${doc}_fisico`] || false;
+                                                    const digital = alumnoSeleccionado[`doc_${doc}_digital`] || false;
+                                                    return fisico || digital;
+                                                }).length;
+                                                const total = docsObligatorios.length;
+                                                const porcentaje = Math.round((completos / total) * 100);
+                                                return (<span style={{ marginLeft: 8 }}>{completos} de {total} documentos obligatorios ({porcentaje}%){porcentaje === 100 ? ' ✅ Completa' : ' ⚠️ Incompleta'}</span>);
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div style={{ marginBottom: 24 }}>
+                                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentos Requeridos</h4>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {[
+                                                { id: 'dni', nombre: 'DNI (Frente y Dorso)', obligatorio: true },
+                                                { id: 'foto', nombre: 'Foto 4x4', obligatorio: true },
+                                                { id: 'certificado_estudios', nombre: 'Certificado de Estudios', obligatorio: true },
+                                                { id: 'certificado_medico', nombre: 'Certificado Médico', obligatorio: true },
+                                                { id: 'pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false }
+                                            ].map(doc => {
+                                                const fisico = alumnoSeleccionado[`doc_${doc.id}_fisico`] || false;
+                                                const digital = alumnoSeleccionado[`doc_${doc.id}_digital`] || false;
+                                                const completo = fisico || digital;
+                                                return (
+                                                    <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: completo ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${completo ? '#bbf7d0' : '#e5e7eb'}` }}>
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>{doc.nombre}{doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}</div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 16 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}><span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>{Iconos.check}</span><span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>Físico</span></div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}><span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>{Iconos.check}</span><span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>Digital</span></div>
+                                                        </div>
+                                                        {!completo && doc.obligatorio && (<span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>Falta</span>)}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ marginBottom: 24 }}>
+                                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h4>
+                                        <div style={{ padding: 12, background: alumnoSeleccionado.pago_cooperadora ? '#f0fdf4' : '#fef3c7', borderRadius: 6, border: `1px solid ${alumnoSeleccionado.pago_cooperadora ? '#bbf7d0' : '#fde68a'}` }}>
+                                            <div style={{ fontSize: 13, marginBottom: 4 }}><strong>Estado:</strong> <span style={{ marginLeft: 8, fontWeight: 600, color: alumnoSeleccionado.pago_cooperadora ? '#15803d' : '#92400e' }}>{alumnoSeleccionado.pago_cooperadora ? '✅ Registrado' : '⚠️ Pendiente'}</span></div>
+                                            {alumnoSeleccionado.pago_cooperadora && (<><div style={{ fontSize: 13, marginBottom: 4 }}><strong>Monto:</strong> ${alumnoSeleccionado.monto_cooperadora || 0}</div><div style={{ fontSize: 13 }}><strong>Tipo:</strong> {alumnoSeleccionado.tipo_pago_cooperadora || '—'}</div></>)}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                        <button onClick={() => setModalDocumentacionAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                     </>
                 )}
             </div>
