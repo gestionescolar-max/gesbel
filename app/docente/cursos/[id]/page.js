@@ -752,7 +752,7 @@ export default function DetalleCursoPage() {
                                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                         <button onClick={() => setModalActaAbierto(false)} disabled={cargandoActa} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: cargandoActa ? 'not-allowed' : 'pointer' }}>Cancelar</button>
                                         <button onClick={confirmarActa} disabled={cargandoActa} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cargandoActa ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: cargandoActa ? 'not-allowed' : 'pointer' }}>
-                                            {cargandoActa ? 'Cargando...' : <><Iconos.check} Confirmar y Firmar Acta</>}
+                                            {cargandoActa ? 'Cargando...' : <>{Iconos.check} Confirmar y Firmar Acta</>}
                                         </button>
                                     </div>
                                 </div>
