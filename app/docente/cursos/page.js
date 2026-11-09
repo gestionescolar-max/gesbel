@@ -80,7 +80,7 @@ export default function DocenteCursosPage() {
         if (anioCurso > anioActual) {
             return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
         }
-        if (anioCurso === anioActual && mesActual >= 10) {
+        if (anioCurso === anioActual && mesActual >= 12) {
             return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         }
         return { estado: 'en_cursada', color: '#10b981', label: 'En cursada' };
@@ -122,7 +122,7 @@ export default function DocenteCursosPage() {
 
                 <div style={{ marginBottom: 24 }}>
                     <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>
-                        {docente.esAdmin || docente.esDirectivo ? 'Todos los Cursos FP' : 'Mis Cursos Asignados'}
+                        {docente.esAdmin || docente.esDirectivo ? 'Cursos FP' : 'Mis Cursos Asignados'}
                     </h2>
                     <p style={{ fontSize: 14, color: '#6b7280' }}>
                         {docente.esAdmin || docente.esDirectivo
