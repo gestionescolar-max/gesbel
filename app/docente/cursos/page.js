@@ -79,7 +79,7 @@ export default function DocenteCursosPage() {
         }
 
         // Si es el mismo año, verificar si ya terminó (noviembre/diciembre)
-        if (anioCurso === anioActual && mesActual >= 10) {
+        if (anioCurso === anioActual && mesActual >= 12) {
             return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         }
 
