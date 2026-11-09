@@ -1,3 +1,4 @@
+cat > app / docente / cursos / page.js << 'EOF'
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -39,7 +40,6 @@ export default function DocenteCursosPage() {
             }
 
             const { data, error } = await query;
-
             if (error) throw error;
 
             setCursos(data || []);
@@ -257,3 +257,4 @@ export default function DocenteCursosPage() {
         </Sidebar>
     );
 }
+EOF
