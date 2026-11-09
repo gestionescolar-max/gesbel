@@ -9,7 +9,8 @@ const Iconos = {
     curso: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>,
     calendario: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
     usuarios: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
-    flecha: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+    flecha: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>,
+    check: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
 };
 
 export default function DocenteCursosPage() {
@@ -20,6 +21,11 @@ export default function DocenteCursosPage() {
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [mensaje, setMensaje] = useState(null);
     const [cargandoCursos, setCargandoCursos] = useState(true);
+
+    // ✅ ESTADOS AGREGADOS PARA LOS MODALES
+    const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
+    const [modalFichaAbierto, setModalFichaAbierto] = useState(false);
+    const [modalDocumentacionAbierto, setModalDocumentacionAbierto] = useState(false);
 
     useEffect(() => {
         if (!docente) return;
@@ -65,25 +71,18 @@ export default function DocenteCursosPage() {
 
     function obtenerEstadoCurso(curso) {
         const anioActual = new Date().getFullYear();
-        const mesActual = new Date().getMonth(); // 0 = enero, 11 = diciembre
+        const mesActual = new Date().getMonth();
         const anioCurso = curso.anio;
 
-        // Si el año del curso es menor al actual → Finalizado
         if (anioCurso < anioActual) {
             return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         }
-
-        // Si el año del curso es mayor al actual → Próximo a iniciar
         if (anioCurso > anioActual) {
             return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
         }
-
-        // Si es el mismo año, verificar si ya terminó (noviembre/diciembre)
-        if (anioCurso === anioActual && mesActual >= 12) {
+        if (anioCurso === anioActual && mesActual >= 10) {
             return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         }
-
-        // Caso por defecto: en cursada
         return { estado: 'en_cursada', color: '#10b981', label: 'En cursada' };
     }
 
@@ -260,339 +259,171 @@ export default function DocenteCursosPage() {
                         })}
                     </div>
                 )}
+
+                {/* ✅ MODAL: FICHA COMPLETA DEL ALUMNO (Solo una vez) */}
+                {modalFichaAbierto && alumnoSeleccionado && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalFichaAbierto(false)}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha del Alumno</h3>
+                                <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
+                                    {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                                <div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h4>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
+                                </div>
+                                <div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h4>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.telefono || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Email:</strong> {alumnoSeleccionado.email || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Domicilio:</strong> {alumnoSeleccionado.domicilio || '—'}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                                <div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos</h4>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estudios Obtenidos:</strong> {alumnoSeleccionado.estudios_obtenidos || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Situación Laboral:</strong> {alumnoSeleccionado.situacion_laboral || '—'}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Módulos Aprobados:</strong> {alumnoSeleccionado.modulos?.aprobados || 0} / {alumnoSeleccionado.modulos?.total || 0}</div>
+                                </div>
+                                <div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Asistencia</h4>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Porcentaje:</strong>
+                                        <span style={{ marginLeft: 8, fontWeight: 700, color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
+                                            {alumnoSeleccionado.asistencia?.porcentaje || 0}%
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Clases:</strong> {alumnoSeleccionado.asistencia?.presentes || 0} / {alumnoSeleccionado.asistencia?.total || 0}</div>
+                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estado:</strong>
+                                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#fef2f2' : '#f0fdf4', color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
+                                            {alumnoSeleccionado.asistencia?.porcentaje < 75 ? 'Insuficiente' : 'Suficiente'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: 24 }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h4>
+                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nombre:</strong> {alumnoSeleccionado.emergencia_nombre || '—'}</div>
+                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Parentesco:</strong> {alumnoSeleccionado.emergencia_parentesco || '—'}</div>
+                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.emergencia_telefono || '—'}</div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                <button onClick={() => setModalFichaAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ✅ MODAL: DOCUMENTACIÓN DEL ALUMNO (Solo una vez) */}
+                {modalDocumentacionAbierto && alumnoSeleccionado && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalDocumentacionAbierto(false)}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Documentación del Alumno</h3>
+                                <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
+                                    {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
+                                </p>
+                            </div>
+
+                            <div style={{ marginBottom: 24, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
+                                <div style={{ fontSize: 14, color: '#1e40af' }}>
+                                    <strong>Estado de Documentación:</strong>
+                                    {(() => {
+                                        const docsObligatorios = ['dni', 'foto', 'certificado_estudios', 'certificado_medico'];
+                                        const completos = docsObligatorios.filter(doc => {
+                                            const fisico = alumnoSeleccionado[`doc_${doc}_fisico`] || false;
+                                            const digital = alumnoSeleccionado[`doc_${doc}_digital`] || false;
+                                            return fisico || digital;
+                                        }).length;
+                                        const total = docsObligatorios.length;
+                                        const porcentaje = Math.round((completos / total) * 100);
+
+                                        return (
+                                            <span style={{ marginLeft: 8 }}>
+                                                {completos} de {total} documentos obligatorios ({porcentaje}%)
+                                                {porcentaje === 100 ? ' ✅ Completa' : ' ⚠️ Incompleta'}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: 24 }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentos Requeridos</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {[
+                                        { id: 'dni', nombre: 'DNI (Frente y Dorso)', obligatorio: true },
+                                        { id: 'foto', nombre: 'Foto 4x4', obligatorio: true },
+                                        { id: 'certificado_estudios', nombre: 'Certificado de Estudios', obligatorio: true },
+                                        { id: 'certificado_medico', nombre: 'Certificado Médico', obligatorio: true },
+                                        { id: 'pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false }
+                                    ].map(doc => {
+                                        const fisico = alumnoSeleccionado[`doc_${doc.id}_fisico`] || false;
+                                        const digital = alumnoSeleccionado[`doc_${doc.id}_digital`] || false;
+                                        const completo = fisico || digital;
+
+                                        return (
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: completo ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${completo ? '#bbf7d0' : '#e5e7eb'}` }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
+                                                        {doc.nombre}
+                                                        {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 16 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                                        <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>{Iconos.check}</span>
+                                                        <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>Físico</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                                        <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>{Iconos.check}</span>
+                                                        <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>Digital</span>
+                                                    </div>
+                                                </div>
+                                                {!completo && doc.obligatorio && (
+                                                    <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>Falta</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: 24 }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h4>
+                                <div style={{ padding: 12, background: alumnoSeleccionado.pago_cooperadora ? '#f0fdf4' : '#fef3c7', borderRadius: 6, border: `1px solid ${alumnoSeleccionado.pago_cooperadora ? '#bbf7d0' : '#fde68a'}` }}>
+                                    <div style={{ fontSize: 13, marginBottom: 4 }}>
+                                        <strong>Estado:</strong>
+                                        <span style={{ marginLeft: 8, fontWeight: 600, color: alumnoSeleccionado.pago_cooperadora ? '#15803d' : '#92400e' }}>
+                                            {alumnoSeleccionado.pago_cooperadora ? '✅ Registrado' : '⚠️ Pendiente'}
+                                        </span>
+                                    </div>
+                                    {alumnoSeleccionado.pago_cooperadora && (
+                                        <>
+                                            <div style={{ fontSize: 13, marginBottom: 4 }}><strong>Monto:</strong> ${alumnoSeleccionado.monto_cooperadora || 0}</div>
+                                            <div style={{ fontSize: 13 }}><strong>Tipo:</strong> {alumnoSeleccionado.tipo_pago_cooperadora || '—'}</div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                                <button onClick={() => setModalDocumentacionAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-            {/* MODAL: FICHA COMPLETA DEL ALUMNO */}
-            {modalFichaAbierto && alumnoSeleccionado && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalFichaAbierto(false)}>
-                    <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
-                            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha del Alumno</h3>
-                            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-                                {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
-                            </p>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
-                            </div>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.telefono || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Email:</strong> {alumnoSeleccionado.email || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Domicilio:</strong> {alumnoSeleccionado.domicilio || '—'}</div>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estudios Obtenidos:</strong> {alumnoSeleccionado.estudios_obtenidos || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Situación Laboral:</strong> {alumnoSeleccionado.situacion_laboral || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Módulos Aprobados:</strong> {alumnoSeleccionado.modulos?.aprobados || 0} / {alumnoSeleccionado.modulos?.total || 0}</div>
-                            </div>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Asistencia</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Porcentaje:</strong>
-                                    <span style={{ marginLeft: 8, fontWeight: 700, color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
-                                        {alumnoSeleccionado.asistencia?.porcentaje || 0}%
-                                    </span>
-                                </div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Clases:</strong> {alumnoSeleccionado.asistencia?.presentes || 0} / {alumnoSeleccionado.asistencia?.total || 0}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estado:</strong>
-                                    <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#fef2f2' : '#f0fdf4', color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
-                                        {alumnoSeleccionado.asistencia?.porcentaje < 75 ? 'Insuficiente' : 'Suficiente'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h4>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nombre:</strong> {alumnoSeleccionado.emergencia_nombre || '—'}</div>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Parentesco:</strong> {alumnoSeleccionado.emergencia_parentesco || '—'}</div>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.emergencia_telefono || '—'}</div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                            <button onClick={() => setModalFichaAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: DOCUMENTACIÓN DEL ALUMNO */}
-            {modalDocumentacionAbierto && alumnoSeleccionado && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalDocumentacionAbierto(false)}>
-                    <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
-                            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Documentación del Alumno</h3>
-                            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-                                {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
-                            </p>
-                        </div>
-
-                        {/* Estado general */}
-                        <div style={{ marginBottom: 24, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
-                            <div style={{ fontSize: 14, color: '#1e40af' }}>
-                                <strong>Estado de Documentación:</strong>
-                                {(() => {
-                                    const docsObligatorios = ['dni', 'foto', 'certificado_estudios', 'certificado_medico'];
-                                    const completos = docsObligatorios.filter(doc => {
-                                        const fisico = alumnoSeleccionado[`doc_${doc}_fisico`] || false;
-                                        const digital = alumnoSeleccionado[`doc_${doc}_digital`] || false;
-                                        return fisico || digital;
-                                    }).length;
-                                    const total = docsObligatorios.length;
-                                    const porcentaje = Math.round((completos / total) * 100);
-
-                                    return (
-                                        <span style={{ marginLeft: 8 }}>
-                                            {completos} de {total} documentos obligatorios ({porcentaje}%)
-                                            {porcentaje === 100 ? ' ✅ Completa' : ' ⚠️ Incompleta'}
-                                        </span>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Checklist de documentos */}
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentos Requeridos</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {[
-                                    { id: 'dni', nombre: 'DNI (Frente y Dorso)', obligatorio: true },
-                                    { id: 'foto', nombre: 'Foto 4x4', obligatorio: true },
-                                    { id: 'certificado_estudios', nombre: 'Certificado de Estudios', obligatorio: true },
-                                    { id: 'certificado_medico', nombre: 'Certificado Médico', obligatorio: true },
-                                    { id: 'pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false }
-                                ].map(doc => {
-                                    const fisico = alumnoSeleccionado[`doc_${doc.id}_fisico`] || false;
-                                    const digital = alumnoSeleccionado[`doc_${doc.id}_digital`] || false;
-                                    const completo = fisico || digital;
-
-                                    return (
-                                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: completo ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${completo ? '#bbf7d0' : '#e5e7eb'}` }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
-                                                    {doc.nombre}
-                                                    {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 16 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                                                    <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>{Iconos.check}</span>
-                                                    <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>Físico</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                                                    <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>{Iconos.check}</span>
-                                                    <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>Digital</span>
-                                                </div>
-                                            </div>
-                                            {!completo && doc.obligatorio && (
-                                                <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>Falta</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Pago de cooperadora */}
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h4>
-                            <div style={{ padding: 12, background: alumnoSeleccionado.pago_cooperadora ? '#f0fdf4' : '#fef3c7', borderRadius: 6, border: `1px solid ${alumnoSeleccionado.pago_cooperadora ? '#bbf7d0' : '#fde68a'}` }}>
-                                <div style={{ fontSize: 13, marginBottom: 4 }}>
-                                    <strong>Estado:</strong>
-                                    <span style={{ marginLeft: 8, fontWeight: 600, color: alumnoSeleccionado.pago_cooperadora ? '#15803d' : '#92400e' }}>
-                                        {alumnoSeleccionado.pago_cooperadora ? '✅ Registrado' : '️ Pendiente'}
-                                    </span>
-                                </div>
-                                {alumnoSeleccionado.pago_cooperadora && (
-                                    <>
-                                        <div style={{ fontSize: 13, marginBottom: 4 }}><strong>Monto:</strong> ${alumnoSeleccionado.monto_cooperadora || 0}</div>
-                                        <div style={{ fontSize: 13 }}><strong>Tipo:</strong> {alumnoSeleccionado.tipo_pago_cooperadora || '—'}</div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                            <button onClick={() => setModalDocumentacionAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* MODAL: FICHA COMPLETA DEL ALUMNO */}
-            {modalFichaAbierto && alumnoSeleccionado && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalFichaAbierto(false)}>
-                    <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 800, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
-                            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha del Alumno</h3>
-                            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-                                {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
-                            </p>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
-                            </div>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Contacto</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.telefono || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Email:</strong> {alumnoSeleccionado.email || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Domicilio:</strong> {alumnoSeleccionado.domicilio || '—'}</div>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Académicos</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estudios Obtenidos:</strong> {alumnoSeleccionado.estudios_obtenidos || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Situación Laboral:</strong> {alumnoSeleccionado.situacion_laboral || '—'}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Módulos Aprobados:</strong> {alumnoSeleccionado.modulos?.aprobados || 0} / {alumnoSeleccionado.modulos?.total || 0}</div>
-                            </div>
-                            <div>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Asistencia</h4>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Porcentaje:</strong>
-                                    <span style={{ marginLeft: 8, fontWeight: 700, color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
-                                        {alumnoSeleccionado.asistencia?.porcentaje || 0}%
-                                    </span>
-                                </div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Clases:</strong> {alumnoSeleccionado.asistencia?.presentes || 0} / {alumnoSeleccionado.asistencia?.total || 0}</div>
-                                <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Estado:</strong>
-                                    <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#fef2f2' : '#f0fdf4', color: alumnoSeleccionado.asistencia?.porcentaje < 75 ? '#b91c1c' : '#15803d' }}>
-                                        {alumnoSeleccionado.asistencia?.porcentaje < 75 ? 'Insuficiente' : 'Suficiente'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos de Emergencia</h4>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nombre:</strong> {alumnoSeleccionado.emergencia_nombre || '—'}</div>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Parentesco:</strong> {alumnoSeleccionado.emergencia_parentesco || '—'}</div>
-                            <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Teléfono:</strong> {alumnoSeleccionado.emergencia_telefono || '—'}</div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                            <button onClick={() => setModalFichaAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: DOCUMENTACIÓN DEL ALUMNO */}
-            {modalDocumentacionAbierto && alumnoSeleccionado && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalDocumentacionAbierto(false)}>
-                    <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
-                            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Documentación del Alumno</h3>
-                            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-                                {alumnoSeleccionado.apellido ? `${alumnoSeleccionado.apellido}, ${alumnoSeleccionado.nombre}` : alumnoSeleccionado.nombre}
-                            </p>
-                        </div>
-
-                        {/* Estado general */}
-                        <div style={{ marginBottom: 24, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
-                            <div style={{ fontSize: 14, color: '#1e40af' }}>
-                                <strong>Estado de Documentación:</strong>
-                                {(() => {
-                                    const docsObligatorios = ['dni', 'foto', 'certificado_estudios', 'certificado_medico'];
-                                    const completos = docsObligatorios.filter(doc => {
-                                        const fisico = alumnoSeleccionado[`doc_${doc}_fisico`] || false;
-                                        const digital = alumnoSeleccionado[`doc_${doc}_digital`] || false;
-                                        return fisico || digital;
-                                    }).length;
-                                    const total = docsObligatorios.length;
-                                    const porcentaje = Math.round((completos / total) * 100);
-
-                                    return (
-                                        <span style={{ marginLeft: 8 }}>
-                                            {completos} de {total} documentos obligatorios ({porcentaje}%)
-                                            {porcentaje === 100 ? ' ✅ Completa' : ' ⚠️ Incompleta'}
-                                        </span>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Checklist de documentos */}
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentos Requeridos</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {[
-                                    { id: 'dni', nombre: 'DNI (Frente y Dorso)', obligatorio: true },
-                                    { id: 'foto', nombre: 'Foto 4x4', obligatorio: true },
-                                    { id: 'certificado_estudios', nombre: 'Certificado de Estudios', obligatorio: true },
-                                    { id: 'certificado_medico', nombre: 'Certificado Médico', obligatorio: true },
-                                    { id: 'pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false }
-                                ].map(doc => {
-                                    const fisico = alumnoSeleccionado[`doc_${doc.id}_fisico`] || false;
-                                    const digital = alumnoSeleccionado[`doc_${doc.id}_digital`] || false;
-                                    const completo = fisico || digital;
-
-                                    return (
-                                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: completo ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${completo ? '#bbf7d0' : '#e5e7eb'}` }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
-                                                    {doc.nombre}
-                                                    {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 16 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                                                    <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>{Iconos.check}</span>
-                                                    <span style={{ color: fisico ? '#15803d' : '#9ca3af' }}>Físico</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                                                    <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>{Iconos.check}</span>
-                                                    <span style={{ color: digital ? '#1e40af' : '#9ca3af' }}>Digital</span>
-                                                </div>
-                                            </div>
-                                            {!completo && doc.obligatorio && (
-                                                <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>Falta</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Pago de cooperadora */}
-                        <div style={{ marginBottom: 24 }}>
-                            <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Pago de Cooperadora</h4>
-                            <div style={{ padding: 12, background: alumnoSeleccionado.pago_cooperadora ? '#f0fdf4' : '#fef3c7', borderRadius: 6, border: `1px solid ${alumnoSeleccionado.pago_cooperadora ? '#bbf7d0' : '#fde68a'}` }}>
-                                <div style={{ fontSize: 13, marginBottom: 4 }}>
-                                    <strong>Estado:</strong>
-                                    <span style={{ marginLeft: 8, fontWeight: 600, color: alumnoSeleccionado.pago_cooperadora ? '#15803d' : '#92400e' }}>
-                                        {alumnoSeleccionado.pago_cooperadora ? '✅ Registrado' : '️ Pendiente'}
-                                    </span>
-                                </div>
-                                {alumnoSeleccionado.pago_cooperadora && (
-                                    <>
-                                        <div style={{ fontSize: 13, marginBottom: 4 }}><strong>Monto:</strong> ${alumnoSeleccionado.monto_cooperadora || 0}</div>
-                                        <div style={{ fontSize: 13 }}><strong>Tipo:</strong> {alumnoSeleccionado.tipo_pago_cooperadora || '—'}</div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                            <button onClick={() => setModalDocumentacionAbierto(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </Sidebar>
     );
 }
