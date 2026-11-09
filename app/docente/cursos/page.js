@@ -64,18 +64,26 @@ export default function DocenteCursosPage() {
     }
 
     function obtenerEstadoCurso(curso) {
-        const hoy = new Date();
-        const inicio = curso.fecha_inicio ? new Date(curso.fecha_inicio) : null;
-        const fin = curso.fecha_fin ? new Date(curso.fecha_fin) : null;
+        const anioActual = new Date().getFullYear();
+        const mesActual = new Date().getMonth(); // 0 = enero, 11 = diciembre
+        const anioCurso = curso.anio;
 
-        if (!inicio && !fin) {
-            if (curso.estado === 'finalizado') return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
-            if (curso.estado === 'proximo') return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
-            return { estado: 'en_cursada', color: '#10b981', label: 'En cursada' };
+        // Si el año del curso es menor al actual → Finalizado
+        if (anioCurso < anioActual) {
+            return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
         }
 
-        if (inicio && hoy < inicio) return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
-        if (fin && hoy > fin) return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
+        // Si el año del curso es mayor al actual → Próximo a iniciar
+        if (anioCurso > anioActual) {
+            return { estado: 'proximo', color: '#3b82f6', label: 'Próximo a iniciar' };
+        }
+
+        // Si es el mismo año, verificar si ya terminó (noviembre/diciembre)
+        if (anioCurso === anioActual && mesActual >= 10) {
+            return { estado: 'finalizado', color: '#6b7280', label: 'Finalizado' };
+        }
+
+        // Caso por defecto: en cursada
         return { estado: 'en_cursada', color: '#10b981', label: 'En cursada' };
     }
 
