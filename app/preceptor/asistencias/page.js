@@ -23,6 +23,7 @@ export default function AsistenciasPage() {
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState(null);
 
+
     useEffect(() => {
         if (!docente) return;
         cargarCursos();
@@ -99,30 +100,37 @@ export default function AsistenciasPage() {
     async function guardarAsistencias() {
         setGuardando(true);
         try {
+            // 1. Obtener el UUID real del usuario autenticado
+            const { data: { user }, error: errorUser } = await supabase.auth.getUser();
+            if (errorUser || !user) {
+                throw new Error('No se pudo identificar al usuario. Cerrá sesión y volvé a ingresar.');
+            }
+
+            const userIdUUID = user.id; // ← Este es el UUID correcto
+
             const asistenciasAGuardar = Object.entries(asistencias).map(([inscripcionId, estado]) => ({
-                fp_inscripcion_id: inscripcionId,
+                fp_inscripcion_id: Number(inscripcionId), // Asegurar que sea número
                 fecha: fecha,
                 estado: estado,
-                // Si no existe userId, usamos el id del profesor como fallback
-                cargado_por: docente.userId || docente.id
+                cargado_por: userIdUUID // ← UUID real del usuario
             }));
 
-            // Primero eliminamos las asistencias existentes de esa fecha
-            const idsInscripciones = Object.keys(asistencias);
+            // 2. Primero eliminamos las asistencias existentes de esa fecha
+            const idsInscripciones = Object.keys(asistencias).map(id => Number(id));
             await supabase
                 .from('fp_asistencia')
                 .delete()
                 .in('fp_inscripcion_id', idsInscripciones)
                 .eq('fecha', fecha);
 
-            // Luego insertamos las nuevas
+            // 3. Luego insertamos las nuevas
             const { error } = await supabase
                 .from('fp_asistencia')
                 .insert(asistenciasAGuardar);
 
             if (error) throw error;
 
-            setMensaje({ tipo: 'ok', texto: 'Asistencias guardadas correctamente' });
+            setMensaje({ tipo: 'ok', texto: `Asistencias guardadas correctamente (${stats.presentes} presentes, ${stats.ausentes} ausentes, ${stats.tarde} tarde)` });
             setTimeout(() => setMensaje(null), 3000);
         } catch (err) {
             console.error('Error al guardar:', err);
