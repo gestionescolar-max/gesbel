@@ -102,7 +102,28 @@ export default function PerfilPage() {
                                 </div>
                                 <div>
                                     <div style={labelStyle}>Rol en el Sistema</div>
-                                    <div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500, textTransform: 'capitalize' }}>{docente.rol || '—'}</div>
+                                    <div style={{ fontSize: 14, color: '#1e3a8a', fontWeight: 500 }}>
+                                        {(() => {
+                                            // Construir descripción compuesta del rol
+                                            const roles = [];
+
+                                            if (docente.esAdmin) roles.push('Administrador');
+                                            if (docente.esDirectivo) roles.push('Directivo');
+                                            if (docente.esVicedirector) roles.push('Vicerrector');
+                                            if (docente.esJefeSeccion) roles.push('Jefe de Sección');
+                                            if (docente.esPreceptor) roles.push('Preceptor');
+                                            if (docente.esSecretaria) roles.push('Secretario');
+                                            if (docente.esLegajos) roles.push('Legajos');
+                                            if (docente.id) roles.push('Docente');
+
+                                            // Si no tiene ningún booleano activo, usar el rol base
+                                            if (roles.length === 0) {
+                                                return docente.rol ? docente.rol.charAt(0).toUpperCase() + docente.rol.slice(1) : '—';
+                                            }
+
+                                            return roles.join(' / ');
+                                        })()}
+                                    </div>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <div style={labelStyle}>Email de la Cuenta</div>
