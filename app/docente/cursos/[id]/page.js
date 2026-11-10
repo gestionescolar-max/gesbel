@@ -166,7 +166,12 @@ export default function DetalleCursoPage() {
     });
 
     const estadoCurso = obtenerEstadoCurso();
-    const puedeCargarActa = !actaExistente || actaExistente.anulada;
+    const esProfesorDelCurso = curso.profesor_id === docente.id;
+    // Solo puede CARGAR acta si es el profesor titular de ESTE curso, o es admin/directivo
+    const puedeCargarActa = (esProfesorDelCurso || docente.esAdmin || docente.esDirectivo) && (!actaExistente || actaExistente.anulada);
+
+    // Puede VER/IMPRIMIR acta si existe una acta (todos menos alumnos)
+    const puedeVerActa = actaExistente && !actaExistente.anulada;
     const actaAnulada = actaExistente?.anulada;
 
     function toggleSeleccionAlumno(id) {
@@ -298,12 +303,84 @@ export default function DetalleCursoPage() {
                                     <div style={{ fontSize: 14, color: '#6b7280' }}>{curso.turno} · {curso.anio} · Cohorte {curso.cohorte}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                                    {estadoCurso && (<div style={{ background: estadoCurso.color, color: '#fff', padding: '6px 14px', borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{estadoCurso.label}</div>)}
-                                    {actaExistente && !actaAnulada && (<>
-                                        <button onClick={() => setMostrarImpresion(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.imprimir} Ver Acta</button>
-                                        <button onClick={() => setModalAnularAbierto(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#b91c1c', border: '1px solid #b91c1c', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.anular} Anular Acta</button>
-                                    </>)}
-                                    {puedeCargarActa && (<button onClick={() => setModalActaAbierto(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.acta} {actaAnulada ? 'Nueva Acta' : 'Cargar Acta'}</button>)}
+                                    {estadoCurso && (
+                                        <div style={{
+                                            background: estadoCurso.color,
+                                            color: '#fff',
+                                            padding: '6px 14px',
+                                            borderRadius: 4,
+                                            fontSize: 12,
+                                            fontWeight: 600
+                                        }}>
+                                            {estadoCurso.label}
+                                        </div>
+                                    )}
+
+                                    {/* Botón VER ACTA - Visible para todos si existe un acta cargada */}
+                                    {puedeVerActa && (
+                                        <button
+                                            onClick={() => setMostrarImpresion(true)}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                background: '#fff',
+                                                color: '#1e3a8a',
+                                                border: '1px solid #1e3a8a',
+                                                padding: '8px 16px',
+                                                borderRadius: 4,
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {Iconos.imprimir} Ver Acta
+                                        </button>
+                                    )}
+
+                                    {/* Botón ANULAR ACTA - Solo admin/directivo o profesor titular */}
+                                    {actaExistente && !actaAnulada && (esProfesorDelCurso || docente.esAdmin || docente.esDirectivo) && (
+                                        <button
+                                            onClick={() => setModalAnularAbierto(true)}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                background: '#fff',
+                                                color: '#b91c1c',
+                                                border: '1px solid #b91c1c',
+                                                padding: '8px 16px',
+                                                borderRadius: 4,
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {Iconos.anular} Anular Acta
+                                        </button>
+                                    )}
+
+                                    {/* Botón CARGAR ACTA - Solo profesor titular o admin/directivo */}
+                                    {puedeCargarActa && (
+                                        <button
+                                            onClick={() => setModalActaAbierto(true)}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                background: '#1e3a8a',
+                                                color: '#fff',
+                                                border: 'none',
+                                                padding: '8px 16px',
+                                                borderRadius: 4,
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {Iconos.acta} {actaAnulada ? 'Nueva Acta' : 'Cargar Acta'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             {actaAnulada && (<div style={{ marginTop: 16, padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 13, color: '#b91c1c' }}><strong>⚠️ Acta anterior anulada:</strong> {actaExistente.numero} — Motivo: {actaExistente.motivo_anulacion}</div>)}
