@@ -275,61 +275,75 @@ function getMenuItems(docente) {
     const items = [];
     if (!docente) return items;
 
-    // ✅ PERSONAL/DOCENTE - Visible para TODOS los roles
-    if (docente.es_docente || docente.esPreceptor || docente.esSecretaria || docente.esLegajos || docente.esJefeSeccion || docente.esVicedirector || docente.esAdmin || docente.esDirectivo) {
-        items.push({ tipo: 'separador', label: 'Personal/Docente' });
+    // Helper: verifica si el usuario tiene un rol específico
+    // Funciona con roles descriptivos O con booleanos (compatibilidad)
+    const tieneRol = (rol) => {
+        if (docente.rol === rol) return true;
+        // Fallback a booleanos para compatibilidad
+        if (rol === 'preceptor' && docente.esPreceptor) return true;
+        if (rol === 'secretario' && docente.esSecretaria) return true;
+        if (rol === 'legajos' && docente.esLegajos) return true;
+        if (rol === 'jefe_seccion' && docente.esJefeSeccion) return true;
+        if (rol === 'vicerrector' && docente.esVicedirector) return true;
+        if (rol === 'rector' && docente.esDirectivo && docente.esAdmin) return true;
+        return false;
+    };
 
-        // Mis materias (secundario) - solo si es docente o tiene materias asignadas
-        if (docente.es_docente || docente.id) {
-            items.push({ label: 'Mis materias', ruta: '/materias', icono: Iconos.materias });
-        }
+    const esDocente = docente.es_docente || docente.id;
+    const esDirectivo = docente.esDirectivo || tieneRol('vicerrector') || tieneRol('rector');
 
-        // Mis cursos FP - visible para todos si tienen cursos FP
-        items.push({ label: 'Mis cursos FP', ruta: '/docente/cursos', icono: Iconos.cursosFP });
+    // ✅ 1. PERSONAL/DOCENTE - VISIBLE PARA TODOS
+    items.push({ tipo: 'separador', label: 'Personal/Docente' });
 
-        items.push({ label: 'Horarios', ruta: '/docente/horarios', icono: Iconos.horario });
-        items.push({ label: 'Actas de exámenes', ruta: '/docente/actas', icono: Iconos.actas });
-        items.push({ label: 'Constancias', ruta: '/docente/constancias', icono: Iconos.constancias });
-
-        // Currículum - solo docentes y superiores (no preceptores/secretaria/legajos)
-        if (docente.es_docente || docente.esJefeSeccion || docente.esVicedirector || docente.esDirectivo) {
-            items.push({ label: 'Currículum', ruta: '/docente/curriculum', icono: Iconos.curriculum });
-        }
-
-        items.push({ label: 'Notas / Documentación', ruta: '/docente/notas', icono: Iconos.notas });
+    if (docente.id) {
+        items.push({ label: 'Mis materias', ruta: '/materias', icono: Iconos.materias });
     }
 
-    // ✅ PRECEPTORÍA - Solo preceptor, vicedirector y director
-    if (docente.esPreceptor || docente.esVicedirector || docente.esDirectivo) {
+    if (esDocente || tieneRol('preceptor') || tieneRol('jefe_seccion') || tieneRol('vicerrector') || esDirectivo) {
+        items.push({ label: 'Mis cursos FP', ruta: '/docente/cursos', icono: Iconos.cursosFP });
+    }
+
+    items.push({ label: 'Horarios', ruta: '/docente/horarios', icono: Iconos.horario });
+    items.push({ label: 'Actas de exámenes', ruta: '/docente/actas', icono: Iconos.actas });
+    items.push({ label: 'Constancias', ruta: '/docente/constancias', icono: Iconos.constancias });
+
+    if (esDocente || tieneRol('jefe_seccion') || tieneRol('vicerrector') || esDirectivo) {
+        items.push({ label: 'Currículum', ruta: '/docente/curriculum', icono: Iconos.curriculum });
+    }
+
+    items.push({ label: 'Notas / Documentación', ruta: '/docente/notas', icono: Iconos.notas });
+
+    // ✅ 2. PRECEPTORÍA
+    if (tieneRol('preceptor') || esDirectivo) {
         items.push({ tipo: 'separador', label: 'Preceptoría' });
         items.push({ label: 'Inscripciones FP', ruta: '/preceptor/inscripciones', icono: Iconos.inscripciones });
         items.push({ label: 'Asistencias', ruta: '/preceptor/asistencias', icono: Iconos.asistencias });
         items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: Iconos.actas });
     }
 
-    // ✅ SECRETARÍA - Solo secretario, vicedirector y director
-    if (docente.esSecretaria || docente.esVicedirector || docente.esDirectivo) {
+    // ✅ 3. SECRETARÍA
+    if (tieneRol('secretario') || esDirectivo) {
         items.push({ tipo: 'separador', label: 'Secretaría' });
         items.push({ label: 'Carga de profesor', ruta: '/admin/carga-profesor', icono: Iconos.profesor });
         items.push({ label: 'Carga de alumno', ruta: '/admin/carga-alumno', icono: Iconos.alumno });
     }
 
-    // ✅ LEGAJOS - Solo legajos, vicedirector y director
-    if (docente.esLegajos || docente.esVicedirector || docente.esDirectivo) {
+    // ✅ 4. LEGAJOS
+    if (tieneRol('legajos') || esDirectivo) {
         items.push({ tipo: 'separador', label: 'Legajos' });
         items.push({ label: 'Legajo alumno', ruta: '/admin/legajo-alumno', icono: Iconos.legajo });
     }
 
-    // ✅ JEFATURA DE SECCIÓN - Solo jefe de sección y director
-    if (docente.esJefeSeccion || docente.esDirectivo) {
+    // ✅ 5. JEFATURA DE SECCIÓN
+    if (tieneRol('jefe_seccion') || tieneRol('vicerrector') || esDirectivo) {
         items.push({ tipo: 'separador', label: 'Jefatura de Sección' });
         items.push({ label: 'Armado de talleres', ruta: '/jefatura/talleres', icono: Iconos.talleres });
         items.push({ label: 'Asignación de profesores', ruta: '/jefatura/asignaciones', icono: Iconos.profesor });
         items.push({ label: 'Horarios de talleres', ruta: '/jefatura/horarios', icono: Iconos.horario });
     }
 
-    // ✅ ADMINISTRACIÓN - Solo director (NO vicedirector)
-    if (docente.esAdmin || docente.esDirectivo) {
+    // ✅ 6. ADMINISTRACIÓN (Solo Rector/Director)
+    if (tieneRol('rector') || (docente.esAdmin && esDirectivo)) {
         items.push({ tipo: 'separador', label: 'Administración' });
         items.push({ label: 'Panel de control', ruta: '/admin', icono: Iconos.admin });
         items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: Iconos.preceptores });
@@ -337,7 +351,7 @@ function getMenuItems(docente) {
         items.push({ label: 'Configuración', ruta: '/admin/configuracion', icono: Iconos.config });
     }
 
-    // ✅ CUENTA - Visible para todos
+    // ✅ 7. CUENTA
     items.push({ tipo: 'separador', label: 'Cuenta' });
     items.push({ label: 'Mi perfil', ruta: '/perfil', icono: Iconos.perfil });
 
