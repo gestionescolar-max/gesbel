@@ -30,6 +30,17 @@ export default function DocenteCursosPage() {
     useEffect(() => {
         if (!docente) return;
         cargarCursos();
+
+        let query = supabase
+            .from('fp_cursos')
+            .select('*')
+            .order('nombre');
+
+        // Si es docente puro, solo ve sus cursos. 
+        // Si es Preceptor, Admin o Directivo, ve TODOS los cursos.
+        if (docente.id && !docente.esAdmin && !docente.esDirectivo && !docente.esPreceptor) {
+            query = query.eq('profesor_id', docente.id);
+        }
     }, [docente]);
 
     async function cargarCursos() {
