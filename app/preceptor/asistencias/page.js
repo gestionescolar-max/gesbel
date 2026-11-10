@@ -103,7 +103,8 @@ export default function AsistenciasPage() {
                 fp_inscripcion_id: inscripcionId,
                 fecha: fecha,
                 estado: estado,
-                cargado_por: docente.userId
+                // Si no existe userId, usamos el id del profesor como fallback
+                cargado_por: docente.userId || docente.id
             }));
 
             // Primero eliminamos las asistencias existentes de esa fecha
