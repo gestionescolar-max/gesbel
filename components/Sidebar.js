@@ -276,10 +276,8 @@ function getMenuItems(docente) {
     if (!docente) return items;
 
     // Helper: verifica si el usuario tiene un rol específico
-    // Funciona con roles descriptivos O con booleanos (compatibilidad)
     const tieneRol = (rol) => {
         if (docente.rol === rol) return true;
-        // Fallback a booleanos para compatibilidad
         if (rol === 'preceptor' && docente.esPreceptor) return true;
         if (rol === 'secretario' && docente.esSecretaria) return true;
         if (rol === 'legajos' && docente.esLegajos) return true;
@@ -342,8 +340,8 @@ function getMenuItems(docente) {
         items.push({ label: 'Horarios de talleres', ruta: '/jefatura/horarios', icono: Iconos.horario });
     }
 
-    // ✅ 6. ADMINISTRACIÓN (Solo Rector/Director)
-    if (tieneRol('rector') || (docente.esAdmin && esDirectivo)) {
+    // ✅ 6. ADMINISTRACIÓN (SOLO para es_admin = true, independiente de es_directivo)
+    if (docente.esAdmin) {
         items.push({ tipo: 'separador', label: 'Administración' });
         items.push({ label: 'Panel de control', ruta: '/admin', icono: Iconos.admin });
         items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: Iconos.preceptores });
