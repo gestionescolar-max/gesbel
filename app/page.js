@@ -14,8 +14,19 @@ export default function LoginPage() {
   async function ingresar() {
     if (!email.trim() || !password) return;
     setStatus({ tipo: 'loading', mensaje: 'Ingresando…' });
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error) { setStatus({ tipo: 'error', mensaje: 'Email o contraseña incorrectos.' }); return; }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password
+    });
+
+    if (error) {
+      setStatus({ tipo: 'error', mensaje: 'Email o contraseña incorrectos.' });
+      return;
+    }
+
+    // Nota: Si querés que vaya al dashboard de cursos en lugar de materias, 
+    // podés cambiar '/materias' por '/docente/cursos'
     router.push('/materias');
   }
 
@@ -26,17 +37,42 @@ export default function LoginPage() {
         <div className="center-card">
           <h2>Ingresar</h2>
           <p className="hint">Ingresá con el email y la contraseña de tu cuenta.</p>
+
           <div className="field">
             <label>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ingresar()} placeholder="tu-email@ejemplo.com" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && ingresar()}
+              placeholder="tu-email@ejemplo.com"
+            />
           </div>
+
           <div className="field">
             <label>Contraseña</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ingresar()} placeholder="••••••••" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && ingresar()}
+              placeholder="••••••••"
+            />
           </div>
+
           <button className="btn block" onClick={ingresar}>Ingresar</button>
+
           {status && <div className={`status ${status.tipo}`}>{status.mensaje}</div>}
-          <p className="hint" style={{ marginTop: 16, marginBottom: 0 }}>
+
+          {/* ✅ NUEVO: Enlace para recuperar contraseña */}
+          <p className="hint" style={{ marginTop: 12, marginBottom: 8, textAlign: 'right' }}>
+            <Link href="/recuperar" style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '0.9em' }}>
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
+
+          {/* Separador visual sutil */}
+          <p className="hint" style={{ marginTop: 12, marginBottom: 0, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
             ¿Todavía no tenés cuenta? <Link href="/signup" style={{ color: 'var(--accent)', fontWeight: 600 }}>Registrate acá</Link>
           </p>
         </div>
