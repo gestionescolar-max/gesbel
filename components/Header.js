@@ -15,9 +15,16 @@ export default function Header({ docente, titulo }) {
   return (
     <header>
       <div className="brand">
-        <div className="logo">📚</div>
+        {/* ✅ LOGO DE LA ESCUELA */}
+        <div className="logo">
+          <img
+            src="/logo-etflb.png"
+            alt="ETFLB"
+            style={{ height: 48, width: 'auto' }}
+          />
+        </div>
         <div>
-          <h1>{titulo || 'Gestion Institucional Escolar'}</h1>
+          <h1>{titulo || 'Gestión Institucional Escolar'}</h1>
           <p>Escuela Técnica "Fray Luis Beltrán"</p>
         </div>
       </div>
@@ -46,7 +53,12 @@ export default function Header({ docente, titulo }) {
           )}
         </div>
       ) : (
-        <div className="docente-chip"><span>Invitado</span></div>
+        /* ✅ CAMBIO: En lugar de "Invitado", mostramos el año lectivo */
+        <div className="docente-chip">
+          <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>
+            Ciclo Lectivo 2026
+          </span>
+        </div>
       )}
     </header>
   );
