@@ -7,11 +7,13 @@ import Sidebar from '@/components/Sidebar';
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec';
 
 const DOCUMENTOS_REQUERIDOS = [
-    { id: 'dni', nombre: 'DNI (Frente y Dorso)', obligatorio: true },
-    { id: 'foto', nombre: 'Foto 4x4', obligatorio: true },
-    { id: 'certificado_estudios', nombre: 'Certificado de Estudios', obligatorio: true },
-    { id: 'certificado_medico', nombre: 'Certificado Médico', obligatorio: true },
-    { id: 'pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false },
+    { id: 'carpeta_colgante', nombre: 'Carpeta colgante con visor fijo', obligatorio: true },
+    { id: 'fotocopia_dni', nombre: 'Fotocopia de DNI', obligatorio: true },
+    { id: 'foto_4x4', nombre: 'Foto 4x4', obligatorio: true },
+    { id: 'certificado_domicilio', nombre: 'Certificado de Domicilio', obligatorio: true },
+    { id: 'certificado_buena_salud', nombre: 'Certificado de Buena Salud', obligatorio: true },
+    // Mantenemos este al final para la lógica de cooperadora (puedes cambiarlo a true si también debe ser obligatorio)
+    { id: 'comprobante_pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false },
 ];
 
 const Iconos = {
