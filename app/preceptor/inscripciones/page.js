@@ -6,9 +6,9 @@ import Sidebar from '@/components/Sidebar';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec';
 
-// ✅ LISTA DE DOCUMENTOS ACTUALIZADA (Mantiene Físico y Digital)
+// ✅ Se agregó 'solo_fisico: true' solo a la carpeta colgante
 const DOCUMENTOS_REQUERIDOS = [
-    { id: 'carpeta_colgante', nombre: 'Carpeta colgante con visor fijo', obligatorio: true },
+    { id: 'carpeta_colgante', nombre: 'Carpeta colgante con visor fijo', obligatorio: true, solo_fisico: true },
     { id: 'fotocopia_dni', nombre: 'Fotocopia de DNI', obligatorio: true },
     { id: 'foto_4x4', nombre: 'Foto 4x4', obligatorio: true },
     { id: 'certificado_domicilio', nombre: 'Certificado de Domicilio', obligatorio: true },
@@ -158,20 +158,30 @@ export default function InscripcionesPage() {
         setMensaje(null);
 
         try {
-            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return doc.fisico || doc.digital; });
+            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => {
+                const doc = documentosChecklist[d.id] || {};
+                return doc.fisico || doc.digital;
+            });
             const todosDocsObligatoriosOK = docsObligatoriosMarcados.length === DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length;
             const cooperadoraOK = pagoCooperadora.paga && pagoCooperadora.monto > 0;
             const estadoFinal = (todosDocsObligatoriosOK && cooperadoraOK) ? 'inscripto' : 'preinscrito';
 
             const faltantes = [];
             if (!todosDocsObligatoriosOK) {
-                const docsFaltantes = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return !doc.fisico && !doc.digital; });
+                const docsFaltantes = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => {
+                    const doc = documentosChecklist[d.id] || {};
+                    return !doc.fisico && !doc.digital;
+                });
                 faltantes.push(`Documentos faltantes: ${docsFaltantes.map(d => d.nombre).join(', ')}`);
             }
             if (!cooperadoraOK) faltantes.push('No se registró pago de cooperadora');
 
             const datosDocumentos = {};
-            DOCUMENTOS_REQUERIDOS.forEach(doc => { const check = documentosChecklist[doc.id] || {}; datosDocumentos[`doc_${doc.id}_fisico`] = check.fisico || false; datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false; });
+            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                const check = documentosChecklist[doc.id] || {};
+                datosDocumentos[`doc_${doc.id}_fisico`] = check.fisico || false;
+                datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false;
+            });
 
             const datosInsert = {
                 ...form, ...datosDocumentos, fp_curso_id: Number(form.fp_curso_id),
@@ -262,7 +272,10 @@ export default function InscripcionesPage() {
     }
 
     function handleChecklistModal(docId, tipo, valor) {
-        setChecklistModal(prev => ({ ...prev, [docId]: { ...prev[docId], [tipo]: valor } }));
+        setChecklistModal(prev => ({
+            ...prev,
+            [docId]: { ...prev[docId], [tipo]: valor }
+        }));
     }
 
     async function guardarChecklistModal() {
@@ -274,12 +287,16 @@ export default function InscripcionesPage() {
                 datosUpdate[`doc_${doc.id}_fisico`] = check.fisico || false;
                 datosUpdate[`doc_${doc.id}_digital`] = check.digital || false;
             });
+
             const { error } = await supabase.from('fp_inscripciones').update(datosUpdate).eq('id', inscSeleccionada.id);
             if (error) throw error;
+
             setMensaje({ tipo: 'ok', texto: 'Checklist actualizado correctamente' });
             cargarDatos();
             setTimeout(() => setMensaje(null), 3000);
-        } catch (err) { setMensaje({ tipo: 'error', texto: `Error: ${err.message}` }); }
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        }
     }
 
     function handleImprimir() {
@@ -314,6 +331,7 @@ export default function InscripcionesPage() {
     return (
         <Sidebar docente={docente} titulo="Gestión de Inscripciones FP">
             <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+
                 {mensaje && (
                     <div style={{
                         background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : mensaje.tipo === 'warning' ? '#fef3c7' : '#eff6ff',
@@ -368,6 +386,7 @@ export default function InscripcionesPage() {
                         )}
 
                         <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
+
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
@@ -456,19 +475,25 @@ export default function InscripcionesPage() {
                                                         <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
                                                         <span>Físico</span>
                                                     </label>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
-                                                        <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
-                                                        <span>Digital</span>
-                                                    </label>
-                                                </div>
-                                                <div style={{ width: 200 }}>
-                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
-                                                    {archivosForm[doc.id] && (
-                                                        <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
-                                                            {Iconos.check} {archivosForm[doc.id].name}
-                                                        </div>
+                                                    {/* ✅ Ocultar checkbox Digital si es solo_fisico */}
+                                                    {!doc.solo_fisico && (
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                            <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                                            <span>Digital</span>
+                                                        </label>
                                                     )}
                                                 </div>
+                                                {/* ✅ Ocultar carga de archivo si es solo_fisico */}
+                                                {!doc.solo_fisico && (
+                                                    <div style={{ width: 200 }}>
+                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
+                                                        {archivosForm[doc.id] && (
+                                                            <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
+                                                                {Iconos.check} {archivosForm[doc.id].name}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -609,7 +634,10 @@ export default function InscripcionesPage() {
                                                 <div style={{ flex: 1, fontSize: 13, color: '#1e3a8a', fontWeight: 500 }}>{doc.nombre}{doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}</div>
                                                 <div style={{ display: 'flex', gap: 12 }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}><input type="checkbox" checked={check.fisico || false} onChange={(e) => handleChecklistModal(doc.id, 'fisico', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} /><span>Físico</span></label>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}><input type="checkbox" checked={check.digital || false} onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} /><span>Digital</span></label>
+                                                    {/* ✅ Ocultar checkbox Digital en el modal si es solo_fisico */}
+                                                    {!doc.solo_fisico && (
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}><input type="checkbox" checked={check.digital || false} onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} /><span>Digital</span></label>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
