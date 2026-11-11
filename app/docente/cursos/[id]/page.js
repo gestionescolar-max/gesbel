@@ -654,6 +654,31 @@ export default function DetalleCursoPage() {
                                             <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
                                             <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
                                             <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                                                <div>
+                                                    <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Datos Personales</h4>
+                                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>DNI:</strong> {alumnoSeleccionado.dni || '—'}</div>
+                                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Legajo:</strong> {alumnoSeleccionado.legajo || '—'}</div>
+                                                    <div style={{ fontSize: 13, marginBottom: 8 }}>
+                                                        <strong>Fecha de Nacimiento:</strong> {formatearFecha(alumnoSeleccionado.fecha_nac)}
+                                                    </div>
+                                                    <div style={{ fontSize: 13, marginBottom: 8 }}>
+                                                        <strong>Edad:</strong>
+                                                        <span style={{
+                                                            marginLeft: 8,
+                                                            padding: '2px 8px',
+                                                            background: '#eff6ff',
+                                                            borderRadius: 4,
+                                                            fontWeight: 600,
+                                                            color: '#1e3a8a'
+                                                        }}>
+                                                            {calcularEdad(alumnoSeleccionado.fecha_nac)} años
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
+                                                </div>
+                                                {/* ... resto del código ... */}
+                                            </div>
                                             <div style={{ fontSize: 13, marginBottom: 8 }}><strong>Nacionalidad:</strong> {alumnoSeleccionado.nacionalidad || '—'}</div>
                                         </div>
                                         <div>

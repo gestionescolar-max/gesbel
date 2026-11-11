@@ -28,6 +28,19 @@ const Iconos = {
     carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
 };
 
+// Al inicio del componente, junto con los otros estados:
+const [edadCalculada, setEdadCalculada] = useState(null);
+
+// Función que se ejecuta cuando cambia la fecha de nacimiento:
+function handleFechaNacimientoChange(e) {
+    const fecha = e.target.value;
+    setFormData(prev => ({ ...prev, fecha_nac: fecha }));
+
+    // Calcular edad automáticamente
+    const edad = calcularEdad(fecha);
+    setEdadCalculada(edad);
+}
+
 function obtenerPeriodoInscripcion() {
     const ahora = new Date();
     const mes = ahora.getMonth();
@@ -268,6 +281,17 @@ export default function InscripcionesPage() {
         ventana.document.close();
         setTimeout(() => { ventana.print(); ventana.close(); }, 500);
     }
+    function calcularEdad(fechaNacimiento) {
+        if (!fechaNacimiento) return null;
+        const hoy = new Date();
+        const nacimiento = new Date(fechaNacimiento);
+        let edad = hoy.getFullYear() - nacimiento.getFullYear();
+        const mes = hoy.getMonth() - nacimiento.getMonth();
+        if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+            edad--;
+        }
+        return edad;
+    }
 
     if (cargando || !docente) return null;
 
@@ -382,6 +406,31 @@ export default function InscripcionesPage() {
                                     <div><label style={labelStyle}>Nombre</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>DNI</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
                                     <div><label style={labelStyle}>Fecha de Nacimiento</label><input type="date" name="fecha_nac" value={form.fecha_nac} onChange={handleChangeForm} required style={inputStyle} /></div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                                        <div>
+                                            <label style={labelStyle}>Fecha de Nacimiento</label>
+                                            <input
+                                                type="date"
+                                                value={formData.fecha_nac || ''}
+                                                onChange={handleFechaNacimientoChange}
+                                                style={inputStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Edad (calculada automáticamente)</label>
+                                            <input
+                                                type="text"
+                                                value={edadCalculada !== null ? `${edadCalculada} años` : '—'}
+                                                readOnly
+                                                style={{
+                                                    ...inputStyle,
+                                                    background: '#f3f4f6',
+                                                    color: edadCalculada ? '#1e3a8a' : '#9ca3af',
+                                                    fontWeight: 600
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
                                     <div><label style={labelStyle}>Nacionalidad</label><select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}><option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option></select></div>
                                 </div>
                             </div>
