@@ -6,14 +6,13 @@ import Sidebar from '@/components/Sidebar';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec';
 
+// ✅ DOCUMENTOS OBLIGATORIOS (solo físico, en orden)
 const DOCUMENTOS_REQUERIDOS = [
     { id: 'carpeta_colgante', nombre: 'Carpeta colgante con visor fijo', obligatorio: true },
     { id: 'fotocopia_dni', nombre: 'Fotocopia de DNI', obligatorio: true },
     { id: 'foto_4x4', nombre: 'Foto 4x4', obligatorio: true },
     { id: 'certificado_domicilio', nombre: 'Certificado de Domicilio', obligatorio: true },
     { id: 'certificado_buena_salud', nombre: 'Certificado de Buena Salud', obligatorio: true },
-    // Mantenemos este al final para la lógica de cooperadora (puedes cambiarlo a true si también debe ser obligatorio)
-    { id: 'comprobante_pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false },
 ];
 
 const Iconos = {
@@ -30,7 +29,7 @@ const Iconos = {
     carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
 };
 
-// ✅ FUNCIÓN UTILITARIA (FUERA DEL COMPONENTE)
+// ✅ FUNCIÓN UTILITARIA: Calcular edad (FUERA del componente)
 function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null;
     const hoy = new Date();
@@ -77,8 +76,6 @@ export default function InscripcionesPage() {
     const [documentosChecklist, setDocumentosChecklist] = useState({});
     const [archivosForm, setArchivosForm] = useState({});
     const [pagoCooperadora, setPagoCooperadora] = useState({ paga: false, monto: 0, tipo_pago: 'total', nro_comprobante: '' });
-
-    // ✅ ESTADO PARA LA EDAD CALCULADA
     const [edadCalculada, setEdadCalculada] = useState(null);
 
     const [form, setForm] = useState({
@@ -139,7 +136,7 @@ export default function InscripcionesPage() {
         setForm(prev => ({ ...prev, [name]: value }));
     }
 
-    // ✅ FUNCIÓN CORREGIDA PARA FECHA DE NACIMIENTO Y EDAD
+    // ✅ Manejo de fecha de nacimiento y cálculo de edad
     function handleFechaNacimientoChange(e) {
         const fecha = e.target.value;
         setForm(prev => ({ ...prev, fecha_nac: fecha }));
@@ -147,8 +144,8 @@ export default function InscripcionesPage() {
         setEdadCalculada(edad);
     }
 
-    function handleDocumentoCheck(docId, tipo, valor) {
-        setDocumentosChecklist(prev => ({ ...prev, [docId]: { ...prev[docId], [tipo]: valor } }));
+    function handleDocumentoCheck(docId, valor) {
+        setDocumentosChecklist(prev => ({ ...prev, [docId]: valor }));
     }
 
     function handleFileChange(docId, file) {
@@ -157,25 +154,34 @@ export default function InscripcionesPage() {
 
     async function handleSubmitInscripcion(e) {
         e.preventDefault();
-        if (!periodoInscripcion.abierto) { setMensaje({ tipo: 'error', texto: 'El período de inscripción está cerrado.' }); return; }
+        if (!periodoInscripcion.abierto) {
+            setMensaje({ tipo: 'error', texto: 'El período de inscripción está cerrado.' });
+            return;
+        }
         setEnviando(true);
         setMensaje(null);
 
         try {
-            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return doc.fisico || doc.digital; });
-            const todosDocsObligatoriosOK = docsObligatoriosMarcados.length === DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length;
+            // ✅ Validación: solo verifica campo físico
+            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS.filter(d => {
+                return documentosChecklist[d.id] === true;
+            });
+            const todosDocsObligatoriosOK = docsObligatoriosMarcados.length === DOCUMENTOS_REQUERIDOS.length;
             const cooperadoraOK = pagoCooperadora.paga && pagoCooperadora.monto > 0;
             const estadoFinal = (todosDocsObligatoriosOK && cooperadoraOK) ? 'inscripto' : 'preinscrito';
 
             const faltantes = [];
             if (!todosDocsObligatoriosOK) {
-                const docsFaltantes = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return !doc.fisico && !doc.digital; });
+                const docsFaltantes = DOCUMENTOS_REQUERIDOS.filter(d => documentosChecklist[d.id] !== true);
                 faltantes.push(`Documentos faltantes: ${docsFaltantes.map(d => d.nombre).join(', ')}`);
             }
             if (!cooperadoraOK) faltantes.push('No se registró pago de cooperadora');
 
+            // ✅ Solo guarda campo físico
             const datosDocumentos = {};
-            DOCUMENTOS_REQUERIDOS.forEach(doc => { const check = documentosChecklist[doc.id] || {}; datosDocumentos[`doc_${doc.id}_fisico`] = check.fisico || false; datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false; });
+            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                datosDocumentos[`doc_${doc.id}_fisico`] = documentosChecklist[doc.id] === true;
+            });
 
             const datosInsert = {
                 ...form, ...datosDocumentos, fp_curso_id: Number(form.fp_curso_id),
@@ -210,19 +216,34 @@ export default function InscripcionesPage() {
                 if (urlCarpetaDrive) await supabase.from('fp_inscripciones').update({ url_carpeta_drive: urlCarpetaDrive }).eq('id', nuevaInscripcion.id);
             }
 
-            let mensajeFinal = estadoFinal === 'inscripto' ? 'Alumno INSCRIPTO correctamente. Documentación completa y cooperadora registrada.' : `Alumno PRE-INSCRIPTO. Queda pendiente: ${faltantes.join(' · ')}`;
+            let mensajeFinal = estadoFinal === 'inscripto'
+                ? 'Alumno INSCRIPTO correctamente. Documentación completa y cooperadora registrada.'
+                : `Alumno PRE-INSCRIPTO. Queda pendiente: ${faltantes.join(' · ')}`;
+
             setMensaje({ tipo: estadoFinal === 'inscripto' ? 'ok' : 'warning', texto: mensajeFinal });
             setInscripcionCompleta({ ...nuevaInscripcion, pago: pagoCooperadora });
             setMostrarImpresion(true);
 
-            setForm({ fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(), apellido: '', nombre: '', dni: '', fecha_nac: '', nacionalidad: 'argentino', telefono: '', email: '', domicilio: '', estudios_obtenidos: 'primario_secundario', situacion_laboral: '', emergencia_nombre: '', emergencia_parentesco: '', emergencia_telefono: '', observaciones: '' });
-            setDocumentosChecklist({}); setArchivosForm({});
+            // Resetear formulario
+            setForm({
+                fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(),
+                apellido: '', nombre: '', dni: '', fecha_nac: '', nacionalidad: 'argentino',
+                telefono: '', email: '', domicilio: '', estudios_obtenidos: 'primario_secundario',
+                situacion_laboral: '', emergencia_nombre: '', emergencia_parentesco: '',
+                emergencia_telefono: '', observaciones: ''
+            });
+            setDocumentosChecklist({});
+            setArchivosForm({});
             setPagoCooperadora({ paga: false, monto: 0, tipo_pago: 'total', nro_comprobante: '' });
-            setEdadCalculada(null); // Resetear edad
+            setEdadCalculada(null);
             cargarDatos();
             setTimeout(() => setMensaje(null), 6000);
-        } catch (err) { console.error('Error:', err); setMensaje({ tipo: 'error', texto: `Error: ${err.message}` }); }
-        finally { setEnviando(false); }
+        } catch (err) {
+            console.error('Error:', err);
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setEnviando(false);
+        }
     }
 
     async function handleSubirArchivoListado() {
@@ -237,17 +258,29 @@ export default function InscripcionesPage() {
             if (!resultado.success) throw new Error(resultado.error);
             await supabase.from('fp_inscripciones').update({ url_carpeta_drive: resultado.url_carpeta }).eq('id', inscSeleccionada.id);
             setMensaje({ tipo: 'ok', texto: 'Documento cargado exitosamente' });
-            setArchivoListado(null); cargarDatos();
+            setArchivoListado(null);
+            cargarDatos();
             setTimeout(() => { setMensaje(null); setInscSeleccionada(null); }, 3000);
-        } catch (err) { setMensaje({ tipo: 'error', texto: `Error: ${err.message}` }); }
-        finally { setSubiendoListado(false); }
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setSubiendoListado(false);
+        }
     }
 
     async function confirmarInscripcion(id) {
         if (!confirm('¿Confirmar inscripción y dar de alta al alumno?')) return;
-        const { error } = await supabase.from('fp_inscripciones').update({ estado: 'inscripto', fecha_condicion: new Date().toISOString().split('T')[0], documentacion_completa: true }).eq('id', id);
+        const { error } = await supabase.from('fp_inscripciones').update({
+            estado: 'inscripto',
+            fecha_condicion: new Date().toISOString().split('T')[0],
+            documentacion_completa: true
+        }).eq('id', id);
         if (error) setMensaje({ tipo: 'error', texto: error.message });
-        else { setMensaje({ tipo: 'ok', texto: 'Alumno inscripto y dado de alta correctamente' }); cargarDatos(); setTimeout(() => setMensaje(null), 3000); }
+        else {
+            setMensaje({ tipo: 'ok', texto: 'Alumno inscripto y dado de alta correctamente' });
+            cargarDatos();
+            setTimeout(() => setMensaje(null), 3000);
+        }
     }
 
     function filtrarInscripciones() {
@@ -260,26 +293,26 @@ export default function InscripcionesPage() {
         if (filtroEstado !== 'todos') resultado = resultado.filter(p => p.estado === filtroEstado);
         if (busqueda) {
             const q = busqueda.toLowerCase();
-            resultado = resultado.filter(p => p.nombre.toLowerCase().includes(q) || (p.apellido && p.apellido.toLowerCase().includes(q)) || (p.dni && p.dni.includes(q)));
+            resultado = resultado.filter(p =>
+                p.nombre.toLowerCase().includes(q) ||
+                (p.apellido && p.apellido.toLowerCase().includes(q)) ||
+                (p.dni && p.dni.includes(q))
+            );
         }
         return resultado;
     }
 
-    function handleChecklistModal(docId, tipo, valor) {
-        setChecklistModal(prev => ({
-            ...prev,
-            [docId]: { ...prev[docId], [tipo]: valor }
-        }));
+    function handleChecklistModal(docId, valor) {
+        setChecklistModal(prev => ({ ...prev, [docId]: valor }));
     }
 
     async function guardarChecklistModal() {
         if (!inscSeleccionada) return;
         try {
+            // ✅ Solo guarda campo físico
             const datosUpdate = {};
             DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                const check = checklistModal[doc.id] || {};
-                datosUpdate[`doc_${doc.id}_fisico`] = check.fisico || false;
-                datosUpdate[`doc_${doc.id}_digital`] = check.digital || false;
+                datosUpdate[`doc_${doc.id}_fisico`] = checklistModal[doc.id] === true;
             });
 
             const { error } = await supabase.from('fp_inscripciones').update(datosUpdate).eq('id', inscSeleccionada.id);
@@ -322,6 +355,9 @@ export default function InscripcionesPage() {
     const pendientesDoc = inscripcionesDelCiclo.filter(p => !p.documentacion_completa || p.estado === 'preinscrito').length;
     const ultimosPendientes = inscripcionesDelCiclo.filter(p => !p.documentacion_completa || p.estado === 'preinscrito').slice(0, 5);
 
+    // ✅ Contar documentos presentados (solo físico)
+    const docsPresentadosCount = DOCUMENTOS_REQUERIDOS.filter(d => documentosChecklist[d.id] === true).length;
+
     return (
         <Sidebar docente={docente} titulo="Gestión de Inscripciones FP">
             <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -363,7 +399,7 @@ export default function InscripcionesPage() {
                     <div style={{ maxWidth: 900 }}>
                         <div style={{ marginBottom: 24 }}>
                             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Ficha de Inscripción</h2>
-                            <p style={{ fontSize: 14, color: '#6b7280' }}>Complete los datos, marque la documentación presentada (física y/o digital) y registre el pago de cooperadora.</p>
+                            <p style={{ fontSize: 14, color: '#6b7280' }}>Complete los datos, marque la documentación presentada y registre el pago de cooperadora.</p>
                         </div>
 
                         {!periodoInscripcion.abierto && (
@@ -407,7 +443,7 @@ export default function InscripcionesPage() {
                                     <div><label style={labelStyle}>Nombre</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>DNI</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
 
-                                    {/* ✅ BLOQUE CORREGIDO DE FECHA Y EDAD */}
+                                    {/* ✅ FECHA DE NACIMIENTO Y EDAD CALCULADA */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, gridColumn: '1 / -1' }}>
                                         <div>
                                             <label style={labelStyle}>Fecha de Nacimiento</label>
@@ -436,7 +472,6 @@ export default function InscripcionesPage() {
                                             />
                                         </div>
                                     </div>
-                                    {/* ✅ FIN DEL BLOQUE CORREGIDO */}
 
                                     <div><label style={labelStyle}>Nacionalidad</label><select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}><option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option></select></div>
                                 </div>
@@ -468,53 +503,67 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
+                            {/* ✅ DOCUMENTACIÓN - SOLO FÍSICO, CON NÚMEROS */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={{ ...sectionTitle, marginBottom: 8 }}>{Iconos.carpeta} Documentación Presentada</h3>
-                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 8, fontSize: 13, color: '#1e40af' }}>
-                                    <strong>Estado actual:</strong> Se marcaron {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return doc.fisico || doc.digital; }).length} de {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length} documentos obligatorios.
+
+                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 13, color: '#1e40af' }}>
+                                    <strong>Estado actual:</strong> Se presentaron {docsPresentadosCount} de {DOCUMENTOS_REQUERIDOS.length} documentos obligatorios.
                                     {pagoCooperadora.paga && pagoCooperadora.monto > 0 ? ' · ✅ Cooperadora registrada' : ' · ⚠️ Cooperadora pendiente'}
                                 </div>
-                                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
-                                    Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital. Si faltan documentos obligatorios o no se registra el pago de cooperadora, el alumno quedará como <strong>pre-inscripto</strong>.
-                                </p>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
-                                        const check = documentosChecklist[doc.id] || {};
+                                    {DOCUMENTOS_REQUERIDOS.map((doc, index) => {
+                                        const check = documentosChecklist[doc.id] === true;
                                         return (
-                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
-                                                <div style={{ width: 280, minWidth: 280 }}>
-                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
-                                                        {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', background: check ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${check ? '#15803d' : '#e5e7eb'}`, transition: 'all 0.2s' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                                                    <div style={{
+                                                        width: 28,
+                                                        height: 28,
+                                                        background: check ? '#15803d' : '#1e3a8a',
+                                                        color: '#fff',
+                                                        borderRadius: '50%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: 13,
+                                                        fontWeight: 700,
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {index + 1}
+                                                    </div>
+                                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
+                                                        {doc.nombre}
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
-                                                        <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
-                                                        <span>Físico</span>
-                                                    </label>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
-                                                        <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
-                                                        <span>Digital</span>
-                                                    </label>
-                                                </div>
-                                                <div style={{ width: 200 }}>
-                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
-                                                    {archivosForm[doc.id] && (
-                                                        <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
-                                                            {Iconos.check} {archivosForm[doc.id].name}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 14px', background: check ? '#dcfce7' : '#fff', border: `2px solid ${check ? '#15803d' : '#d1d5db'}`, borderRadius: 6, transition: 'all 0.2s' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={check}
+                                                        onChange={(e) => handleDocumentoCheck(doc.id, e.target.checked)}
+                                                        style={{ width: 16, height: 16, cursor: 'pointer' }}
+                                                    />
+                                                    <span style={{ fontWeight: check ? 700 : 500, color: check ? '#15803d' : '#6b7280', fontSize: 13 }}>
+                                                        {check ? '✓ Presentado' : 'Pendiente'}
+                                                    </span>
+                                                </label>
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
 
+                            {/* ✅ PAGO DE COOPERADORA */}
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>Pago de Cooperadora</h3>
                                 <div style={{ background: '#f9fafb', padding: 20, borderRadius: 6, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ marginBottom: 16 }}><label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}><input type="checkbox" checked={pagoCooperadora.paga} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))} style={{ width: 18, height: 18, cursor: 'pointer' }} />El alumno realiza aporte a cooperadora</label></div>
+                                    <div style={{ marginBottom: 16 }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
+                                            <input type="checkbox" checked={pagoCooperadora.paga} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, paga: e.target.checked }))} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                                            El alumno realiza aporte a cooperadora
+                                        </label>
+                                    </div>
                                     {pagoCooperadora.paga && (
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                             <div><label style={labelStyle}>Monto</label><input type="number" value={pagoCooperadora.monto} onChange={(e) => setPagoCooperadora(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))} placeholder="0.00" step="0.01" style={inputStyle} /></div>
@@ -605,10 +654,7 @@ export default function InscripcionesPage() {
                                                             setArchivoListado(null);
                                                             const checklistActual = {};
                                                             DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                                                                checklistActual[doc.id] = {
-                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
-                                                                    digital: p[`doc_${doc.id}_digital`] || false
-                                                                };
+                                                                checklistActual[doc.id] = p[`doc_${doc.id}_fisico`] || false;
                                                             });
                                                             setChecklistModal(checklistActual);
                                                         }}
@@ -744,10 +790,7 @@ export default function InscripcionesPage() {
                                                             setArchivoListado(null);
                                                             const checklistActual = {};
                                                             DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                                                                checklistActual[doc.id] = {
-                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
-                                                                    digital: p[`doc_${doc.id}_digital`] || false
-                                                                };
+                                                                checklistActual[doc.id] = p[`doc_${doc.id}_fisico`] || false;
                                                             });
                                                             setChecklistModal(checklistActual);
                                                         }}
@@ -765,7 +808,7 @@ export default function InscripcionesPage() {
                     </div>
                 )}
 
-                {/* ================= MODAL: CARGA ADICIONAL ================= */}
+                {/* ================= MODAL: CARGA DE DOCUMENTACIÓN ================= */}
                 {inscSeleccionada && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setInscSeleccionada(null)}>
                         <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
@@ -777,38 +820,55 @@ export default function InscripcionesPage() {
                                 </p>
                             </div>
 
+                            {/* ✅ CHECKLIST - SOLO FÍSICO, CON NÚMEROS */}
                             <div style={{ marginBottom: 24 }}>
                                 <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Documentación Presentada</h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
-                                        const check = checklistModal[doc.id] || {};
+                                    {DOCUMENTOS_REQUERIDOS.map((doc, index) => {
+                                        const check = checklistModal[doc.id] === true;
                                         return (
-                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: '#f9fafb', borderRadius: 4, border: '1px solid #e5e7eb' }}>
+                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: check ? '#f0fdf4' : '#f9fafb', borderRadius: 6, border: `1px solid ${check ? '#15803d' : '#e5e7eb'}`, transition: 'all 0.2s' }}>
+                                                <div style={{
+                                                    width: 24,
+                                                    height: 24,
+                                                    background: check ? '#15803d' : '#1e3a8a',
+                                                    color: '#fff',
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: 12,
+                                                    fontWeight: 700,
+                                                    flexShrink: 0
+                                                }}>
+                                                    {index + 1}
+                                                </div>
                                                 <div style={{ flex: 1, fontSize: 13, color: '#1e3a8a', fontWeight: 500 }}>
                                                     {doc.nombre}
-                                                    {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 12 }}>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}>
-                                                        <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleChecklistModal(doc.id, 'fisico', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} />
-                                                        <span>Físico</span>
-                                                    </label>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}>
-                                                        <input type="checkbox" checked={check.digital || false} onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} />
-                                                        <span>Digital</span>
-                                                    </label>
-                                                </div>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '4px 10px', background: check ? '#dcfce7' : '#fff', border: `1px solid ${check ? '#15803d' : '#d1d5db'}`, borderRadius: 4 }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={check}
+                                                        onChange={(e) => handleChecklistModal(doc.id, e.target.checked)}
+                                                        style={{ width: 14, height: 14, cursor: 'pointer' }}
+                                                    />
+                                                    <span style={{ fontWeight: check ? 600 : 400, color: check ? '#15803d' : '#6b7280', fontSize: 12 }}>
+                                                        {check ? '✓ Presentado' : 'Pendiente'}
+                                                    </span>
+                                                </label>
                                             </div>
                                         );
                                     })}
                                 </div>
-                                <button onClick={guardarChecklistModal} style={{ marginTop: 12, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-                                    Guardar cambios del checklist
+                                <button onClick={guardarChecklistModal} style={{ marginTop: 16, background: '#1e3a8a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                    Guardar cambios
                                 </button>
                             </div>
 
+                            {/* CARGA DE ARCHIVO DIGITAL */}
                             <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Subir Archivo Digital</h4>
+                                <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase' }}>Subir Archivo Digital (Opcional)</h4>
                                 <div style={{ marginBottom: 12 }}>
                                     <label style={labelStyle}>Tipo de documento</label>
                                     <select value={tipoDocListado} onChange={(e) => setTipoDocListado(e.target.value)} style={inputStyle}>
@@ -850,14 +910,104 @@ export default function InscripcionesPage() {
                                     <h2 style={{ fontSize: 16, fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>FICHA DE INSCRIPCIÓN - FORMACIÓN PROFESIONAL</h2>
                                     <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Ciclo Lectivo: {inscripcionCompleta.ciclo_lectivo} | Legajo: {inscripcionCompleta.legajo || 'Pendiente'}</p>
                                 </div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos del Curso</h3><div style={{ fontSize: 14, color: '#4b5563' }}><strong>Curso:</strong> {cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.nombre || '—'} ({cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.turno})</div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Personales</h3><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}><div><strong>Apellido y Nombre:</strong> {inscripcionCompleta.apellido}, {inscripcionCompleta.nombre}</div><div><strong>DNI:</strong> {inscripcionCompleta.dni}</div><div><strong>Fecha de Nacimiento:</strong> {inscripcionCompleta.fecha_nac} {edadCalculada !== null ? `(Edad: ${edadCalculada} años)` : ''}</div><div><strong>Nacionalidad:</strong> {inscripcionCompleta.nacionalidad}</div></div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Contacto</h3><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}><div><strong>Teléfono:</strong> {inscripcionCompleta.telefono}</div><div><strong>Email:</strong> {inscripcionCompleta.email || '—'}</div><div style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {inscripcionCompleta.domicilio || '—'}</div></div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Académicos y Laborales</h3><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}><div><strong>Estudios Obtenidos:</strong> {inscripcionCompleta.estudios_obtenidos}</div><div><strong>Situación Laboral:</strong> {inscripcionCompleta.situacion_laboral}</div></div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Emergencia</h3><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}><div><strong>Nombre:</strong> {inscripcionCompleta.emergencia_nombre || '—'}</div><div><strong>Parentesco:</strong> {inscripcionCompleta.emergencia_parentesco || '—'}</div><div><strong>Teléfono:</strong> {inscripcionCompleta.emergencia_telefono || '—'}</div></div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Documentación Presentada</h3><div style={{ fontSize: 14, color: '#4b5563' }}>{DOCUMENTOS_REQUERIDOS.map(doc => { const fisico = inscripcionCompleta[`doc_${doc.id}_fisico`]; const digital = inscripcionCompleta[`doc_${doc.id}_digital`]; return (<div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}><span style={{ fontWeight: 600, minWidth: 200 }}>{doc.nombre}:</span>{fisico && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dcfce7', color: '#15803d' }}>Físico</span>}{digital && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>Digital</span>}{!fisico && !digital && <span style={{ color: '#9ca3af', fontSize: 12 }}>No presentado</span>}</div>); })}</div></div>
-                                <div style={{ marginBottom: 24 }}><h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Pago de Cooperadora</h3><div style={{ fontSize: 14, color: '#4b5563' }}>{inscripcionCompleta.pago?.paga ? (<><div><strong>Monto:</strong> ${inscripcionCompleta.pago.monto}</div><div><strong>Tipo de Pago:</strong> {inscripcionCompleta.pago.tipo_pago}</div><div><strong>N° de Comprobante:</strong> {inscripcionCompleta.pago.nro_comprobante || '—'}</div></>) : (<div style={{ color: '#9ca3af' }}>No realiza aporte a cooperadora</div>)}</div></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60, fontSize: 13, color: '#6b7280' }}><div style={{ width: 200 }}><div style={{ marginBottom: 40 }}>Firma del Alumno / Tutor</div><div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div></div><div style={{ width: 200 }}><div style={{ marginBottom: 40 }}>Firma del Preceptor</div><div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div></div></div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos del Curso</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        <strong>Curso:</strong> {cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.nombre || '—'} ({cursosFP.find(c => c.id === inscripcionCompleta.fp_curso_id)?.turno})
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Personales</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Apellido y Nombre:</strong> {inscripcionCompleta.apellido}, {inscripcionCompleta.nombre}</div>
+                                        <div><strong>DNI:</strong> {inscripcionCompleta.dni}</div>
+                                        <div><strong>Fecha de Nacimiento:</strong> {inscripcionCompleta.fecha_nac} {calcularEdad(inscripcionCompleta.fecha_nac) !== null ? `(Edad: ${calcularEdad(inscripcionCompleta.fecha_nac)} años)` : ''}</div>
+                                        <div><strong>Nacionalidad:</strong> {inscripcionCompleta.nacionalidad}</div>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Contacto</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.telefono}</div>
+                                        <div><strong>Email:</strong> {inscripcionCompleta.email || '—'}</div>
+                                        <div style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {inscripcionCompleta.domicilio || '—'}</div>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Académicos y Laborales</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Estudios Obtenidos:</strong> {inscripcionCompleta.estudios_obtenidos}</div>
+                                        <div><strong>Situación Laboral:</strong> {inscripcionCompleta.situacion_laboral}</div>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Emergencia</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                        <div><strong>Nombre:</strong> {inscripcionCompleta.emergencia_nombre || '—'}</div>
+                                        <div><strong>Parentesco:</strong> {inscripcionCompleta.emergencia_parentesco || '—'}</div>
+                                        <div><strong>Teléfono:</strong> {inscripcionCompleta.emergencia_telefono || '—'}</div>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Documentación Presentada</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        {DOCUMENTOS_REQUERIDOS.map((doc, index) => {
+                                            const fisico = inscripcionCompleta[`doc_${doc.id}_fisico`];
+                                            return (
+                                                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                    <div style={{
+                                                        width: 20,
+                                                        height: 20,
+                                                        background: fisico ? '#15803d' : '#b91c1c',
+                                                        color: '#fff',
+                                                        borderRadius: '50%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: 11,
+                                                        fontWeight: 700
+                                                    }}>
+                                                        {index + 1}
+                                                    </div>
+                                                    <span style={{ fontWeight: 600, minWidth: 200 }}>{doc.nombre}:</span>
+                                                    {fisico ? (
+                                                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dcfce7', color: '#15803d' }}>
+                                                            ✓ Presentado
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#fef2f2', color: '#b91c1c' }}>
+                                                            ✗ Pendiente
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Pago de Cooperadora</h3>
+                                    <div style={{ fontSize: 14, color: '#4b5563' }}>
+                                        {inscripcionCompleta.pago?.paga ? (
+                                            <>
+                                                <div><strong>Monto:</strong> ${inscripcionCompleta.pago.monto}</div>
+                                                <div><strong>Tipo de Pago:</strong> {inscripcionCompleta.pago.tipo_pago}</div>
+                                                <div><strong>N° de Comprobante:</strong> {inscripcionCompleta.pago.nro_comprobante || '—'}</div>
+                                            </>
+                                        ) : (
+                                            <div style={{ color: '#9ca3af' }}>No realiza aporte a cooperadora</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60, fontSize: 13, color: '#6b7280' }}>
+                                    <div style={{ width: 200 }}>
+                                        <div style={{ marginBottom: 40 }}>Firma del Alumno / Tutor</div>
+                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div>
+                                    </div>
+                                    <div style={{ width: 200 }}>
+                                        <div style={{ marginBottom: 40 }}>Firma del Preceptor</div>
+                                        <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>Aclaración y Firma</div>
+                                    </div>
+                                </div>
                             </div>
                             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                 <button onClick={() => setMostrarImpresion(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
