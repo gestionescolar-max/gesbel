@@ -6,14 +6,13 @@ import Sidebar from '@/components/Sidebar';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTPg1A53GDCcfgNgK229DKWK8pI3xwIHnAvc5kH9bV675NzOE9pME6dB_09OxRlbV-/exec';
 
-// ✅ Se agregó 'solo_fisico: true' solo a la carpeta colgante
+// ✅ Se eliminó el comprobante de pago de esta lista
 const DOCUMENTOS_REQUERIDOS = [
     { id: 'carpeta_colgante', nombre: 'Carpeta colgante con visor fijo', obligatorio: true, solo_fisico: true },
     { id: 'fotocopia_dni', nombre: 'Fotocopia de DNI', obligatorio: true },
     { id: 'foto_4x4', nombre: 'Foto 4x4', obligatorio: true },
     { id: 'certificado_domicilio', nombre: 'Certificado de Domicilio', obligatorio: true },
     { id: 'certificado_buena_salud', nombre: 'Certificado de Buena Salud', obligatorio: true },
-    { id: 'comprobante_pago', nombre: 'Comprobante de Pago / Cooperadora', obligatorio: false },
 ];
 
 const Iconos = {
@@ -465,17 +464,17 @@ export default function InscripcionesPage() {
                                         const check = documentosChecklist[doc.id] || {};
                                         return (
                                             <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
-                                                <div style={{ width: 280, minWidth: 280 }}>
+                                                {/* ✅ Ancho fijo y nowrap para que todo quede en la misma línea */}
+                                                <div style={{ width: 300, minWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
                                                         {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center', minWidth: 150 }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
                                                         <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
                                                         <span>Físico</span>
                                                     </label>
-                                                    {/* ✅ Ocultar checkbox Digital si es solo_fisico */}
                                                     {!doc.solo_fisico && (
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
                                                             <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
@@ -483,9 +482,8 @@ export default function InscripcionesPage() {
                                                         </label>
                                                     )}
                                                 </div>
-                                                {/* ✅ Ocultar carga de archivo si es solo_fisico */}
                                                 {!doc.solo_fisico && (
-                                                    <div style={{ width: 200 }}>
+                                                    <div style={{ width: 200, minWidth: 200 }}>
                                                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
                                                         {archivosForm[doc.id] && (
                                                             <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
@@ -631,10 +629,9 @@ export default function InscripcionesPage() {
                                         const check = checklistModal[doc.id] || {};
                                         return (
                                             <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: '#f9fafb', borderRadius: 4, border: '1px solid #e5e7eb' }}>
-                                                <div style={{ flex: 1, fontSize: 13, color: '#1e3a8a', fontWeight: 500 }}>{doc.nombre}{doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}</div>
+                                                <div style={{ flex: 1, fontSize: 13, color: '#1e3a8a', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.nombre}{doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}</div>
                                                 <div style={{ display: 'flex', gap: 12 }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}><input type="checkbox" checked={check.fisico || false} onChange={(e) => handleChecklistModal(doc.id, 'fisico', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} /><span>Físico</span></label>
-                                                    {/* ✅ Ocultar checkbox Digital en el modal si es solo_fisico */}
                                                     {!doc.solo_fisico && (
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, color: '#4b5563' }}><input type="checkbox" checked={check.digital || false} onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} /><span>Digital</span></label>
                                                     )}
