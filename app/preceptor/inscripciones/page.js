@@ -566,9 +566,106 @@ export default function InscripcionesPage() {
                                                 <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
                                                 <td style={{ padding: '14px 16px' }}><span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7', color: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e', border: `1px solid ${p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a'}` }}>{p.estado}</span></td>
                                                 <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); const checklistActual = {}; DOCUMENTOS_REQUERIDOS.forEach(doc => { checklistActual[doc.id] = { fisico: p[`doc_${doc.id}_fisico`] || false, digital: p[`doc_${doc.id}_digital`] || false }; }); setChecklistModal(checklistActual); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>{Iconos.subir} Cargar Doc.</button>
-                                                    {p.url_carpeta_drive && (<a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6, textDecoration: 'none' }}>{Iconos.externo} Ver Carpeta</a>)}
-                                                    {p.estado === 'preinscrito' && (<button onClick={() => confirmarInscripcion(p.id)} style={{ background: '#fff', color: '#15803d', border: '1px solid #15803d', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Confirmar</button>)}
+                                                    {/* ✅ NUEVO BOTÓN: Ver Ficha / Imprimir */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setInscripcionCompleta({
+                                                                ...p,
+                                                                pago: {
+                                                                    paga: p.pago_cooperadora,
+                                                                    monto: p.monto_cooperadora || 0,
+                                                                    tipo_pago: p.tipo_pago_cooperadora || 'total',
+                                                                    nro_comprobante: p.nro_comprobante_cooperadora || ''
+                                                                }
+                                                            });
+                                                            setMostrarImpresion(true);
+                                                        }}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 6,
+                                                            background: '#fff',
+                                                            color: '#1e40af',
+                                                            border: '1px solid #1e40af',
+                                                            padding: '6px 12px',
+                                                            borderRadius: 4,
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            marginRight: 6
+                                                        }}
+                                                    >
+                                                        {Iconos.imprimir} Ver Ficha
+                                                    </button>
+
+                                                    {/* Botón existente: Cargar Doc. */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setInscSeleccionada(p);
+                                                            setArchivoListado(null);
+                                                            const checklistActual = {};
+                                                            DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                checklistActual[doc.id] = {
+                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                    digital: p[`doc_${doc.id}_digital`] || false
+                                                                };
+                                                            });
+                                                            setChecklistModal(checklistActual);
+                                                        }}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 6,
+                                                            background: '#1e3a8a',
+                                                            color: '#fff',
+                                                            border: 'none',
+                                                            padding: '6px 12px',
+                                                            borderRadius: 4,
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            marginRight: 6
+                                                        }}
+                                                    >
+                                                        {Iconos.subir} Cargar Doc.
+                                                    </button>
+
+                                                    {/* Botón existente: Ver Carpeta */}
+                                                    {p.url_carpeta_drive && (
+                                                        <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 6,
+                                                            background: '#fff',
+                                                            color: '#1e3a8a',
+                                                            border: '1px solid #1e3a8a',
+                                                            padding: '6px 12px',
+                                                            borderRadius: 4,
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            marginRight: 6,
+                                                            textDecoration: 'none'
+                                                        }}>
+                                                            {Iconos.externo} Ver Carpeta
+                                                        </a>
+                                                    )}
+
+                                                    {/* Botón existente: Confirmar */}
+                                                    {p.estado === 'preinscrito' && (
+                                                        <button onClick={() => confirmarInscripcion(p.id)} style={{
+                                                            background: '#fff',
+                                                            color: '#15803d',
+                                                            border: '1px solid #15803d',
+                                                            padding: '6px 12px',
+                                                            borderRadius: 4,
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer'
+                                                        }}>
+                                                            Confirmar
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
