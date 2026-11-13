@@ -463,14 +463,25 @@ export default function InscripcionesPage() {
                                     {DOCUMENTOS_REQUERIDOS.map(doc => {
                                         const check = documentosChecklist[doc.id] || {};
                                         return (
-                                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
-                                                {/* ✅ Ancho fijo y nowrap para que todo quede en la misma línea */}
-                                                <div style={{ width: 300, minWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <div key={doc.id} style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '320px 140px 220px',
+                                                gap: 16,
+                                                padding: '10px 12px',
+                                                background: '#f9fafb',
+                                                borderRadius: 6,
+                                                border: '1px solid #e5e7eb',
+                                                alignItems: 'center'
+                                            }}>
+                                                {/* Columna 1: Nombre del documento */}
+                                                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
                                                         {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center', minWidth: 150 }}>
+
+                                                {/* Columna 2: Checkboxes Físico/Digital - SIEMPRE en esta columna */}
+                                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
                                                         <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
                                                         <span>Físico</span>
@@ -482,16 +493,20 @@ export default function InscripcionesPage() {
                                                         </label>
                                                     )}
                                                 </div>
-                                                {!doc.solo_fisico && (
-                                                    <div style={{ width: 200, minWidth: 200 }}>
-                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
-                                                        {archivosForm[doc.id] && (
-                                                            <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
-                                                                {Iconos.check} {archivosForm[doc.id].name}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
+
+                                                {/* Columna 3: Input de archivo - Solo si NO es solo_fisico */}
+                                                <div>
+                                                    {!doc.solo_fisico && (
+                                                        <>
+                                                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
+                                                            {archivosForm[doc.id] && (
+                                                                <div style={{ fontSize: 11, color: '#15803d', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={archivosForm[doc.id].name}>
+                                                                    {Iconos.check} {archivosForm[doc.id].name}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}
