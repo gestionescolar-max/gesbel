@@ -546,7 +546,7 @@ export default function InscripcionesPage() {
                             <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos los estados</option><option value="preinscrito">Pre-inscripto</option><option value="inscripto">Inscripto</option><option value="en_curso">En curso</option></select></div>
                             <div><label style={labelStyle}>Búsqueda</label><input type="text" placeholder="Nombre, apellido o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} /></div>
                         </div>
-                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                        <div className="vista-desktop" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                                     <thead><tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
@@ -671,6 +671,77 @@ export default function InscripcionesPage() {
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                            <div className="vista-mobile">
+                                {ultimosPendientes.map(p => {
+                                    const cursoInfo = cursosFP.find(c => c.id === p.fp_curso_id);
+                                    return (
+                                        <div key={p.id} className="card-pendiente">
+                                            <div className="card-pendiente-nombre">
+                                                {p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}
+                                            </div>
+                                            <div className="card-pendiente-curso">
+                                                {cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                            </div>
+                                            <div className="card-pendiente-acciones">
+                                                <button
+                                                    onClick={() => {
+                                                        setInscSeleccionada(p);
+                                                        setArchivoListado(null);
+                                                        const checklistActual = {};
+                                                        DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                            checklistActual[doc.id] = {
+                                                                fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                digital: p[`doc_${doc.id}_digital`] || false
+                                                            };
+                                                        });
+                                                        setChecklistModal(checklistActual);
+                                                    }}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '8px 12px',
+                                                        background: '#1e3a8a',
+                                                        color: '#fff',
+                                                        border: 'none',
+                                                        borderRadius: 4,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Regularizar
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setInscripcionCompleta({
+                                                            ...p,
+                                                            pago: {
+                                                                paga: p.pago_cooperadora,
+                                                                monto: p.monto_cooperadora || 0,
+                                                                tipo_pago: p.tipo_pago_cooperadora || 'total',
+                                                                nro_comprobante: p.nro_comprobante_cooperadora || ''
+                                                            }
+                                                        });
+                                                        setMostrarImpresion(true);
+                                                    }}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '8px 12px',
+                                                        background: '#fff',
+                                                        color: '#1e40af',
+                                                        border: '1px solid #1e40af',
+                                                        borderRadius: 4,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Ver Ficha
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                             {filtradas.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron registros con los filtros seleccionados.</div>}
                         </div>
