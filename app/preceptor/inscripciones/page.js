@@ -679,12 +679,13 @@ export default function InscripcionesPage() {
 
                 {vista === 'resumen' && (
                     <div>
+                        {/* ========== ENCABEZADO ========== */}
                         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                             <div>
-                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Resumen de Inscripciones</h2>
-                                <p style={{ fontSize: 14, color: '#6b7280' }}>Dashboard estadístico de Formación Profesional</p>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4, margin: 0 }}>Resumen de Inscripciones</h2>
+                                <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>Panel estadístico de Formación Profesional</p>
                             </div>
-                            <div style={{ width: 200 }}>
+                            <div style={{ width: '100%', maxWidth: 240 }}>
                                 <label style={labelStyle}>Ciclo Lectivo</label>
                                 <select value={filtroCicloResumen} onChange={(e) => setFiltroCicloResumen(e.target.value)} style={inputStyle}>
                                     {obtenerCiclosUnicos().map(anio => (
@@ -694,56 +695,19 @@ export default function InscripcionesPage() {
                             </div>
                         </div>
 
-                        {/* ========== TARJETAS DE MÉTRICAS GENERALES ========== */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, borderLeft: '4px solid #1e3a8a' }}>
-                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Total Inscriptos</div>
-                                <div style={{ fontSize: 32, fontWeight: 700, color: '#1e3a8a' }}>{inscripcionesDelCiclo.length}</div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Alumnos en el ciclo</div>
-                            </div>
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, borderLeft: '4px solid #15803d' }}>
-                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Inscriptos Confirmados</div>
-                                <div style={{ fontSize: 32, fontWeight: 700, color: '#15803d' }}>
-                                    {inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                                    {inscripcionesDelCiclo.length > 0
-                                        ? Math.round((inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length / inscripcionesDelCiclo.length) * 100)
-                                        : 0}% del total
-                                </div>
-                            </div>
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, borderLeft: '4px solid #f59e0b' }}>
-                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Pre-inscriptos</div>
-                                <div style={{ fontSize: 32, fontWeight: 700, color: '#f59e0b' }}>
-                                    {inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Pendientes de confirmar</div>
-                            </div>
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, borderLeft: '4px solid #10b981' }}>
-                                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>Documentación Completa</div>
-                                <div style={{ fontSize: 32, fontWeight: 700, color: '#10b981' }}>
-                                    {inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                                    {inscripcionesDelCiclo.length > 0
-                                        ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100)
-                                        : 0}% completó docs
-                                </div>
-                            </div>
-                        </div>
+                        {/* ========== PRIMERA FILA: Gráficos ========== */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
 
-                        {/* ========== GRÁFICOS: TORTA + BARRAS ========== */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 24, marginBottom: 32 }}>
-
-                            {/* GRÁFICO DE TORTA: Estado de Inscripción */}
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24 }}>
-                                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 20, textTransform: 'uppercase' }}>Estado de Inscripción</h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-                                    {/* Torta con conic-gradient */}
-                                    <div style={{ position: 'relative', width: 160, height: 160, flexShrink: 0 }}>
+                            {/* Torta: Estado de Inscripción */}
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    Estado de Inscripción
+                                </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                                    <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
                                         <div style={{
-                                            width: 160,
-                                            height: 160,
+                                            width: 140,
+                                            height: 140,
                                             borderRadius: '50%',
                                             background: (() => {
                                                 const total = inscripcionesDelCiclo.length || 1;
@@ -752,9 +716,9 @@ export default function InscripcionesPage() {
                                                 const pctInsc = (inscriptos / total) * 100;
                                                 const pctPre = (preinscriptos / total) * 100;
                                                 return `conic-gradient(
-                                    #15803d 0% ${pctInsc}%, 
-                                    #f59e0b ${pctInsc}% ${pctInsc + pctPre}%, 
-                                    #e5e7eb ${pctInsc + pctPre}% 100%
+                                    #059669 0% ${pctInsc}%, 
+                                    #d97706 ${pctInsc}% ${pctInsc + pctPre}%, 
+                                    #d1d5db ${pctInsc + pctPre}% 100%
                                 )`;
                                             })()
                                         }} />
@@ -763,8 +727,8 @@ export default function InscripcionesPage() {
                                             top: '50%',
                                             left: '50%',
                                             transform: 'translate(-50%, -50%)',
-                                            width: 90,
-                                            height: 90,
+                                            width: 80,
+                                            height: 80,
                                             borderRadius: '50%',
                                             background: '#fff',
                                             display: 'flex',
@@ -772,14 +736,13 @@ export default function InscripcionesPage() {
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}>
-                                            <div style={{ fontSize: 24, fontWeight: 700, color: '#1e3a8a' }}>{inscripcionesDelCiclo.length}</div>
+                                            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a' }}>{inscripcionesDelCiclo.length}</div>
                                             <div style={{ fontSize: 10, color: '#6b7280' }}>Total</div>
                                         </div>
                                     </div>
-                                    {/* Leyenda */}
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#15803d' }} />
+                                    <div style={{ flex: 1, minWidth: 140 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#059669', flexShrink: 0 }} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Inscriptos</div>
                                                 <div style={{ fontSize: 11, color: '#6b7280' }}>
@@ -787,8 +750,8 @@ export default function InscripcionesPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#f59e0b' }} />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#d97706', flexShrink: 0 }} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Pre-inscriptos</div>
                                                 <div style={{ fontSize: 11, color: '#6b7280' }}>
@@ -797,11 +760,11 @@ export default function InscripcionesPage() {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#e5e7eb' }} />
+                                            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#d1d5db', flexShrink: 0 }} />
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Sin estado</div>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Otros</div>
                                                 <div style={{ fontSize: 11, color: '#6b7280' }}>
-                                                    {inscripcionesDelCiclo.filter(p => !p.estado || p.estado === 'pendiente').length} alumnos
+                                                    {inscripcionesDelCiclo.filter(p => !p.estado || (!['inscripto', 'en_curso', 'preinscrito'].includes(p.estado))).length} alumnos
                                                 </div>
                                             </div>
                                         </div>
@@ -809,36 +772,38 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* GRÁFICO DE BARRAS: Ocupación por Curso */}
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24 }}>
-                                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 20, textTransform: 'uppercase' }}>Ocupación por Curso</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* Barras: Ocupación por Curso */}
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    Ocupación por Curso
+                                </h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                     {cursosDelCicloResumen.length === 0 ? (
-                                        <div style={{ textAlign: 'center', color: '#6b7280', padding: 20 }}>No hay cursos para este ciclo</div>
+                                        <div style={{ textAlign: 'center', color: '#6b7280', padding: 20, fontSize: 13 }}>No hay cursos para este ciclo</div>
                                     ) : (
                                         cursosDelCicloResumen.map(curso => {
                                             const inscCurso = inscripcionesDelCiclo.filter(p => p.fp_curso_id === curso.id);
                                             const ocupados = inscCurso.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
                                             const cupo = curso.cupo || 20;
                                             const porcentaje = Math.min(100, Math.round((ocupados / cupo) * 100));
-                                            const color = porcentaje >= 90 ? '#ef4444' : porcentaje >= 70 ? '#f59e0b' : '#10b981';
+                                            const color = porcentaje >= 90 ? '#b91c1c' : porcentaje >= 70 ? '#d97706' : '#059669';
 
                                             return (
                                                 <div key={curso.id}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
                                                             {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
                                                         </div>
-                                                        <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 12, whiteSpace: 'nowrap' }}>
-                                                            {ocupados}/{cupo} ({porcentaje}%)
+                                                        <div style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                            {ocupados}/{cupo}
                                                         </div>
                                                     </div>
-                                                    <div style={{ height: 10, background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
+                                                    <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
                                                         <div style={{
                                                             height: '100%',
                                                             width: `${porcentaje}%`,
                                                             background: color,
-                                                            borderRadius: 5,
+                                                            borderRadius: 4,
                                                             transition: 'width 0.5s ease'
                                                         }} />
                                                     </div>
@@ -851,25 +816,26 @@ export default function InscripcionesPage() {
                         </div>
 
                         {/* ========== SEGUNDA FILA: Documentación + Cooperadora ========== */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 24, marginBottom: 32 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
 
-                            {/* GRÁFICO DE TORTA: Documentación */}
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24 }}>
-                                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 20, textTransform: 'uppercase' }}>Estado de Documentación</h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-                                    <div style={{ position: 'relative', width: 160, height: 160, flexShrink: 0 }}>
+                            {/* Torta: Documentación */}
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    Estado de Documentación
+                                </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                                    <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
                                         <div style={{
-                                            width: 160,
-                                            height: 160,
+                                            width: 140,
+                                            height: 140,
                                             borderRadius: '50%',
                                             background: (() => {
                                                 const total = inscripcionesDelCiclo.length || 1;
                                                 const completa = inscripcionesDelCiclo.filter(p => p.documentacion_completa).length;
-                                                const incompleta = total - completa;
                                                 const pctComp = (completa / total) * 100;
                                                 return `conic-gradient(
-                                    #10b981 0% ${pctComp}%, 
-                                    #ef4444 ${pctComp}% 100%
+                                    #059669 0% ${pctComp}%, 
+                                    #b91c1c ${pctComp}% 100%
                                 )`;
                                             })()
                                         }} />
@@ -878,8 +844,8 @@ export default function InscripcionesPage() {
                                             top: '50%',
                                             left: '50%',
                                             transform: 'translate(-50%, -50%)',
-                                            width: 90,
-                                            height: 90,
+                                            width: 80,
+                                            height: 80,
                                             borderRadius: '50%',
                                             background: '#fff',
                                             display: 'flex',
@@ -887,7 +853,7 @@ export default function InscripcionesPage() {
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}>
-                                            <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>
+                                            <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>
                                                 {inscripcionesDelCiclo.length > 0
                                                     ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100)
                                                     : 0}%
@@ -895,9 +861,9 @@ export default function InscripcionesPage() {
                                             <div style={{ fontSize: 10, color: '#6b7280' }}>Completa</div>
                                         </div>
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#10b981' }} />
+                                    <div style={{ flex: 1, minWidth: 140 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#059669', flexShrink: 0 }} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Documentación Completa</div>
                                                 <div style={{ fontSize: 11, color: '#6b7280' }}>
@@ -906,7 +872,7 @@ export default function InscripcionesPage() {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#ef4444' }} />
+                                            <div style={{ width: 12, height: 12, borderRadius: 2, background: '#b91c1c', flexShrink: 0 }} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Documentación Incompleta</div>
                                                 <div style={{ fontSize: 11, color: '#6b7280' }}>
@@ -918,36 +884,37 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
 
-                            {/* GRÁFICO DE BARRAS: Cooperadora */}
-                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24 }}>
-                                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 20, textTransform: 'uppercase' }}>Pago de Cooperadora</h3>
-                                <div style={{ marginBottom: 24 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                        <span style={{ fontSize: 13, color: '#6b7280' }}>Alumnos que pagan</span>
-                                        <span style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
+                            {/* Barra: Cooperadora */}
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    Pago de Cooperadora
+                                </h3>
+                                <div style={{ marginBottom: 16 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <span style={{ fontSize: 12, color: '#6b7280' }}>Alumnos que pagan</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>
                                             {inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length} / {inscripcionesDelCiclo.length}
                                         </span>
                                     </div>
-                                    <div style={{ height: 12, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
+                                    <div style={{ height: 10, background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
                                         <div style={{
                                             height: '100%',
                                             width: `${inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}%`,
-                                            background: '#15803d',
-                                            borderRadius: 6,
+                                            background: '#059669',
+                                            borderRadius: 5,
                                             transition: 'width 0.5s ease'
                                         }} />
                                     </div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'right' }}>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'right', fontWeight: 600 }}>
                                         {inscripcionesDelCiclo.length > 0
                                             ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100)
                                             : 0}% de cobertura
                                     </div>
                                 </div>
 
-                                {/* Monto total recaudado */}
-                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: 16 }}>
-                                    <div style={{ fontSize: 11, color: '#15803d', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Total Recaudado</div>
-                                    <div style={{ fontSize: 24, fontWeight: 700, color: '#15803d' }}>
+                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: 14 }}>
+                                    <div style={{ fontSize: 10, color: '#059669', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4, letterSpacing: '0.05em' }}>Total Recaudado</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>
                                         ${inscripcionesDelCiclo
                                             .filter(p => p.pago_cooperadora)
                                             .reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0)
@@ -958,184 +925,240 @@ export default function InscripcionesPage() {
                         </div>
 
                         {/* ========== TABLA DETALLADA POR CURSO ========== */}
-                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            📋 Detalle por Curso
-                        </h3>
-                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                            {cursosDelCicloResumen.length === 0 ? (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>No hay cursos para este ciclo lectivo</div>
-                            ) : (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                                        <thead>
-                                            <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Curso</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Turno</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Cupo</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Inscriptos</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Ocupación</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Docs OK</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Cooperadora</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600 }}>Recaudado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {cursosDelCicloResumen.map((curso, idx) => {
-                                                const inscCurso = inscripcionesDelCiclo.filter(p => p.fp_curso_id === curso.id);
-                                                const ocupados = inscCurso.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
-                                                const cupo = curso.cupo || 20;
-                                                const pctOcupacion = cupo > 0 ? Math.round((ocupados / cupo) * 100) : 0;
-                                                const docsOK = inscCurso.filter(p => p.documentacion_completa).length;
-                                                const pctDocs = ocupados > 0 ? Math.round((docsOK / ocupados) * 100) : 0;
-                                                const paganCoop = inscCurso.filter(p => p.pago_cooperadora).length;
-                                                const pctCoop = ocupados > 0 ? Math.round((paganCoop / ocupados) * 100) : 0;
-                                                const recaudado = inscCurso.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0);
-                                                const colorOcupacion = pctOcupacion >= 90 ? '#ef4444' : pctOcupacion >= 70 ? '#f59e0b' : '#10b981';
+                        <div style={{ marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                Detalle por Curso
+                            </h3>
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                {cursosDelCicloResumen.length === 0 ? (
+                                    <div style={{ padding: 32, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>No hay cursos para este ciclo lectivo</div>
+                                ) : (
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
+                                            <thead>
+                                                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Curso</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Turno</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Cupo</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Inscriptos</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Ocupación</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Docs OK</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Coop.</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Recaudado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {cursosDelCicloResumen.map((curso, idx) => {
+                                                    const inscCurso = inscripcionesDelCiclo.filter(p => p.fp_curso_id === curso.id);
+                                                    const ocupados = inscCurso.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
+                                                    const cupo = curso.cupo || 20;
+                                                    const pctOcupacion = cupo > 0 ? Math.round((ocupados / cupo) * 100) : 0;
+                                                    const docsOK = inscCurso.filter(p => p.documentacion_completa).length;
+                                                    const pctDocs = ocupados > 0 ? Math.round((docsOK / ocupados) * 100) : 0;
+                                                    const paganCoop = inscCurso.filter(p => p.pago_cooperadora).length;
+                                                    const pctCoop = ocupados > 0 ? Math.round((paganCoop / ocupados) * 100) : 0;
+                                                    const recaudado = inscCurso.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0);
+                                                    const colorOcupacion = pctOcupacion >= 90 ? '#b91c1c' : pctOcupacion >= 70 ? '#d97706' : '#059669';
 
-                                                return (
-                                                    <tr key={curso.id} style={{ borderBottom: idx < cursosDelCicloResumen.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>
-                                                            {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <span style={{
-                                                                padding: '3px 10px',
-                                                                borderRadius: 4,
-                                                                fontSize: 11,
-                                                                fontWeight: 600,
-                                                                background: curso.turno === 'Noche' ? '#1e3a8a' : curso.turno === 'Tarde' ? '#f59e0b' : '#10b981',
-                                                                color: '#fff'
-                                                            }}>
-                                                                {curso.turno}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>{cupo}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: '#1e3a8a' }}>{ocupados}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden', minWidth: 60 }}>
-                                                                    <div style={{ height: '100%', width: `${pctOcupacion}%`, background: colorOcupacion, borderRadius: 3 }} />
+                                                    return (
+                                                        <tr key={curso.id} style={{ borderBottom: idx < cursosDelCicloResumen.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                            <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>
+                                                                {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 3,
+                                                                    fontSize: 10,
+                                                                    fontWeight: 600,
+                                                                    background: curso.turno === 'Noche' ? '#1e3a8a' : curso.turno === 'Tarde' ? '#d97706' : '#059669',
+                                                                    color: '#fff'
+                                                                }}>
+                                                                    {curso.turno}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, fontSize: 12 }}>{cupo}</td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>{ocupados}</td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 100 }}>
+                                                                    <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                                                                        <div style={{ height: '100%', width: `${pctOcupacion}%`, background: colorOcupacion, borderRadius: 3 }} />
+                                                                    </div>
+                                                                    <span style={{ fontSize: 11, fontWeight: 700, color: colorOcupacion, minWidth: 36 }}>{pctOcupacion}%</span>
                                                                 </div>
-                                                                <span style={{ fontSize: 12, fontWeight: 700, color: colorOcupacion, minWidth: 40 }}>{pctOcupacion}%</span>
-                                                            </div>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <span style={{
-                                                                padding: '3px 8px',
-                                                                borderRadius: 4,
-                                                                fontSize: 11,
-                                                                fontWeight: 600,
-                                                                background: pctDocs >= 80 ? '#dcfce7' : pctDocs >= 50 ? '#fef3c7' : '#fef2f2',
-                                                                color: pctDocs >= 80 ? '#15803d' : pctDocs >= 50 ? '#92400e' : '#b91c1c'
-                                                            }}>
-                                                                {docsOK}/{ocupados} ({pctDocs}%)
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                            <span style={{
-                                                                padding: '3px 8px',
-                                                                borderRadius: 4,
-                                                                fontSize: 11,
-                                                                fontWeight: 600,
-                                                                background: pctCoop >= 80 ? '#dcfce7' : pctCoop >= 50 ? '#fef3c7' : '#fef2f2',
-                                                                color: pctCoop >= 80 ? '#15803d' : pctCoop >= 50 ? '#92400e' : '#b91c1c'
-                                                            }}>
-                                                                {pctCoop}%
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#15803d' }}>
-                                                            ${recaudado.toLocaleString('es-AR')}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                        {/* Fila de totales */}
-                                        <tfoot>
-                                            <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb', fontWeight: 700 }}>
-                                                <td colSpan={2} style={{ padding: '12px 16px', color: '#1e3a8a' }}>TOTAL</td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                    {cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0)}
-                                                </td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'center', color: '#1e3a8a' }}>{inscripcionesDelCiclo.length}</td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                    {Math.round((inscripcionesDelCiclo.length / Math.max(1, cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0))) * 100)}%
-                                                </td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                    {inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}/{inscripcionesDelCiclo.length}
-                                                </td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                    {inscripcionesDelCiclo.length > 0
-                                                        ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100)
-                                                        : 0}%
-                                                </td>
-                                                <td style={{ padding: '12px 16px', textAlign: 'right', color: '#15803d' }}>
-                                                    ${inscripcionesDelCiclo
-                                                        .filter(p => p.pago_cooperadora)
-                                                        .reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0)
-                                                        .toLocaleString('es-AR')}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ========== ALERTAS: Cursos con problemas ========== */}
-                        {ultimosPendientes.length > 0 && (
-                            <div style={{ marginTop: 24 }}>
-                                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#b91c1c', marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid #fecaca', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    ⚠️ Alumnos con Documentación Pendiente
-                                </h3>
-                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                                        <thead>
-                                            <tr style={{ background: '#fef3c7', borderBottom: '2px solid #fde68a' }}>
-                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600 }}>Alumno</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600 }}>Curso</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600 }}>Estado</th>
-                                                <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#92400e', fontWeight: 600 }}>Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {ultimosPendientes.map((p, idx) => (
-                                                <tr key={p.id} style={{ borderBottom: idx < ultimosPendientes.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                    <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
-                                                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>
-                                                        {cursosFP.find(c => c.id === p.fp_curso_id)?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 3,
+                                                                    fontSize: 10,
+                                                                    fontWeight: 600,
+                                                                    background: pctDocs >= 80 ? '#dcfce7' : pctDocs >= 50 ? '#fef3c7' : '#fef2f2',
+                                                                    color: pctDocs >= 80 ? '#059669' : pctDocs >= 50 ? '#92400e' : '#b91c1c'
+                                                                }}>
+                                                                    {docsOK}/{ocupados}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 3,
+                                                                    fontSize: 10,
+                                                                    fontWeight: 600,
+                                                                    background: pctCoop >= 80 ? '#dcfce7' : pctCoop >= 50 ? '#fef3c7' : '#fef2f2',
+                                                                    color: pctCoop >= 80 ? '#059669' : pctCoop >= 50 ? '#92400e' : '#b91c1c'
+                                                                }}>
+                                                                    {pctCoop}%
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                                                                ${recaudado.toLocaleString('es-AR')}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb', fontWeight: 700 }}>
+                                                    <td colSpan={2} style={{ padding: '10px 12px', color: '#1e3a8a', fontSize: 12 }}>TOTAL</td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>
+                                                        {cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0)}
                                                     </td>
-                                                    <td style={{ padding: '12px 16px' }}>
-                                                        <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-                                                            {p.estado}
-                                                        </span>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#1e3a8a', fontSize: 12 }}>{inscripcionesDelCiclo.length}</td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>
+                                                        {Math.round((inscripcionesDelCiclo.length / Math.max(1, cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0))) * 100)}%
                                                     </td>
-                                                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                                        <button
-                                                            onClick={() => {
-                                                                setInscSeleccionada(p);
-                                                                setArchivoListado(null);
-                                                                const checklistActual = {};
-                                                                DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                                                                    checklistActual[doc.id] = {
-                                                                        fisico: p[`doc_${doc.id}_fisico`] || false,
-                                                                        digital: p[`doc_${doc.id}_digital`] || false
-                                                                    };
-                                                                });
-                                                                setChecklistModal(checklistActual);
-                                                            }}
-                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
-                                                        >
-                                                            {Iconos.subir} Regularizar
-                                                        </button>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>
+                                                        {inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}/{inscripcionesDelCiclo.length}
+                                                    </td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>
+                                                        {inscripcionesDelCiclo.length > 0
+                                                            ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100)
+                                                            : 0}%
+                                                    </td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                                                        ${inscripcionesDelCiclo
+                                                            .filter(p => p.pago_cooperadora)
+                                                            .reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0)
+                                                            .toLocaleString('es-AR')}
                                                     </td>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ========== ALERTAS: Alumnos con documentación pendiente ========== */}
+                        {ultimosPendientes.length > 0 && (
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    Alumnos con Documentación Pendiente
+                                </h3>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 500 }}>
+                                            <thead>
+                                                <tr style={{ background: '#fef3c7', borderBottom: '2px solid #fde68a' }}>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#92400e', fontWeight: 700, letterSpacing: '0.05em' }}>Alumno</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#92400e', fontWeight: 700, letterSpacing: '0.05em' }}>Curso</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#92400e', fontWeight: 700, letterSpacing: '0.05em' }}>Estado</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 10, textTransform: 'uppercase', color: '#92400e', fontWeight: 700, letterSpacing: '0.05em' }}>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ultimosPendientes.map((p, idx) => (
+                                                    <tr key={p.id} style={{ borderBottom: idx < ultimosPendientes.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                        <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
+                                                        <td style={{ padding: '10px 12px', fontSize: 12, color: '#4b5563' }}>
+                                                            {cursosFP.find(c => c.id === p.fp_curso_id)?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                        </td>
+                                                        <td style={{ padding: '10px 12px' }}>
+                                                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                                {p.estado}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setInscSeleccionada(p);
+                                                                    setArchivoListado(null);
+                                                                    const checklistActual = {};
+                                                                    DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                        checklistActual[doc.id] = {
+                                                                            fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                            digital: p[`doc_${doc.id}_digital`] || false
+                                                                        };
+                                                                    });
+                                                                    setChecklistModal(checklistActual);
+                                                                }}
+                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}
+                                                            >
+                                                                Regularizar
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
+
+                        {/* ========== TARJETAS DE MÉTRICAS (AL FINAL) ========== */}
+                        <div style={{ marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                Indicadores Generales
+                            </h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Total Inscriptos</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#1e3a8a', fontVariantNumeric: 'tabular-nums' }}>{inscripcionesDelCiclo.length}</div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Alumnos en el ciclo</div>
+                                </div>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #059669' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Inscriptos Confirmados</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                        {inscripcionesDelCiclo.length > 0
+                                            ? Math.round((inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length / inscripcionesDelCiclo.length) * 100)
+                                            : 0}% del total
+                                    </div>
+                                </div>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #d97706' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Pre-inscriptos</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Pendientes de confirmar</div>
+                                </div>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #059669' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Documentación Completa</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                        {inscripcionesDelCiclo.length > 0
+                                            ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100)
+                                            : 0}% completó docs
+                                    </div>
+                                </div>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Cupos Totales</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#1e3a8a', fontVariantNumeric: 'tabular-nums' }}>{totalCupos}</div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Disponibles: {disponibles}</div>
+                                </div>
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #b91c1c' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Pendientes de Documentación</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#b91c1c', fontVariantNumeric: 'tabular-nums' }}>{pendientesDoc}</div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Requieren atención</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
