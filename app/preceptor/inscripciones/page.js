@@ -540,177 +540,140 @@ export default function InscripcionesPage() {
                             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>Listado de Alumnos</h2>
                             <p style={{ fontSize: 14, color: '#6b7280' }}>Gestión de inscripciones y documentación pendiente</p>
                         </div>
+
+                        {/* ========== FILTROS ========== */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb' }}>
                             <div><label style={labelStyle}>Ciclo Lectivo</label><select value={filtroCiclo} onChange={(e) => { setFiltroCiclo(e.target.value); setFiltroCurso('todos'); }} style={inputStyle}><option value="todos">Todos los ciclos</option>{obtenerCiclosUnicos().map(anio => (<option key={anio} value={anio}>Ciclo {anio}</option>))}</select></div>
                             <div><label style={labelStyle}>Curso</label><select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}><option value="todos">Todos los cursos</option>{cursosFP.filter(c => filtroCiclo === 'todos' || c.anio === Number(filtroCiclo)).map(c => { const nombreLimpio = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim(); return <option key={c.id} value={c.id}>{nombreLimpio}</option>; })}</select></div>
                             <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos los estados</option><option value="preinscrito">Pre-inscripto</option><option value="inscripto">Inscripto</option><option value="en_curso">En curso</option></select></div>
                             <div><label style={labelStyle}>Búsqueda</label><input type="text" placeholder="Nombre, apellido o DNI..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} /></div>
                         </div>
+
+                        {/* Contador de resultados */}
+                        <div style={{ marginBottom: 12, fontSize: 13, color: '#6b7280' }}>
+                            <strong>{filtradas.length}</strong> {filtradas.length === 1 ? 'alumno encontrado' : 'alumnos encontrados'}
+                        </div>
+
+                        {/* ===== VISTA ESCRITORIO: TABLA ===== */}
                         <div className="vista-desktop" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                                    <thead><tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Legajo</th>
-                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Alumno</th>
-                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>DNI</th>
-                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Curso</th>
-                                        <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Estado</th>
-                                        <th style={{ padding: '14px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Acciones</th>
-                                    </tr></thead>
-                                    <tbody>
-                                        {filtradas.map((p, idx) => (
-                                            <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
-                                                <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
-                                                <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
-                                                <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
-                                                <td style={{ padding: '14px 16px' }}><span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7', color: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e', border: `1px solid ${p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a'}` }}>{p.estado}</span></td>
-                                                <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    {/* ✅ NUEVO BOTÓN: Ver Ficha / Imprimir */}
-                                                    <button
-                                                        onClick={() => {
-                                                            setInscripcionCompleta({
-                                                                ...p,
-                                                                pago: {
-                                                                    paga: p.pago_cooperadora,
-                                                                    monto: p.monto_cooperadora || 0,
-                                                                    tipo_pago: p.tipo_pago_cooperadora || 'total',
-                                                                    nro_comprobante: p.nro_comprobante_cooperadora || ''
-                                                                }
-                                                            });
-                                                            setMostrarImpresion(true);
-                                                        }}
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 6,
-                                                            background: '#fff',
-                                                            color: '#1e40af',
-                                                            border: '1px solid #1e40af',
-                                                            padding: '6px 12px',
-                                                            borderRadius: 4,
-                                                            fontSize: 12,
-                                                            fontWeight: 500,
-                                                            cursor: 'pointer',
-                                                            marginRight: 6
-                                                        }}
-                                                    >
-                                                        {Iconos.imprimir} Ver Ficha
-                                                    </button>
-
-                                                    {/* Botón existente: Cargar Doc. */}
-                                                    <button
-                                                        onClick={() => {
-                                                            setInscSeleccionada(p);
-                                                            setArchivoListado(null);
-                                                            const checklistActual = {};
-                                                            DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                                                                checklistActual[doc.id] = {
-                                                                    fisico: p[`doc_${doc.id}_fisico`] || false,
-                                                                    digital: p[`doc_${doc.id}_digital`] || false
-                                                                };
-                                                            });
-                                                            setChecklistModal(checklistActual);
-                                                        }}
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 6,
-                                                            background: '#1e3a8a',
-                                                            color: '#fff',
-                                                            border: 'none',
-                                                            padding: '6px 12px',
-                                                            borderRadius: 4,
-                                                            fontSize: 12,
-                                                            fontWeight: 500,
-                                                            cursor: 'pointer',
-                                                            marginRight: 6
-                                                        }}
-                                                    >
-                                                        {Iconos.subir} Cargar Doc.
-                                                    </button>
-
-                                                    {/* Botón existente: Ver Carpeta */}
-                                                    {p.url_carpeta_drive && (
-                                                        <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 6,
-                                                            background: '#fff',
-                                                            color: '#1e3a8a',
-                                                            border: '1px solid #1e3a8a',
-                                                            padding: '6px 12px',
-                                                            borderRadius: 4,
-                                                            fontSize: 12,
-                                                            fontWeight: 500,
-                                                            cursor: 'pointer',
-                                                            marginRight: 6,
-                                                            textDecoration: 'none'
-                                                        }}>
-                                                            {Iconos.externo} Ver Carpeta
-                                                        </a>
-                                                    )}
-
-                                                    {/* Botón existente: Confirmar */}
-                                                    {p.estado === 'preinscrito' && (
-                                                        <button onClick={() => confirmarInscripcion(p.id)} style={{
-                                                            background: '#fff',
-                                                            color: '#15803d',
-                                                            border: '1px solid #15803d',
-                                                            padding: '6px 12px',
-                                                            borderRadius: 4,
-                                                            fontSize: 12,
-                                                            fontWeight: 500,
-                                                            cursor: 'pointer'
-                                                        }}>
-                                                            Confirmar
-                                                        </button>
-                                                    )}
-                                                </td>
+                            {filtradas.length === 0 ? (
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron registros con los filtros seleccionados.</div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                                        <thead>
+                                            <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Legajo</th>
+                                                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Alumno</th>
+                                                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>DNI</th>
+                                                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Curso</th>
+                                                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Estado</th>
+                                                <th style={{ padding: '14px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>Acciones</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="vista-mobile">
-                                {ultimosPendientes.map(p => {
+                                        </thead>
+                                        <tbody>
+                                            {filtradas.map((p, idx) => (
+                                                <tr key={p.id} style={{ borderBottom: idx < filtradas.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                    <td style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{p.legajo || '—'}</td>
+                                                    <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e3a8a' }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
+                                                    <td style={{ padding: '14px 16px', color: '#4b5563' }}>{p.dni || '—'}</td>
+                                                    <td style={{ padding: '14px 16px', fontSize: 13, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre || '—'}</td>
+                                                    <td style={{ padding: '14px 16px' }}>
+                                                        <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7', color: p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e', border: `1px solid ${p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a'}` }}>
+                                                            {p.estado}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setInscripcionCompleta({
+                                                                    ...p,
+                                                                    pago: {
+                                                                        paga: p.pago_cooperadora,
+                                                                        monto: p.monto_cooperadora || 0,
+                                                                        tipo_pago: p.tipo_pago_cooperadora || 'total',
+                                                                        nro_comprobante: p.nro_comprobante_cooperadora || ''
+                                                                    }
+                                                                });
+                                                                setMostrarImpresion(true);
+                                                            }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
+                                                        >
+                                                            {Iconos.imprimir} Ver Ficha
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setInscSeleccionada(p);
+                                                                setArchivoListado(null);
+                                                                const checklistActual = {};
+                                                                DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                    checklistActual[doc.id] = {
+                                                                        fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                        digital: p[`doc_${doc.id}_digital`] || false
+                                                                    };
+                                                                });
+                                                                setChecklistModal(checklistActual);
+                                                            }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
+                                                        >
+                                                            {Iconos.subir} Cargar Doc.
+                                                        </button>
+                                                        {p.url_carpeta_drive && (
+                                                            <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6, textDecoration: 'none' }}>
+                                                                {Iconos.externo} Ver Carpeta
+                                                            </a>
+                                                        )}
+                                                        {p.estado === 'preinscrito' && (
+                                                            <button onClick={() => confirmarInscripcion(p.id)} style={{ background: '#fff', color: '#15803d', border: '1px solid #15803d', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                                                                Confirmar
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== VISTA MÓVIL: CARDS ===== */}
+                        <div className="vista-mobile">
+                            {filtradas.length === 0 ? (
+                                <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 13, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                                    No se encontraron registros con los filtros seleccionados.
+                                </div>
+                            ) : (
+                                filtradas.map(p => {
                                     const cursoInfo = cursosFP.find(c => c.id === p.fp_curso_id);
+                                    const colorEstado = p.estado === 'inscripto' || p.estado === 'en_curso' ? '#15803d' : '#92400e';
+                                    const bgEstado = p.estado === 'inscripto' || p.estado === 'en_curso' ? '#dcfce7' : '#fef3c7';
+                                    const borderEstado = p.estado === 'inscripto' || p.estado === 'en_curso' ? '#bbf7d0' : '#fde68a';
+
                                     return (
-                                        <div key={p.id} className="card-pendiente">
-                                            <div className="card-pendiente-nombre">
-                                                {p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}
+                                        <div key={p.id} className="card-alumno">
+                                            <div className="card-alumno-header">
+                                                <div>
+                                                    <div className="card-alumno-nombre">
+                                                        {p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}
+                                                    </div>
+                                                    <div className="card-alumno-dni">
+                                                        DNI: {p.dni || '—'} {p.legajo && <span style={{ marginLeft: 8, color: '#6b7280' }}>· Legajo: {p.legajo}</span>}
+                                                    </div>
+                                                </div>
+                                                <span className="card-alumno-estado" style={{ background: bgEstado, color: colorEstado, border: `1px solid ${borderEstado}` }}>
+                                                    {p.estado}
+                                                </span>
                                             </div>
-                                            <div className="card-pendiente-curso">
-                                                {cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+
+                                            <div className="card-alumno-curso">
+                                                <span className="card-alumno-label">Curso:</span>
+                                                <span className="card-alumno-valor">
+                                                    {cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                </span>
                                             </div>
-                                            <div className="card-pendiente-acciones">
-                                                <button
-                                                    onClick={() => {
-                                                        setInscSeleccionada(p);
-                                                        setArchivoListado(null);
-                                                        const checklistActual = {};
-                                                        DOCUMENTOS_REQUERIDOS.forEach(doc => {
-                                                            checklistActual[doc.id] = {
-                                                                fisico: p[`doc_${doc.id}_fisico`] || false,
-                                                                digital: p[`doc_${doc.id}_digital`] || false
-                                                            };
-                                                        });
-                                                        setChecklistModal(checklistActual);
-                                                    }}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '8px 12px',
-                                                        background: '#1e3a8a',
-                                                        color: '#fff',
-                                                        border: 'none',
-                                                        borderRadius: 4,
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    Regularizar
-                                                </button>
+
+                                            <div className="card-alumno-acciones">
                                                 <button
                                                     onClick={() => {
                                                         setInscripcionCompleta({
@@ -724,26 +687,45 @@ export default function InscripcionesPage() {
                                                         });
                                                         setMostrarImpresion(true);
                                                     }}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '8px 12px',
-                                                        background: '#fff',
-                                                        color: '#1e40af',
-                                                        border: '1px solid #1e40af',
-                                                        borderRadius: 4,
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer'
-                                                    }}
+                                                    className="btn-card btn-card-secundario"
                                                 >
                                                     Ver Ficha
                                                 </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setInscSeleccionada(p);
+                                                        setArchivoListado(null);
+                                                        const checklistActual = {};
+                                                        DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                            checklistActual[doc.id] = {
+                                                                fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                digital: p[`doc_${doc.id}_digital`] || false
+                                                            };
+                                                        });
+                                                        setChecklistModal(checklistActual);
+                                                    }}
+                                                    className="btn-card btn-card-primario"
+                                                >
+                                                    Cargar Doc.
+                                                </button>
+                                                {p.url_carpeta_drive && (
+                                                    <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" className="btn-card btn-card-secundario">
+                                                        Ver Carpeta
+                                                    </a>
+                                                )}
+                                                {p.estado === 'preinscrito' && (
+                                                    <button
+                                                        onClick={() => confirmarInscripcion(p.id)}
+                                                        className="btn-card btn-card-confirmar"
+                                                    >
+                                                        Confirmar
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     );
-                                })}
-                            </div>
-                            {filtradas.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No se encontraron registros con los filtros seleccionados.</div>}
+                                })
+                            )}
                         </div>
                     </div>
                 )}

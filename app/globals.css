@@ -469,3 +469,106 @@ main {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* ===== Cards de alumnos en móvil ===== */
+.card-alumno {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.card-alumno-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 12px;
+}
+
+.card-alumno-nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 4px;
+}
+
+.card-alumno-dni {
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-alumno-estado {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.card-alumno-curso {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed #f3f4f6;
+}
+
+.card-alumno-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.card-alumno-valor {
+  color: #1e3a8a;
+  font-weight: 600;
+  flex: 1;
+}
+
+.card-alumno-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.btn-card {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.btn-card-primario {
+  background: #1e3a8a;
+  color: #fff;
+  border: none;
+}
+
+.btn-card-secundario {
+  background: #fff;
+  color: #1e40af;
+  border: 1px solid #1e40af;
+}
+
+.btn-card-confirmar {
+  background: #fff;
+  color: #15803d;
+  border: 1px solid #15803d;
+}
