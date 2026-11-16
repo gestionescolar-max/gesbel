@@ -315,6 +315,7 @@ function getMenuItems(docente) {
     if (tieneRol('preceptor') || esDirectivo) {
         items.push({ tipo: 'separador', label: 'Preceptoría' });
         items.push({ label: 'Inscripciones FP', ruta: '/preceptor/inscripciones', icono: Iconos.inscripciones });
+        items.push({ label: 'Alumnos', ruta: '/preceptor/alumnos', icono: Iconos.alumno });
         items.push({ label: 'Asistencias', ruta: '/preceptor/asistencias', icono: Iconos.asistencias });
         items.push({ label: 'Actas', ruta: '/preceptor/actas', icono: Iconos.actas });
     }
