@@ -26,14 +26,6 @@ function formatearFechaLarga(fechaISO) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// Formatea un timestamp ISO a hora local (HH:MM)
-function formatearHora(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
 export default function AsistenciasPage() {
     const { docente, cargando } = useDocente();
     const [cursos, setCursos] = useState([]);
