@@ -384,7 +384,7 @@ export default function InscripcionesPage() {
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmitInscripcion} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 32, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
+                        <form onSubmit={handleSubmitInscripcion} className="form-inscripcion" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, opacity: periodoInscripcion.abierto ? 1 : 0.6, pointerEvents: periodoInscripcion.abierto ? 'auto' : 'none' }}>
 
                             <div style={{ marginBottom: 32 }}>
                                 <h3 style={sectionTitle}>{Iconos.formulario} Datos del Curso</h3>
@@ -410,16 +410,8 @@ export default function InscripcionesPage() {
                                     <div><label style={labelStyle}>Apellido</label><input type="text" name="apellido" value={form.apellido} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>Nombre</label><input type="text" name="nombre" value={form.nombre} onChange={handleChangeForm} required style={inputStyle} /></div>
                                     <div><label style={labelStyle}>DNI</label><input type="text" name="dni" value={form.dni} onChange={handleChangeForm} required placeholder="12345678" style={inputStyle} /></div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, gridColumn: '1 / -1' }}>
-                                        <div>
-                                            <label style={labelStyle}>Fecha de Nacimiento</label>
-                                            <input type="date" name="fecha_nac" value={form.fecha_nac} onChange={handleFechaNacimientoChange} required style={inputStyle} />
-                                        </div>
-                                        <div>
-                                            <label style={labelStyle}>Edad (calculada automáticamente)</label>
-                                            <input type="text" value={edadCalculada !== null ? `${edadCalculada} años` : '—'} readOnly style={{ ...inputStyle, background: '#f3f4f6', color: edadCalculada ? '#1e3a8a' : '#9ca3af', fontWeight: 600, cursor: 'not-allowed' }} />
-                                        </div>
-                                    </div>
+                                    <div><label style={labelStyle}>Fecha de Nacimiento</label><input type="date" name="fecha_nac" value={form.fecha_nac} onChange={handleFechaNacimientoChange} required style={inputStyle} /></div>
+                                    <div><label style={labelStyle}>Edad (automática)</label><input type="text" value={edadCalculada !== null ? `${edadCalculada} años` : '—'} readOnly style={{ ...inputStyle, background: '#f3f4f6', color: edadCalculada ? '#1e3a8a' : '#9ca3af', fontWeight: 600, cursor: 'not-allowed' }} /></div>
                                     <div><label style={labelStyle}>Nacionalidad</label><select name="nacionalidad" value={form.nacionalidad} onChange={handleChangeForm} required style={inputStyle}><option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option></select></div>
                                 </div>
                             </div>
@@ -454,12 +446,14 @@ export default function InscripcionesPage() {
                                 <h3 style={{ ...sectionTitle, marginBottom: 8 }}>{Iconos.carpeta} Documentación Presentada</h3>
                                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 8, fontSize: 13, color: '#1e40af' }}>
                                     <strong>Estado actual:</strong> Se marcaron {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => { const doc = documentosChecklist[d.id] || {}; return doc.fisico || doc.digital; }).length} de {DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length} documentos obligatorios.
-                                    {pagoCooperadora.paga && pagoCooperadora.monto > 0 ? ' · ✅ Cooperadora registrada' : ' · ⚠️ Cooperadora pendiente'}
+                                    {pagoCooperadora.paga && pagoCooperadora.monto > 0 ? ' · Cooperadora registrada' : ' · Cooperadora pendiente'}
                                 </div>
                                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
                                     Marque si el alumno presenta la documentación en formato físico (carpeta) y/o digital. Si faltan documentos obligatorios o no se registra el pago de cooperadora, el alumno quedará como <strong>pre-inscripto</strong>.
                                 </p>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                                {/* ===== VISTA ESCRITORIO: FILA DE 3 COLUMNAS ===== */}
+                                <div className="vista-desktop" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     {DOCUMENTOS_REQUERIDOS.map(doc => {
                                         const check = documentosChecklist[doc.id] || {};
                                         return (
@@ -473,14 +467,11 @@ export default function InscripcionesPage() {
                                                 border: '1px solid #e5e7eb',
                                                 alignItems: 'center'
                                             }}>
-                                                {/* Columna 1: Nombre del documento */}
                                                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>
                                                         {doc.nombre} {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 4 }}>(Obligatorio)</span>}
                                                     </div>
                                                 </div>
-
-                                                {/* Columna 2: Checkboxes Físico/Digital - SIEMPRE en esta columna */}
                                                 <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
                                                         <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
@@ -493,8 +484,6 @@ export default function InscripcionesPage() {
                                                         </label>
                                                     )}
                                                 </div>
-
-                                                {/* Columna 3: Input de archivo - Solo si NO es solo_fisico */}
                                                 <div>
                                                     {!doc.solo_fisico && (
                                                         <>
@@ -507,6 +496,42 @@ export default function InscripcionesPage() {
                                                         </>
                                                     )}
                                                 </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* ===== VISTA MÓVIL: CARDS ===== */}
+                                <div className="vista-mobile">
+                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                        const check = documentosChecklist[doc.id] || {};
+                                        return (
+                                            <div key={doc.id} className="card-doc">
+                                                <div className="card-doc-nombre">
+                                                    {doc.nombre} {doc.obligatorio && <span className="card-doc-obligatorio">(Obligatorio)</span>}
+                                                </div>
+                                                <div className="card-doc-checks">
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                        <input type="checkbox" checked={check.fisico || false} onChange={(e) => handleDocumentoCheck(doc.id, 'fisico', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                                        <span>Físico</span>
+                                                    </label>
+                                                    {!doc.solo_fisico && (
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                            <input type="checkbox" checked={check.digital || false} onChange={(e) => handleDocumentoCheck(doc.id, 'digital', e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                                            <span>Digital</span>
+                                                        </label>
+                                                    )}
+                                                </div>
+                                                {!doc.solo_fisico && (
+                                                    <div className="card-doc-file">
+                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(doc.id, e.target.files[0])} />
+                                                        {archivosForm[doc.id] && (
+                                                            <div className="card-doc-file-nombre" title={archivosForm[doc.id].name}>
+                                                                {Iconos.check} {archivosForm[doc.id].name}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -528,7 +553,7 @@ export default function InscripcionesPage() {
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 24, borderTop: '1px solid #e5e7eb' }}>
-                                <button type="submit" disabled={enviando || !periodoInscripcion.abierto} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: enviando || !periodoInscripcion.abierto ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '12px 32px', borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: enviando || !periodoInscripcion.abierto ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>{Iconos.check} {enviando ? 'Procesando...' : 'Registrar Inscripción'}</button>
+                                <button type="submit" disabled={enviando || !periodoInscripcion.abierto} className="btn-inscripcion-submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: enviando || !periodoInscripcion.abierto ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '12px 32px', borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: enviando || !periodoInscripcion.abierto ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>{Iconos.check} {enviando ? 'Procesando...' : 'Registrar Inscripción'}</button>
                             </div>
                         </form>
                     </div>
