@@ -641,3 +641,81 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ===== Cards de asistencia en móvil ===== */
+.card-asistencia {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.card-asistencia-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card-asistencia-nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.card-asistencia-meta {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-asistencia-hora {
+  font-size: 10px;
+  color: #6b7280;
+  text-align: right;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-asistencia-botones {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.btn-asist {
+  padding: 8px 6px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.btn-asist-p.activo {
+  background: #d1fae5;
+  border-color: #059669;
+  color: #065f46;
+}
+
+.btn-asist-t.activo {
+  background: #fef3c7;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.btn-asist-a.activo {
+  background: #fee2e2;
+  border-color: #b91c1c;
+  color: #991b1b;
+}
