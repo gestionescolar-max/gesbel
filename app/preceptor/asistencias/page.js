@@ -12,6 +12,20 @@ const Iconos = {
     guardar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
 };
 
+function formatearHora(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatearFechaLarga(fechaISO) {
+    if (!fechaISO) return '—';
+    const [anio, mes, dia] = fechaISO.split('-').map(Number);
+    const d = new Date(anio, mes - 1, dia);
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
 // Formatea un timestamp ISO a hora local (HH:MM)
 function formatearHora(iso) {
     if (!iso) return '—';
@@ -279,7 +293,7 @@ export default function AsistenciasPage() {
                                     Registro de Asistencia
                                 </h3>
                                 <span style={{ fontSize: 12, color: '#6b7280' }}>
-                                    {new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                    {formatearFechaLarga(fecha)}
                                 </span>
                             </div>
 
