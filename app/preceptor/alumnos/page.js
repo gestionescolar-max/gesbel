@@ -208,15 +208,27 @@ export default function AlumnosPage() {
             return;
         }
         setCargandoHistorial(true);
-        setHistorial({ abierto: true, dni: d.dni, nombre: `${d.apellido}, ${d.nombre}`, registros: [] });
+        setHistorial({ abierto: true, dni: d.dni, nombre: `${d.apellido || ''}, ${d.nombre}`, registros: [] });
         try {
-            const { data, error } = await supabase
+            // 1. Buscar el alumno en fp_alumnos por DNI
+            const { data: alumnoData, error: errorAlumno } = await supabase
+                .from('fp_alumnos')
+                .select('id')
+                .eq('dni', d.dni)
+                .single();
+
+            if (errorAlumno) throw errorAlumno;
+
+            // 2. Buscar todas las inscripciones de ese alumno
+            const { data: inscripcionesData, error: errorInscripciones } = await supabase
                 .from('fp_inscripciones')
                 .select('id, legajo, fp_curso_id, ciclo_lectivo, estado, fecha_inscripcion, fecha_condicion, documentacion_completa')
-                .eq('dni', d.dni)
+                .eq('fp_alumno_id', alumnoData.id)
                 .order('ciclo_lectivo', { ascending: false });
-            if (error) throw error;
-            setHistorial(prev => ({ ...prev, registros: data || [] }));
+
+            if (errorInscripciones) throw errorInscripciones;
+
+            setHistorial(prev => ({ ...prev, registros: inscripcionesData || [] }));
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar historial: ${err.message}` });
         } finally {
