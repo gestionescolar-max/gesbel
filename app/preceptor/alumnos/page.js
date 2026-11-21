@@ -22,10 +22,12 @@ const Iconos = {
     cerrar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>,
     reabrir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>,
     editar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>,
-    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+    automatico: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>,
+    manual: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
 };
 
-const ESTADOS_CURSANTES = ['inscripto', 'en_curso', 'aprobado', 'desaprobado', 'abandono', 'diferido'];
+const ESTADOS_CURSANTES = ['inscripto', 'en_curso', 'aprobado', 'desaprobado', 'abandono', 'abandono_justificado', 'rendicion_libre', 'nunca_asistio', 'diferido'];
 
 const ESTILOS_ESTADO = {
     en_curso: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
@@ -33,15 +35,41 @@ const ESTILOS_ESTADO = {
     aprobado: { bg: '#d1fae5', color: '#065f46', border: '#a7f3d0' },
     desaprobado: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
     abandono: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' },
-    diferido: { bg: '#ede9fe', color: '#5b21b6', border: '#ddd6fe' }
+    abandono_justificado: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+    rendicion_libre: { bg: '#ede9fe', color: '#5b21b6', border: '#ddd6fe' },
+    nunca_asistio: { bg: '#fce7f3', color: '#9d174d', border: '#fbcfe8' },
+    diferido: { bg: '#e0e7ff', color: '#3730a3', border: '#c7d2fe' },
+    pendiente: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' }
 };
 
-const RESULTADOS_CIERRE = [
-    { valor: 'aprobado', etiqueta: 'Aprobado / Recibido', desc: 'El alumno cursó y aprobó el trayecto.' },
-    { valor: 'desaprobado', etiqueta: 'Desaprobado', desc: 'Cursó pero no alcanzó la aprobación.' },
-    { valor: 'abandono', etiqueta: 'Abandono / Baja', desc: 'Se dio de baja durante el cursado.' },
-    { valor: 'diferido', etiqueta: 'Diferido', desc: 'No cursó este ciclo, a reprogramar.' }
+// Estados que el preceptor SÍ puede elegir manualmente (excepcionales)
+const ESTADOS_EXCEPCIONALES = [
+    {
+        valor: 'abandono',
+        etiqueta: 'Abandono',
+        desc: 'Dejó de asistir sin presentar justificación.'
+    },
+    {
+        valor: 'abandono_justificado',
+        etiqueta: 'Abandono justificado',
+        desc: 'Dejó de asistir, pero presentó causa (médica, laboral, etc.).'
+    },
+    {
+        valor: 'rendicion_libre',
+        etiqueta: 'Rindió libre y aprobó',
+        desc: 'No completó el cursado, pero aprobó el examen final.'
+    },
+    {
+        valor: 'nunca_asistio',
+        etiqueta: 'Nunca asistió',
+        desc: 'Se inscribió pero no concurrió en ningún momento.'
+    }
 ];
+
+// Umbral de asistencia para aprobación automática
+const UMBRAL_ASISTENCIA = 75;
+// Nota mínima para aprobación automática
+const NOTA_MINIMA = 6;
 
 function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null;
@@ -65,27 +93,64 @@ function badgeEstado(estado) {
     const s = ESTILOS_ESTADO[estado] || { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' };
     return (
         <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-            {estado}
+            {estado === 'pendiente' ? 'Pendiente' : estado}
         </span>
     );
+}
+
+// Calcula el estado automático basado en asistencia y nota
+function calcularEstadoAutomatico(inscripcion) {
+    const asistencia = inscripcion.porcentaje_asistencia;
+    const nota = inscripcion.nota_final;
+    const tieneAsistencia = asistencia !== null && asistencia !== undefined;
+    const tieneNota = nota !== null && nota !== undefined;
+
+    // Si no hay datos suficientes, está pendiente
+    if (!tieneAsistencia || !tieneNota) {
+        return { estado: 'pendiente', razon: 'Faltan datos de asistencia o acta docente' };
+    }
+
+    // Si nunca asistió
+    if (asistencia === 0) {
+        return { estado: 'nunca_asistio', razon: 'Asistencia 0%' };
+    }
+
+    // Si no alcanzó el umbral de asistencia
+    if (asistencia < UMBRAL_ASISTENCIA) {
+        return { estado: 'desaprobado', razon: `Asistencia ${asistencia}% (mínimo ${UMBRAL_ASISTENCIA}%)` };
+    }
+
+    // Si tiene asistencia pero no aprobó la nota
+    if (nota < NOTA_MINIMA) {
+        return { estado: 'desaprobado', razon: `Nota ${nota} (mínimo ${NOTA_MINIMA})` };
+    }
+
+    // Aprobado
+    return { estado: 'aprobado', razon: `Asistencia ${asistencia}% y nota ${nota}` };
 }
 
 export default function AlumnosPage() {
     const { docente, cargando } = useDocente();
     const [alumnos, setAlumnos] = useState([]);
     const [cursos, setCursos] = useState([]);
-    const [conteoCursos, setConteoCursos] = useState({}); // { fp_alumno_id: cantidad }
+    const [conteoCursos, setConteoCursos] = useState({});
     const [filtroCiclo, setFiltroCiclo] = useState('todos');
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
-    const [filtroDocPendiente, setFiltroDocPendiente] = useState(false); // ✅ MEJORA 3
+    const [filtroDocPendiente, setFiltroDocPendiente] = useState(false);
     const [busqueda, setBusqueda] = useState('');
     const [alumnoFicha, setAlumnoFicha] = useState(null);
     const [mostrarFicha, setMostrarFicha] = useState(false);
-    const [cierre, setCierre] = useState({ abierto: false, alumno: null, resultado: '' });
+    const [cierre, setCierre] = useState({
+        abierto: false,
+        alumno: null,
+        estadoAutomatico: null,
+        estadoElegido: null,
+        observacion: ''
+    });
     const [historial, setHistorial] = useState({ abierto: false, dni: '', nombre: '', registros: [] });
     const [cargandoHistorial, setCargandoHistorial] = useState(false);
-    const [editarAlumno, setEditarAlumno] = useState({ abierto: false, alumno: null, datos: {} }); // ✅ MEJORA 1
+    const [editarAlumno, setEditarAlumno] = useState({ abierto: false, alumno: null, datos: {} });
     const [guardandoEdicion, setGuardandoEdicion] = useState(false);
     const [mensaje, setMensaje] = useState(null);
     const [procesando, setProcesando] = useState(false);
@@ -96,7 +161,7 @@ export default function AlumnosPage() {
     async function cargarDatos() {
         try {
             const [{ data: cursosData }, { data: alumnosData }] = await Promise.all([
-                supabase.from('fp_cursos').select('id, nombre, anio, turno, cupo').order('nombre'),
+                supabase.from('fp_cursos').select('id, nombre, anio, turno, cupo, es_trayecto_final').order('nombre'),
                 supabase
                     .from('fp_inscripciones')
                     .select('*, fp_alumnos(*)')
@@ -106,7 +171,6 @@ export default function AlumnosPage() {
             setCursos(cursosData || []);
             setAlumnos(alumnosData || []);
 
-            // ✅ MEJORA 2: contar cursos por alumno
             const conteo = {};
             (alumnosData || []).forEach(a => {
                 const id = a.fp_alumno_id;
@@ -151,7 +215,7 @@ export default function AlumnosPage() {
         }
         if (filtroCurso !== 'todos') resultado = resultado.filter(a => a.fp_curso_id === Number(filtroCurso));
         if (filtroEstado !== 'todos') resultado = resultado.filter(a => a.estado === filtroEstado);
-        if (filtroDocPendiente) resultado = resultado.filter(a => !a.documentacion_completa); // ✅ MEJORA 3
+        if (filtroDocPendiente) resultado = resultado.filter(a => !a.documentacion_completa);
         if (busqueda) {
             const q = busqueda.toLowerCase();
             resultado = resultado.filter(a => {
@@ -167,21 +231,67 @@ export default function AlumnosPage() {
         return resultado;
     }
 
+    // ✅ Abrir modal de cierre con cálculo automático
     function abrirCierre(a) {
-        setCierre({ abierto: true, alumno: a, resultado: '' });
+        const estadoCalc = calcularEstadoAutomatico(a);
+        setCierre({
+            abierto: true,
+            alumno: a,
+            estadoAutomatico: estadoCalc,
+            estadoElegido: estadoCalc.estado === 'pendiente' ? '' : estadoCalc.estado,
+            observacion: ''
+        });
     }
 
+    // ✅ Confirmar cierre con validación
     async function confirmarCierre() {
-        if (!cierre.alumno || !cierre.resultado) return;
+        if (!cierre.alumno) return;
+
+        const esExcepcional = ESTADOS_EXCEPCIONALES.some(e => e.valor === cierre.estadoElegido);
+        const esCambioDeAutomatico = cierre.estadoAutomatico &&
+            cierre.estadoAutomatico.estado !== 'pendiente' &&
+            cierre.estadoElegido !== cierre.estadoAutomatico.estado;
+
+        // La observación es obligatoria si:
+        // 1. Elige un estado excepcional, O
+        // 2. Cambia el estado automático sugerido
+        const requiereObservacion = esExcepcional || esCambioDeAutomatico;
+
+        if (requiereObservacion && !cierre.observacion.trim()) {
+            setMensaje({
+                tipo: 'error',
+                texto: 'La observación/justificación es obligatoria cuando se interviene manualmente.'
+            });
+            return;
+        }
+
         setProcesando(true);
         try {
+            const estadoFinal = cierre.estadoElegido || cierre.estadoAutomatico.estado;
+            const esAutomatico = !requiereObservacion;
+
             const { error } = await supabase
                 .from('fp_inscripciones')
-                .update({ estado: cierre.resultado, fecha_condicion: new Date().toISOString().split('T')[0] })
+                .update({
+                    estado: estadoFinal,
+                    fecha_condicion: new Date().toISOString().split('T')[0],
+                    fecha_cierre: new Date().toISOString().split('T')[0],
+                    observacion_cierre: cierre.observacion.trim() || null,
+                    cierre_automatico: esAutomatico,
+                    // Solo se marca egresado si el estado automático lo determina
+                    // (esto se definirá cuando exista la configuración de cursos)
+                    es_egresado: false
+                })
                 .eq('id', cierre.alumno.id);
+
             if (error) throw error;
-            setMensaje({ tipo: 'ok', texto: `Cursado cerrado como "${cierre.resultado}".` });
-            setCierre({ abierto: false, alumno: null, resultado: '' });
+
+            const tipoCierre = esAutomatico ? 'automático' : 'manual (con justificación)';
+            setMensaje({
+                tipo: 'ok',
+                texto: `Cursado cerrado como "${estadoFinal}" (${tipoCierre}).`
+            });
+            setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' });
             await cargarDatos();
             setTimeout(() => setMensaje(null), 3000);
         } catch (err) {
@@ -197,7 +307,13 @@ export default function AlumnosPage() {
         try {
             const { error } = await supabase
                 .from('fp_inscripciones')
-                .update({ estado: 'en_curso', fecha_condicion: null })
+                .update({
+                    estado: 'en_curso',
+                    fecha_condicion: null,
+                    fecha_cierre: null,
+                    cierre_automatico: false,
+                    observacion_cierre: null
+                })
                 .eq('id', a.id);
             if (error) throw error;
             setMensaje({ tipo: 'ok', texto: 'Cursado reabierto.' });
@@ -227,7 +343,7 @@ export default function AlumnosPage() {
             if (errorAlumno) throw errorAlumno;
             const { data: inscripcionesData, error: errorInscripciones } = await supabase
                 .from('fp_inscripciones')
-                .select('id, legajo, fp_curso_id, ciclo_lectivo, estado, fecha_inscripcion, fecha_condicion, documentacion_completa')
+                .select('id, legajo, fp_curso_id, ciclo_lectivo, estado, fecha_inscripcion, fecha_condicion, documentacion_completa, cierre_automatico, observacion_cierre')
                 .eq('fp_alumno_id', alumnoData.id)
                 .order('ciclo_lectivo', { ascending: false });
             if (errorInscripciones) throw errorInscripciones;
@@ -239,7 +355,6 @@ export default function AlumnosPage() {
         }
     }
 
-    // ✅ MEJORA 1: Abrir modal de edición
     function abrirEditar(a) {
         const d = datosAlumno(a);
         setEditarAlumno({
@@ -256,7 +371,6 @@ export default function AlumnosPage() {
         });
     }
 
-    // ✅ MEJORA 1: Guardar edición
     async function guardarEdicion() {
         if (!editarAlumno.alumno) return;
         const d = datosAlumno(editarAlumno.alumno);
@@ -311,7 +425,7 @@ export default function AlumnosPage() {
 
     const enCurso = alumnos.filter(a => a.estado === 'en_curso').length;
     const inscriptos = alumnos.filter(a => a.estado === 'inscripto').length;
-    const finalizados = alumnos.filter(a => ['aprobado', 'desaprobado', 'abandono', 'diferido'].includes(a.estado)).length;
+    const finalizados = alumnos.filter(a => ['aprobado', 'desaprobado', 'abandono', 'abandono_justificado', 'rendicion_libre', 'nunca_asistio', 'diferido'].includes(a.estado)).length;
     const conDocPendiente = alumnos.filter(a => !a.documentacion_completa).length;
 
     return (
@@ -362,9 +476,8 @@ export default function AlumnosPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb' }}>
                     <div><label style={labelStyle}>Ciclo Lectivo</label><select value={filtroCiclo} onChange={(e) => { setFiltroCiclo(e.target.value); setFiltroCurso('todos'); }} style={inputStyle}><option value="todos">Todos los ciclos</option>{obtenerCiclosUnicos().map(anio => (<option key={anio} value={anio}>Ciclo {anio}</option>))}</select></div>
                     <div><label style={labelStyle}>Curso</label><select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}><option value="todos">Todos los cursos</option>{cursos.filter(c => filtroCiclo === 'todos' || c.anio === Number(filtroCiclo)).map(c => { const n = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim(); return <option key={c.id} value={c.id}>{n}</option>; })}</select></div>
-                    <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos</option><option value="inscripto">Inscripto</option><option value="en_curso">En cursado</option><option value="aprobado">Aprobado</option><option value="desaprobado">Desaprobado</option><option value="abandono">Abandono</option><option value="diferido">Diferido</option></select></div>
+                    <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos</option><option value="inscripto">Inscripto</option><option value="en_curso">En cursado</option><option value="aprobado">Aprobado</option><option value="desaprobado">Desaprobado</option><option value="abandono">Abandono</option><option value="abandono_justificado">Abandono justificado</option><option value="rendicion_libre">Rindió libre</option><option value="nunca_asistio">Nunca asistió</option><option value="diferido">Diferido</option></select></div>
                     <div><label style={labelStyle}>Búsqueda</label><input type="text" placeholder="Nombre, DNI o legajo..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} /></div>
-                    {/* ✅ MEJORA 3: Filtro documentación pendiente */}
                     <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', background: filtroDocPendiente ? '#fef2f2' : '#fff', border: `1px solid ${filtroDocPendiente ? '#b91c1c' : '#d1d5db'}`, borderRadius: 6, width: '100%' }}>
                             <input type="checkbox" checked={filtroDocPendiente} onChange={(e) => setFiltroDocPendiente(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
@@ -402,7 +515,7 @@ export default function AlumnosPage() {
                                                 const curso = cursos.find(c => c.id === a.fp_curso_id);
                                                 const d = datosAlumno(a);
                                                 const edad = calcularEdad(d.fecha_nac);
-                                                const finalizado = a.estado !== 'en_curso' && a.estado !== 'inscripto';
+                                                const finalizado = !['inscripto', 'en_curso'].includes(a.estado);
                                                 const totalCursos = conteoCursos[a.fp_alumno_id] || 1;
                                                 const docCompleta = a.documentacion_completa;
                                                 return (
@@ -410,7 +523,6 @@ export default function AlumnosPage() {
                                                         <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{d.legajo || '—'}</td>
                                                         <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>
                                                             <div>{d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}</div>
-                                                            {/* ✅ MEJORA 2: Badge de cantidad de cursos */}
                                                             {totalCursos > 1 && (
                                                                 <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 500 }}>
                                                                     {totalCursos} cursos en total
@@ -420,7 +532,15 @@ export default function AlumnosPage() {
                                                         <td style={{ padding: '12px 16px', color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>{d.dni || '—'}</td>
                                                         <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center', color: '#1e3a8a', fontWeight: 600 }}>{edad !== null ? `${edad}` : '—'}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>{badgeEstado(a.estado)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            {badgeEstado(a.estado)}
+                                                            {a.cierre_automatico && (
+                                                                <div style={{ fontSize: 9, color: '#059669', marginTop: 2, fontWeight: 600 }}>Automático</div>
+                                                            )}
+                                                            {a.estado === 'aprobado' && a.es_egresado && (
+                                                                <div style={{ fontSize: 10, color: '#92400e', marginTop: 2, fontWeight: 600 }}>🎓 Egresado</div>
+                                                            )}
+                                                        </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                                             {docCompleta ? (
                                                                 <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
@@ -471,7 +591,7 @@ export default function AlumnosPage() {
                                     const curso = cursos.find(c => c.id === a.fp_curso_id);
                                     const d = datosAlumno(a);
                                     const edad = calcularEdad(d.fecha_nac);
-                                    const finalizado = a.estado !== 'en_curso' && a.estado !== 'inscripto';
+                                    const finalizado = !['inscripto', 'en_curso'].includes(a.estado);
                                     const totalCursos = conteoCursos[a.fp_alumno_id] || 1;
                                     const docCompleta = a.documentacion_completa;
                                     return (
@@ -495,7 +615,12 @@ export default function AlumnosPage() {
                                                         )}
                                                     </div>
                                                 </div>
-                                                {badgeEstado(a.estado)}
+                                                <div style={{ textAlign: 'right' }}>
+                                                    {badgeEstado(a.estado)}
+                                                    {a.cierre_automatico && (
+                                                        <div style={{ fontSize: 9, color: '#059669', marginTop: 2, fontWeight: 600 }}>Automático</div>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="card-alumno-curso">
                                                 <span className="card-alumno-label">Curso:</span>
@@ -521,34 +646,170 @@ export default function AlumnosPage() {
                 </div>
             </div>
 
-            {/* ===== MODAL: CIERRE DE CURSADO ===== */}
-            {cierre.abierto && cierre.alumno && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setCierre({ abierto: false, alumno: null, resultado: '' })}>
-                    <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 460, width: '100%' }} onClick={(e) => e.stopPropagation()}>
-                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Cerrar cursado</h3>
-                        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>
-                            {datosAlumno(cierre.alumno).apellido}, {datosAlumno(cierre.alumno).nombre}
-                        </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {RESULTADOS_CIERRE.map(r => (
-                                <label key={r.valor} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 6, border: `1px solid ${cierre.resultado === r.valor ? '#1e3a8a' : '#e5e7eb'}`, background: cierre.resultado === r.valor ? '#eff6ff' : '#fff', cursor: 'pointer' }}>
-                                    <input type="radio" name="resultado" checked={cierre.resultado === r.valor} onChange={() => setCierre(prev => ({ ...prev, resultado: r.valor }))} style={{ marginTop: 3 }} />
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>{r.etiqueta}</div>
-                                        <div style={{ fontSize: 12, color: '#6b7280' }}>{r.desc}</div>
+            {/* ===== MODAL: CIERRE DE CURSADO (DEFINITIVO) ===== */}
+            {cierre.abierto && cierre.alumno && (() => {
+                const esExcepcional = ESTADOS_EXCEPCIONALES.some(e => e.valor === cierre.estadoElegido);
+                const esCambioDeAutomatico = cierre.estadoAutomatico &&
+                    cierre.estadoAutomatico.estado !== 'pendiente' &&
+                    cierre.estadoElegido &&
+                    cierre.estadoElegido !== cierre.estadoAutomatico.estado;
+                const requiereObservacion = esExcepcional || esCambioDeAutomatico;
+                const datosAlumnoActual = datosAlumno(cierre.alumno);
+
+                return (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' })}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Cerrar cursado</h3>
+                            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>
+                                {datosAlumnoActual.apellido}, {datosAlumnoActual.nombre}
+                            </p>
+
+                            {/* SECCIÓN 1: Estado automático (solo lectura) */}
+                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: 14, marginBottom: 20 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                    {Iconos.automatico}
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        Estado automático del sistema
                                     </div>
+                                </div>
+
+                                {/* Datos de asistencia y nota */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2 }}>Asistencia</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: (cierre.alumno.porcentaje_asistencia || 0) >= UMBRAL_ASISTENCIA ? '#059669' : '#b91c1c' }}>
+                                            {cierre.alumno.porcentaje_asistencia !== null && cierre.alumno.porcentaje_asistencia !== undefined
+                                                ? `${cierre.alumno.porcentaje_asistencia}%`
+                                                : '—'}
+                                        </div>
+                                        <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                            {cierre.alumno.porcentaje_asistencia !== null && cierre.alumno.porcentaje_asistencia !== undefined
+                                                ? (cierre.alumno.porcentaje_asistencia >= UMBRAL_ASISTENCIA ? '✅ Cumple' : `❌ Mínimo ${UMBRAL_ASISTENCIA}%`)
+                                                : '⏳ Pendiente de carga'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2 }}>Nota final (Acta)</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: cierre.alumno.nota_final >= NOTA_MINIMA ? '#059669' : '#b91c1c' }}>
+                                            {cierre.alumno.nota_final !== null && cierre.alumno.nota_final !== undefined
+                                                ? cierre.alumno.nota_final
+                                                : '—'}
+                                        </div>
+                                        <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                            {cierre.alumno.nota_final !== null && cierre.alumno.nota_final !== undefined
+                                                ? (cierre.alumno.nota_final >= NOTA_MINIMA ? '✅ Cumple' : `❌ Mínimo ${NOTA_MINIMA}`)
+                                                : '⏳ Pendiente de carga'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Estado sugerido */}
+                                <div style={{ paddingTop: 10, borderTop: '1px dashed #bbf7d0' }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4 }}>Estado asignado automáticamente</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {badgeEstado(cierre.estadoAutomatico.estado)}
+                                        <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                            {cierre.estadoAutomatico.razon}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 2: Intervención excepcional del preceptor */}
+                            <div style={{ marginBottom: 20 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                    {Iconos.manual}
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        Intervención excepcional (opcional)
+                                    </div>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                                    El estado automático se asignará al confirmar. Solo intervení si hubo una situación excepcional que requiera un estado diferente. <strong style={{ color: '#b91c1c' }}>La observación es obligatoria en estos casos.</strong>
+                                </p>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {ESTADOS_EXCEPCIONALES.map(r => (
+                                        <label key={r.valor} style={{
+                                            display: 'flex',
+                                            gap: 10,
+                                            alignItems: 'flex-start',
+                                            padding: '10px 12px',
+                                            borderRadius: 6,
+                                            border: `1px solid ${cierre.estadoElegido === r.valor ? '#1e3a8a' : '#e5e7eb'}`,
+                                            background: cierre.estadoElegido === r.valor ? '#eff6ff' : '#fff',
+                                            cursor: 'pointer'
+                                        }}>
+                                            <input
+                                                type="radio"
+                                                name="estadoExcepcional"
+                                                checked={cierre.estadoElegido === r.valor}
+                                                onChange={() => setCierre(prev => ({ ...prev, estadoElegido: r.valor }))}
+                                                style={{ marginTop: 3 }}
+                                            />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>{r.etiqueta}</div>
+                                                <div style={{ fontSize: 12, color: '#6b7280' }}>{r.desc}</div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 3: Observación / Justificación */}
+                            <div style={{ marginBottom: 20 }}>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>
+                                    Observación / Justificación
+                                    {requiereObservacion && <span style={{ color: '#b91c1c', marginLeft: 4 }}>* Obligatoria</span>}
                                 </label>
-                            ))}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-                            <button onClick={() => setCierre({ abierto: false, alumno: null, resultado: '' })} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
-                            <button onClick={confirmarCierre} disabled={!cierre.resultado || procesando} style={{ background: !cierre.resultado || procesando ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: !cierre.resultado || procesando ? 'not-allowed' : 'pointer' }}>
-                                {procesando ? 'Guardando...' : 'Confirmar cierre'}
-                            </button>
+                                <textarea
+                                    value={cierre.observacion}
+                                    onChange={(e) => setCierre(prev => ({ ...prev, observacion: e.target.value }))}
+                                    placeholder={requiereObservacion
+                                        ? "Explicá el motivo de la intervención excepcional..."
+                                        : "Opcional: podés agregar comentarios adicionales..."}
+                                    rows={3}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        borderRadius: 6,
+                                        border: `1px solid ${requiereObservacion && !cierre.observacion.trim() ? '#b91c1c' : '#d1d5db'}`,
+                                        fontSize: 13,
+                                        fontFamily: 'inherit',
+                                        resize: 'vertical',
+                                        background: requiereObservacion && !cierre.observacion.trim() ? '#fef2f2' : '#fff'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Botones */}
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' })}
+                                    style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmarCierre}
+                                    disabled={procesando || (requiereObservacion && !cierre.observacion.trim())}
+                                    style={{
+                                        background: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? '#9ca3af' : '#1e3a8a',
+                                        color: '#fff',
+                                        border: 'none',
+                                        padding: '10px 18px',
+                                        borderRadius: 4,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        cursor: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    {procesando ? 'Guardando...' : 'Confirmar cierre'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* ===== MODAL: HISTORIAL ACADÉMICO ===== */}
             {historial.abierto && (
@@ -574,6 +835,7 @@ export default function AlumnosPage() {
                                             <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Curso</th>
                                             <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Legajo</th>
                                             <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Estado</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Tipo cierre</th>
                                             <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: 10, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Cierre</th>
                                         </tr>
                                     </thead>
@@ -586,6 +848,15 @@ export default function AlumnosPage() {
                                                     <td style={{ padding: '10px 12px', color: '#4b5563' }}>{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
                                                     <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>{r.legajo || '—'}</td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>{badgeEstado(r.estado)}</td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11 }}>
+                                                        {r.cierre_automatico ? (
+                                                            <span style={{ color: '#059669', fontWeight: 600 }}>Automático</span>
+                                                        ) : r.observacion_cierre ? (
+                                                            <span style={{ color: '#d97706', fontWeight: 600 }}>Manual</span>
+                                                        ) : (
+                                                            <span style={{ color: '#9ca3af' }}>—</span>
+                                                        )}
+                                                    </td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: '#6b7280' }}>{r.fecha_condicion ? formatearFechaLarga(r.fecha_condicion) : '—'}</td>
                                                 </tr>
                                             );
@@ -609,9 +880,20 @@ export default function AlumnosPage() {
                                                 {badgeEstado(r.estado)}
                                             </div>
                                             <div className="card-alumno-curso">
-                                                <span className="card-alumno-label">Cierre:</span>
+                                                <span className="card-alumno-label">Tipo cierre:</span>
+                                                <span className="card-alumno-valor">
+                                                    {r.cierre_automatico ? 'Automático' : r.observacion_cierre ? 'Manual' : '—'}
+                                                </span>
+                                            </div>
+                                            <div className="card-alumno-curso">
+                                                <span className="card-alumno-label">Fecha:</span>
                                                 <span className="card-alumno-valor">{r.fecha_condicion ? formatearFechaLarga(r.fecha_condicion) : 'En curso'}</span>
                                             </div>
+                                            {r.observacion_cierre && (
+                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8, padding: 8, background: '#f9fafb', borderRadius: 4, borderLeft: '3px solid #d97706' }}>
+                                                    <strong>Observación:</strong> {r.observacion_cierre}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -625,7 +907,7 @@ export default function AlumnosPage() {
                 </div>
             )}
 
-            {/* ✅ MEJORA 1: MODAL EDITAR ALUMNO */}
+            {/* ===== MODAL: EDITAR ALUMNO ===== */}
             {editarAlumno.abierto && editarAlumno.alumno && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setEditarAlumno({ abierto: false, alumno: null, datos: {} })}>
                     <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -744,6 +1026,12 @@ export default function AlumnosPage() {
                                                 })}
                                             </div>
                                         </div>
+                                        {alumnoFicha.observacion_cierre && (
+                                            <div style={{ marginBottom: 24, padding: 12, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6 }}>
+                                                <h3 style={{ fontSize: 12, fontWeight: 700, color: '#92400e', margin: '0 0 6px 0', textTransform: 'uppercase' }}>Observación de cierre</h3>
+                                                <div style={{ fontSize: 13, color: '#78350f' }}>{alumnoFicha.observacion_cierre}</div>
+                                            </div>
+                                        )}
                                     </>
                                 );
                             })()}
