@@ -26,6 +26,17 @@ function formatearFechaLarga(fechaISO) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+// Helper para extraer datos del alumno (desde fp_alumnos o fallback a inscripción)
+function datosAlumno(insc) {
+    const al = insc.fp_alumnos || insc;
+    return {
+        legajo: al.legajo || insc.legajo,
+        dni: al.dni || insc.dni,
+        apellido: al.apellido || insc.apellido,
+        nombre: al.nombre || insc.nombre,
+    };
+}
+
 export default function AsistenciasPage() {
     const { docente, cargando } = useDocente();
     const [cursos, setCursos] = useState([]);
@@ -71,21 +82,33 @@ export default function AsistenciasPage() {
     async function cargarAlumnosYAsistencias() {
         setCargandoDatos(true);
         try {
-            const { data: inscripciones } = await supabase
+            // ✅ JOIN con fp_alumnos y filtro solo para alumnos activos
+            const { data: inscripciones, error: errorInsc } = await supabase
                 .from('fp_inscripciones')
-                .select('*')
+                .select('*, fp_alumnos(*)')
                 .eq('fp_curso_id', cursoSeleccionado)
-                .order('apellido');
+                .in('estado', ['inscripto', 'en_curso']);
 
-            setAlumnos(inscripciones || []);
+            if (errorInsc) throw errorInsc;
 
-            if (inscripciones && inscripciones.length > 0) {
-                const idsInscripciones = inscripciones.map(i => i.id);
-                const { data: asistenciasData } = await supabase
+            // Ordenar por apellido en el cliente para evitar problemas de orden en relaciones
+            const inscripcionesOrdenadas = (inscripciones || []).sort((a, b) => {
+                const apellidoA = (a.fp_alumnos?.apellido || a.apellido || '').toLowerCase();
+                const apellidoB = (b.fp_alumnos?.apellido || b.apellido || '').toLowerCase();
+                return apellidoA.localeCompare(apellidoB);
+            });
+
+            setAlumnos(inscripcionesOrdenadas);
+
+            if (inscripcionesOrdenadas && inscripcionesOrdenadas.length > 0) {
+                const idsInscripciones = inscripcionesOrdenadas.map(i => i.id);
+                const { data: asistenciasData, error: errorAsist } = await supabase
                     .from('fp_asistencia')
                     .select('*')
                     .in('fp_inscripcion_id', idsInscripciones)
                     .eq('fecha', fecha);
+
+                if (errorAsist) throw errorAsist;
 
                 const asistenciasMap = {};
                 const horasMap = {};
@@ -95,7 +118,7 @@ export default function AsistenciasPage() {
                 });
 
                 // Default: todos AUSENTES hasta que el preceptor los marque
-                inscripciones.forEach(insc => {
+                inscripcionesOrdenadas.forEach(insc => {
                     if (!asistenciasMap[insc.id]) {
                         asistenciasMap[insc.id] = 'ausente';
                         horasMap[insc.id] = null;
@@ -110,6 +133,7 @@ export default function AsistenciasPage() {
             }
         } catch (err) {
             console.error('Error al cargar datos:', err);
+            setMensaje({ tipo: 'error', texto: `Error al cargar datos: ${err.message}` });
         } finally {
             setCargandoDatos(false);
         }
@@ -134,21 +158,45 @@ export default function AsistenciasPage() {
             }));
 
             const idsInscripciones = Object.keys(asistencias).map(id => Number(id));
+
+            // 1. Eliminar asistencias existentes de esa fecha
             await supabase
                 .from('fp_asistencia')
                 .delete()
                 .in('fp_inscripcion_id', idsInscripciones)
                 .eq('fecha', fecha);
 
+            // 2. Insertar las nuevas
             const { error } = await supabase
                 .from('fp_asistencia')
                 .insert(asistenciasAGuardar);
 
             if (error) throw error;
 
+            // 3. ✅ Recalcular y actualizar el porcentaje de asistencia para cada alumno
+            for (const inscripcionId of idsInscripciones) {
+                const { data: histAsist } = await supabase
+                    .from('fp_asistencia')
+                    .select('estado')
+                    .eq('fp_inscripcion_id', inscripcionId);
+
+                if (histAsist && histAsist.length > 0) {
+                    const total = histAsist.length;
+                    const asistio = histAsist.filter(a => a.estado === 'presente' || a.estado === 'tarde').length;
+                    const porcentaje = Math.round((asistio / total) * 100);
+
+                    await supabase
+                        .from('fp_inscripciones')
+                        .update({ porcentaje_asistencia: porcentaje })
+                        .eq('id', inscripcionId);
+                }
+            }
+
             const s = contarAsistencias();
             setMensaje({ tipo: 'ok', texto: `Asistencias registradas a las ${horaActual}. ${s.presentes} presentes, ${s.tarde} tardes, ${s.ausentes} ausentes.` });
-            await cargarAlumnosYAsistencias(); // refresca las horas de carga
+
+            // Recargar para actualizar horas y porcentajes
+            await cargarAlumnosYAsistencias();
             setTimeout(() => setMensaje(null), 4000);
         } catch (err) {
             console.error('Error al guardar:', err);
@@ -178,7 +226,6 @@ export default function AsistenciasPage() {
     const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
     const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', color: '#1e3a8a' };
 
-    // Renderiza los 3 botones de estado (reutilizado en tabla y cards)
     function BotonesEstado(alumnoId) {
         const estado = asistencias[alumnoId];
         return (
@@ -292,7 +339,7 @@ export default function AsistenciasPage() {
                             {cargandoDatos ? (
                                 <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>Cargando datos...</div>
                             ) : alumnos.length === 0 ? (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay alumnos inscriptos en este curso.</div>
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay alumnos activos inscriptos en este curso.</div>
                             ) : (
                                 <>
                                     {/* ===== VISTA ESCRITORIO: TABLA ===== */}
@@ -309,25 +356,28 @@ export default function AsistenciasPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {alumnos.map((alumno, idx) => (
-                                                        <tr key={alumno.id} style={{ borderBottom: idx < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                                                                {BotonesEstado(alumno.id)}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>
-                                                                {alumno.legajo || '—'}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>
-                                                                {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px', color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>
-                                                                {alumno.dni || '—'}
-                                                            </td>
-                                                            <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, color: horasCarga[alumno.id] ? '#059669' : '#9ca3af', fontWeight: 600 }}>
-                                                                {formatearHora(horasCarga[alumno.id])}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                    {alumnos.map((alumno, idx) => {
+                                                        const d = datosAlumno(alumno);
+                                                        return (
+                                                            <tr key={alumno.id} style={{ borderBottom: idx < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                                    {BotonesEstado(alumno.id)}
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>
+                                                                    {d.legajo || '—'}
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>
+                                                                    {d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px', color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>
+                                                                    {d.dni || '—'}
+                                                                </td>
+                                                                <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, color: horasCarga[alumno.id] ? '#059669' : '#9ca3af', fontWeight: 600 }}>
+                                                                    {formatearHora(horasCarga[alumno.id])}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -335,43 +385,46 @@ export default function AsistenciasPage() {
 
                                     {/* ===== VISTA MÓVIL: CARDS ===== */}
                                     <div className="vista-mobile" style={{ padding: 12 }}>
-                                        {alumnos.map(alumno => (
-                                            <div key={alumno.id} className="card-asistencia">
-                                                <div className="card-asistencia-top">
-                                                    <div>
-                                                        <div className="card-asistencia-nombre">
-                                                            {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
+                                        {alumnos.map(alumno => {
+                                            const d = datosAlumno(alumno);
+                                            return (
+                                                <div key={alumno.id} className="card-asistencia">
+                                                    <div className="card-asistencia-top">
+                                                        <div>
+                                                            <div className="card-asistencia-nombre">
+                                                                {d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}
+                                                            </div>
+                                                            <div className="card-asistencia-meta">
+                                                                {d.legajo ? `${d.legajo} · ` : ''}DNI {d.dni || '—'}
+                                                            </div>
                                                         </div>
-                                                        <div className="card-asistencia-meta">
-                                                            {alumno.legajo ? `${alumno.legajo} · ` : ''}DNI {alumno.dni || '—'}
+                                                        <div className="card-asistencia-hora">
+                                                            Carga: {formatearHora(horasCarga[alumno.id])}
                                                         </div>
                                                     </div>
-                                                    <div className="card-asistencia-hora">
-                                                        Carga: {formatearHora(horasCarga[alumno.id])}
+                                                    <div className="card-asistencia-botones">
+                                                        <button
+                                                            onClick={() => actualizarAsistencia(alumno.id, 'presente')}
+                                                            className={`btn-asist btn-asist-p ${asistencias[alumno.id] === 'presente' ? 'activo' : ''}`}
+                                                        >
+                                                            {Iconos.presente} Presente
+                                                        </button>
+                                                        <button
+                                                            onClick={() => actualizarAsistencia(alumno.id, 'tarde')}
+                                                            className={`btn-asist btn-asist-t ${asistencias[alumno.id] === 'tarde' ? 'activo' : ''}`}
+                                                        >
+                                                            {Iconos.tarde} Tarde
+                                                        </button>
+                                                        <button
+                                                            onClick={() => actualizarAsistencia(alumno.id, 'ausente')}
+                                                            className={`btn-asist btn-asist-a ${asistencias[alumno.id] === 'ausente' ? 'activo' : ''}`}
+                                                        >
+                                                            {Iconos.ausente} Ausente
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div className="card-asistencia-botones">
-                                                    <button
-                                                        onClick={() => actualizarAsistencia(alumno.id, 'presente')}
-                                                        className={`btn-asist btn-asist-p ${asistencias[alumno.id] === 'presente' ? 'activo' : ''}`}
-                                                    >
-                                                        {Iconos.presente} Presente
-                                                    </button>
-                                                    <button
-                                                        onClick={() => actualizarAsistencia(alumno.id, 'tarde')}
-                                                        className={`btn-asist btn-asist-t ${asistencias[alumno.id] === 'tarde' ? 'activo' : ''}`}
-                                                    >
-                                                        {Iconos.tarde} Tarde
-                                                    </button>
-                                                    <button
-                                                        onClick={() => actualizarAsistencia(alumno.id, 'ausente')}
-                                                        className={`btn-asist btn-asist-a ${asistencias[alumno.id] === 'ausente' ? 'activo' : ''}`}
-                                                    >
-                                                        {Iconos.ausente} Ausente
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </>
                             )}
