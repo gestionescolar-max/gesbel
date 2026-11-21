@@ -345,6 +345,7 @@ function getMenuItems(docente) {
     if (docente.esAdmin) {
         items.push({ tipo: 'separador', label: 'Administración' });
         items.push({ label: 'Panel de control', ruta: '/admin', icono: Iconos.admin });
+        items.push({ label: 'Calendario', ruta: '/admin/calendario', icono: Iconos.calendario });
         items.push({ label: 'Asignar preceptores', ruta: '/admin/asignar-preceptores', icono: Iconos.preceptores });
         items.push({ label: 'Estadísticas', ruta: '/admin/estadisticas', icono: Iconos.estadisticas });
         items.push({ label: 'Configuración', ruta: '/admin/configuracion', icono: Iconos.config });
