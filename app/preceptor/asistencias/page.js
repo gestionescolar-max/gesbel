@@ -26,7 +26,12 @@ function formatearFechaLarga(fechaISO) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// Helper para extraer datos del alumno (desde fp_alumnos o fallback a inscripción)
+// Limpia el sufijo de año del nombre del curso ("Soldador — 2026" -> "Soldador")
+function limpiarNombreCurso(nombre) {
+    return nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
+}
+
+// Extrae datos del alumno desde fp_alumnos (con fallback a la inscripción)
 function datosAlumno(insc) {
     const al = insc.fp_alumnos || insc;
     return {
@@ -39,7 +44,9 @@ function datosAlumno(insc) {
 
 export default function AsistenciasPage() {
     const { docente, cargando } = useDocente();
+    const anioActual = new Date().getFullYear();
     const [cursos, setCursos] = useState([]);
+    const [filtroCiclo, setFiltroCiclo] = useState(anioActual); // ✅ nuevo
     const [cursoSeleccionado, setCursoSeleccionado] = useState(null);
     const [alumnos, setAlumnos] = useState([]);
     const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -65,6 +72,7 @@ export default function AsistenciasPage() {
             let query = supabase
                 .from('fp_cursos')
                 .select('*')
+                .lte('anio', anioActual) // ✅ oculta cursos de años futuros
                 .order('nombre');
 
             if (docente.id && !docente.esAdmin && !docente.esDirectivo && !docente.esPreceptor) {
@@ -79,10 +87,21 @@ export default function AsistenciasPage() {
         }
     }
 
+    // Ciclos disponibles: solo años <= actual, ordenados del más reciente al más viejo
+    function obtenerCiclosDisponibles() {
+        return [...new Set(cursos.map(c => c.anio))].sort((a, b) => b - a);
+    }
+
+    // Cursos del ciclo seleccionado, ordenados por nombre limpio
+    function obtenerCursosDelCiclo() {
+        return cursos
+            .filter(c => c.anio === filtroCiclo)
+            .sort((a, b) => limpiarNombreCurso(a.nombre).localeCompare(limpiarNombreCurso(b.nombre)));
+    }
+
     async function cargarAlumnosYAsistencias() {
         setCargandoDatos(true);
         try {
-            // ✅ JOIN con fp_alumnos y filtro solo para alumnos activos
             const { data: inscripciones, error: errorInsc } = await supabase
                 .from('fp_inscripciones')
                 .select('*, fp_alumnos(*)')
@@ -91,7 +110,6 @@ export default function AsistenciasPage() {
 
             if (errorInsc) throw errorInsc;
 
-            // Ordenar por apellido en el cliente para evitar problemas de orden en relaciones
             const inscripcionesOrdenadas = (inscripciones || []).sort((a, b) => {
                 const apellidoA = (a.fp_alumnos?.apellido || a.apellido || '').toLowerCase();
                 const apellidoB = (b.fp_alumnos?.apellido || b.apellido || '').toLowerCase();
@@ -159,21 +177,19 @@ export default function AsistenciasPage() {
 
             const idsInscripciones = Object.keys(asistencias).map(id => Number(id));
 
-            // 1. Eliminar asistencias existentes de esa fecha
             await supabase
                 .from('fp_asistencia')
                 .delete()
                 .in('fp_inscripcion_id', idsInscripciones)
                 .eq('fecha', fecha);
 
-            // 2. Insertar las nuevas
             const { error } = await supabase
                 .from('fp_asistencia')
                 .insert(asistenciasAGuardar);
 
             if (error) throw error;
 
-            // 3. ✅ Recalcular y actualizar el porcentaje de asistencia para cada alumno
+            // Recalcular porcentaje de asistencia acumulado para el cierre automático
             for (const inscripcionId of idsInscripciones) {
                 const { data: histAsist } = await supabase
                     .from('fp_asistencia')
@@ -194,8 +210,6 @@ export default function AsistenciasPage() {
 
             const s = contarAsistencias();
             setMensaje({ tipo: 'ok', texto: `Asistencias registradas a las ${horaActual}. ${s.presentes} presentes, ${s.tarde} tardes, ${s.ausentes} ausentes.` });
-
-            // Recargar para actualizar horas y porcentajes
             await cargarAlumnosYAsistencias();
             setTimeout(() => setMensaje(null), 4000);
         } catch (err) {
@@ -275,7 +289,19 @@ export default function AsistenciasPage() {
 
                 {/* Filtros */}
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, marginBottom: 24 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                        <div>
+                            <label style={labelStyle}>Ciclo Lectivo</label>
+                            <select
+                                value={filtroCiclo}
+                                onChange={(e) => { setFiltroCiclo(Number(e.target.value)); setCursoSeleccionado(null); }}
+                                style={inputStyle}
+                            >
+                                {obtenerCiclosDisponibles().map(anio => (
+                                    <option key={anio} value={anio}>Ciclo {anio}{anio === anioActual ? ' (vigente)' : ''}</option>
+                                ))}
+                            </select>
+                        </div>
                         <div>
                             <label style={labelStyle}>Curso</label>
                             <select
@@ -284,9 +310,9 @@ export default function AsistenciasPage() {
                                 style={inputStyle}
                             >
                                 <option value="">Seleccionar curso...</option>
-                                {cursos.map(curso => (
+                                {obtenerCursosDelCiclo().map(curso => (
                                     <option key={curso.id} value={curso.id}>
-                                        {curso.nombre} - {curso.turno} {curso.anio}
+                                        {limpiarNombreCurso(curso.nombre)} ({curso.turno})
                                     </option>
                                 ))}
                             </select>
@@ -461,7 +487,7 @@ export default function AsistenciasPage() {
                             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         </div>
                         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: '#1e3a8a' }}>Seleccione un curso para registrar asistencia</div>
-                        <div style={{ fontSize: 13 }}>Elija el curso y la fecha correspondiente para comenzar.</div>
+                        <div style={{ fontSize: 13 }}>Elija el ciclo, el curso y la fecha correspondiente para comenzar.</div>
                     </div>
                 )}
             </div>
