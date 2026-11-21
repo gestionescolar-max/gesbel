@@ -20,10 +20,11 @@ const Iconos = {
     ciclo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>,
     historial: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>,
     cerrar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>,
-    reabrir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+    reabrir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>,
+    editar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>,
+    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
 };
 
-// Estados que se consideran "cursantes" (activos o finalizados)
 const ESTADOS_CURSANTES = ['inscripto', 'en_curso', 'aprobado', 'desaprobado', 'abandono', 'diferido'];
 
 const ESTILOS_ESTADO = {
@@ -73,15 +74,19 @@ export default function AlumnosPage() {
     const { docente, cargando } = useDocente();
     const [alumnos, setAlumnos] = useState([]);
     const [cursos, setCursos] = useState([]);
+    const [conteoCursos, setConteoCursos] = useState({}); // { fp_alumno_id: cantidad }
     const [filtroCiclo, setFiltroCiclo] = useState('todos');
     const [filtroCurso, setFiltroCurso] = useState('todos');
     const [filtroEstado, setFiltroEstado] = useState('todos');
+    const [filtroDocPendiente, setFiltroDocPendiente] = useState(false); // ✅ MEJORA 3
     const [busqueda, setBusqueda] = useState('');
     const [alumnoFicha, setAlumnoFicha] = useState(null);
     const [mostrarFicha, setMostrarFicha] = useState(false);
     const [cierre, setCierre] = useState({ abierto: false, alumno: null, resultado: '' });
     const [historial, setHistorial] = useState({ abierto: false, dni: '', nombre: '', registros: [] });
     const [cargandoHistorial, setCargandoHistorial] = useState(false);
+    const [editarAlumno, setEditarAlumno] = useState({ abierto: false, alumno: null, datos: {} }); // ✅ MEJORA 1
+    const [guardandoEdicion, setGuardandoEdicion] = useState(false);
     const [mensaje, setMensaje] = useState(null);
     const [procesando, setProcesando] = useState(false);
     const fichaRef = useRef(null);
@@ -92,7 +97,6 @@ export default function AlumnosPage() {
         try {
             const [{ data: cursosData }, { data: alumnosData }] = await Promise.all([
                 supabase.from('fp_cursos').select('id, nombre, anio, turno, cupo').order('nombre'),
-                // ✅ JOIN con fp_alumnos para traer datos personales desde la tabla correcta
                 supabase
                     .from('fp_inscripciones')
                     .select('*, fp_alumnos(*)')
@@ -101,6 +105,14 @@ export default function AlumnosPage() {
             ]);
             setCursos(cursosData || []);
             setAlumnos(alumnosData || []);
+
+            // ✅ MEJORA 2: contar cursos por alumno
+            const conteo = {};
+            (alumnosData || []).forEach(a => {
+                const id = a.fp_alumno_id;
+                if (id) conteo[id] = (conteo[id] || 0) + 1;
+            });
+            setConteoCursos(conteo);
         } catch (err) {
             console.error('Error al cargar datos:', err);
         }
@@ -110,10 +122,10 @@ export default function AlumnosPage() {
         return [...new Set(cursos.map(c => c.anio))].sort((a, b) => b - a);
     }
 
-    // Helper: extrae datos del alumno (desde fp_alumnos si existe, sino desde inscripción)
     function datosAlumno(a) {
         const al = a.fp_alumnos || a;
         return {
+            id: al.id,
             legajo: al.legajo || a.legajo,
             dni: al.dni || a.dni,
             apellido: al.apellido || a.apellido,
@@ -139,6 +151,7 @@ export default function AlumnosPage() {
         }
         if (filtroCurso !== 'todos') resultado = resultado.filter(a => a.fp_curso_id === Number(filtroCurso));
         if (filtroEstado !== 'todos') resultado = resultado.filter(a => a.estado === filtroEstado);
+        if (filtroDocPendiente) resultado = resultado.filter(a => !a.documentacion_completa); // ✅ MEJORA 3
         if (busqueda) {
             const q = busqueda.toLowerCase();
             resultado = resultado.filter(a => {
@@ -154,12 +167,10 @@ export default function AlumnosPage() {
         return resultado;
     }
 
-    // ✅ Abrir modal de cierre de cursado
     function abrirCierre(a) {
         setCierre({ abierto: true, alumno: a, resultado: '' });
     }
 
-    // ✅ Confirmar cierre de cursado
     async function confirmarCierre() {
         if (!cierre.alumno || !cierre.resultado) return;
         setProcesando(true);
@@ -180,7 +191,6 @@ export default function AlumnosPage() {
         }
     }
 
-    // ✅ Reabrir cursado (volver a "en_curso")
     async function reabrirCursado(a) {
         if (!confirm(`¿Reabrir el cursado de ${datosAlumno(a).apellido}, ${datosAlumno(a).nombre}?`)) return;
         setProcesando(true);
@@ -200,7 +210,6 @@ export default function AlumnosPage() {
         }
     }
 
-    // ✅ Abrir modal de historial académico
     async function abrirHistorial(a) {
         const d = datosAlumno(a);
         if (!d.dni) {
@@ -210,29 +219,73 @@ export default function AlumnosPage() {
         setCargandoHistorial(true);
         setHistorial({ abierto: true, dni: d.dni, nombre: `${d.apellido || ''}, ${d.nombre}`, registros: [] });
         try {
-            // 1. Buscar el alumno en fp_alumnos por DNI
             const { data: alumnoData, error: errorAlumno } = await supabase
                 .from('fp_alumnos')
                 .select('id')
                 .eq('dni', d.dni)
                 .single();
-
             if (errorAlumno) throw errorAlumno;
-
-            // 2. Buscar todas las inscripciones de ese alumno
             const { data: inscripcionesData, error: errorInscripciones } = await supabase
                 .from('fp_inscripciones')
                 .select('id, legajo, fp_curso_id, ciclo_lectivo, estado, fecha_inscripcion, fecha_condicion, documentacion_completa')
                 .eq('fp_alumno_id', alumnoData.id)
                 .order('ciclo_lectivo', { ascending: false });
-
             if (errorInscripciones) throw errorInscripciones;
-
             setHistorial(prev => ({ ...prev, registros: inscripcionesData || [] }));
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar historial: ${err.message}` });
         } finally {
             setCargandoHistorial(false);
+        }
+    }
+
+    // ✅ MEJORA 1: Abrir modal de edición
+    function abrirEditar(a) {
+        const d = datosAlumno(a);
+        setEditarAlumno({
+            abierto: true,
+            alumno: a,
+            datos: {
+                telefono: d.telefono || '',
+                email: d.email || '',
+                domicilio: d.domicilio || '',
+                emergencia_nombre: d.emergencia_nombre || '',
+                emergencia_parentesco: d.emergencia_parentesco || '',
+                emergencia_telefono: d.emergencia_telefono || ''
+            }
+        });
+    }
+
+    // ✅ MEJORA 1: Guardar edición
+    async function guardarEdicion() {
+        if (!editarAlumno.alumno) return;
+        const d = datosAlumno(editarAlumno.alumno);
+        if (!d.id) {
+            setMensaje({ tipo: 'error', texto: 'No se pudo identificar al alumno.' });
+            return;
+        }
+        setGuardandoEdicion(true);
+        try {
+            const { error } = await supabase
+                .from('fp_alumnos')
+                .update({
+                    telefono: editarAlumno.datos.telefono || null,
+                    email: editarAlumno.datos.email || null,
+                    domicilio: editarAlumno.datos.domicilio || null,
+                    emergencia_nombre: editarAlumno.datos.emergencia_nombre || null,
+                    emergencia_parentesco: editarAlumno.datos.emergencia_parentesco || null,
+                    emergencia_telefono: editarAlumno.datos.emergencia_telefono || null
+                })
+                .eq('id', d.id);
+            if (error) throw error;
+            setMensaje({ tipo: 'ok', texto: 'Datos del alumno actualizados correctamente.' });
+            setEditarAlumno({ abierto: false, alumno: null, datos: {} });
+            await cargarDatos();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setGuardandoEdicion(false);
         }
     }
 
@@ -259,6 +312,7 @@ export default function AlumnosPage() {
     const enCurso = alumnos.filter(a => a.estado === 'en_curso').length;
     const inscriptos = alumnos.filter(a => a.estado === 'inscripto').length;
     const finalizados = alumnos.filter(a => ['aprobado', 'desaprobado', 'abandono', 'diferido'].includes(a.estado)).length;
+    const conDocPendiente = alumnos.filter(a => !a.documentacion_completa).length;
 
     return (
         <Sidebar docente={docente} titulo="Gestión de Alumnos Cursantes">
@@ -298,6 +352,10 @@ export default function AlumnosPage() {
                         <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 4 }}>Finalizados</div>
                         <div style={{ fontSize: 28, fontWeight: 700, color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>{finalizados}</div>
                     </div>
+                    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #b91c1c' }}>
+                        <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 4 }}>Docs. pendiente</div>
+                        <div style={{ fontSize: 28, fontWeight: 700, color: '#b91c1c', fontVariantNumeric: 'tabular-nums' }}>{conDocPendiente}</div>
+                    </div>
                 </div>
 
                 {/* Filtros */}
@@ -306,6 +364,15 @@ export default function AlumnosPage() {
                     <div><label style={labelStyle}>Curso</label><select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}><option value="todos">Todos los cursos</option>{cursos.filter(c => filtroCiclo === 'todos' || c.anio === Number(filtroCiclo)).map(c => { const n = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim(); return <option key={c.id} value={c.id}>{n}</option>; })}</select></div>
                     <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos</option><option value="inscripto">Inscripto</option><option value="en_curso">En cursado</option><option value="aprobado">Aprobado</option><option value="desaprobado">Desaprobado</option><option value="abandono">Abandono</option><option value="diferido">Diferido</option></select></div>
                     <div><label style={labelStyle}>Búsqueda</label><input type="text" placeholder="Nombre, DNI o legajo..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} /></div>
+                    {/* ✅ MEJORA 3: Filtro documentación pendiente */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', background: filtroDocPendiente ? '#fef2f2' : '#fff', border: `1px solid ${filtroDocPendiente ? '#b91c1c' : '#d1d5db'}`, borderRadius: 6, width: '100%' }}>
+                            <input type="checkbox" checked={filtroDocPendiente} onChange={(e) => setFiltroDocPendiente(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                            <span style={{ fontSize: 13, color: filtroDocPendiente ? '#b91c1c' : '#4b5563', fontWeight: filtroDocPendiente ? 600 : 400 }}>
+                                Solo documentación pendiente
+                            </span>
+                        </label>
+                    </div>
                 </div>
 
                 {/* Listado */}
@@ -317,7 +384,7 @@ export default function AlumnosPage() {
                             {/* ===== ESCRITORIO: TABLA ===== */}
                             <div className="vista-desktop">
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 900 }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 1000 }}>
                                         <thead>
                                             <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                                                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Legajo</th>
@@ -326,6 +393,7 @@ export default function AlumnosPage() {
                                                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Curso</th>
                                                 <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Edad</th>
                                                 <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Estado</th>
+                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Docs</th>
                                                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>Acciones</th>
                                             </tr>
                                         </thead>
@@ -335,33 +403,57 @@ export default function AlumnosPage() {
                                                 const d = datosAlumno(a);
                                                 const edad = calcularEdad(d.fecha_nac);
                                                 const finalizado = a.estado !== 'en_curso' && a.estado !== 'inscripto';
+                                                const totalCursos = conteoCursos[a.fp_alumno_id] || 1;
+                                                const docCompleta = a.documentacion_completa;
                                                 return (
                                                     <tr key={a.id} style={{ borderBottom: idx < filtrados.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                         <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: 'monospace' }}>{d.legajo || '—'}</td>
-                                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>{d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}</td>
+                                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>
+                                                            <div>{d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}</div>
+                                                            {/* ✅ MEJORA 2: Badge de cantidad de cursos */}
+                                                            {totalCursos > 1 && (
+                                                                <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontWeight: 500 }}>
+                                                                    {totalCursos} cursos en total
+                                                                </div>
+                                                            )}
+                                                        </td>
                                                         <td style={{ padding: '12px 16px', color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>{d.dni || '—'}</td>
                                                         <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center', color: '#1e3a8a', fontWeight: 600 }}>{edad !== null ? `${edad}` : '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>{badgeEstado(a.estado)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            {docCompleta ? (
+                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+                                                                    Completa
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+                                                                    Pendiente
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                            <button onClick={() => abrirFicha(a)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>
-                                                                {Iconos.imprimir} Ficha
+                                                            <button onClick={() => abrirFicha(a)} title="Ver ficha" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
+                                                                {Iconos.imprimir}
                                                             </button>
-                                                            <button onClick={() => abrirHistorial(a)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>
-                                                                {Iconos.historial} Historial
+                                                            <button onClick={() => abrirEditar(a)} title="Editar datos" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#d97706', border: '1px solid #d97706', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
+                                                                {Iconos.editar}
+                                                            </button>
+                                                            <button onClick={() => abrirHistorial(a)} title="Historial académico" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
+                                                                {Iconos.historial}
                                                             </button>
                                                             {a.url_carpeta_drive && (
-                                                                <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6, textDecoration: 'none' }}>
-                                                                    {Iconos.externo} Carpeta
+                                                                <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" title="Carpeta Drive" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4, textDecoration: 'none' }}>
+                                                                    {Iconos.externo}
                                                                 </a>
                                                             )}
                                                             {!finalizado ? (
-                                                                <button onClick={() => abrirCierre(a)} disabled={procesando} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-                                                                    {Iconos.cerrar} Cerrar cursado
+                                                                <button onClick={() => abrirCierre(a)} disabled={procesando} title="Cerrar cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                                                                    {Iconos.cerrar}
                                                                 </button>
                                                             ) : (
-                                                                <button onClick={() => reabrirCursado(a)} disabled={procesando} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#4b5563', border: '1px solid #9ca3af', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-                                                                    {Iconos.reabrir} Reabrir
+                                                                <button onClick={() => reabrirCursado(a)} disabled={procesando} title="Reabrir cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#4b5563', border: '1px solid #9ca3af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                                                                    {Iconos.reabrir}
                                                                 </button>
                                                             )}
                                                         </td>
@@ -380,13 +472,28 @@ export default function AlumnosPage() {
                                     const d = datosAlumno(a);
                                     const edad = calcularEdad(d.fecha_nac);
                                     const finalizado = a.estado !== 'en_curso' && a.estado !== 'inscripto';
-                                    const s = ESTILOS_ESTADO[a.estado] || { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' };
+                                    const totalCursos = conteoCursos[a.fp_alumno_id] || 1;
+                                    const docCompleta = a.documentacion_completa;
                                     return (
                                         <div key={a.id} className="card-alumno">
                                             <div className="card-alumno-header">
                                                 <div>
-                                                    <div className="card-alumno-nombre">{d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}</div>
-                                                    <div className="card-alumno-dni">{d.legajo ? `${d.legajo} · ` : ''}DNI {d.dni || '—'} {edad !== null ? `· ${edad} años` : ''}</div>
+                                                    <div className="card-alumno-nombre">
+                                                        {d.apellido ? `${d.apellido}, ${d.nombre}` : d.nombre}
+                                                        {totalCursos > 1 && (
+                                                            <span style={{ display: 'inline-block', marginLeft: 8, padding: '2px 6px', background: '#eff6ff', color: '#1e40af', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>
+                                                                {totalCursos} cursos
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="card-alumno-dni">
+                                                        {d.legajo ? `${d.legajo} · ` : ''}DNI {d.dni || '—'} {edad !== null ? `· ${edad} años` : ''}
+                                                        {!docCompleta && (
+                                                            <span style={{ display: 'inline-block', marginLeft: 8, padding: '2px 6px', background: '#fef2f2', color: '#b91c1c', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>
+                                                                Docs. pendiente
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 {badgeEstado(a.estado)}
                                             </div>
@@ -396,10 +503,11 @@ export default function AlumnosPage() {
                                             </div>
                                             <div className="card-alumno-acciones">
                                                 <button onClick={() => abrirFicha(a)} className="btn-card btn-card-secundario">Ficha</button>
+                                                <button onClick={() => abrirEditar(a)} className="btn-card btn-card-secundario">Editar</button>
                                                 <button onClick={() => abrirHistorial(a)} className="btn-card btn-card-secundario">Historial</button>
                                                 {a.url_carpeta_drive && (<a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" className="btn-card btn-card-secundario">Carpeta</a>)}
                                                 {!finalizado ? (
-                                                    <button onClick={() => abrirCierre(a)} disabled={procesando} className="btn-card btn-card-primario">Cerrar cursado</button>
+                                                    <button onClick={() => abrirCierre(a)} disabled={procesando} className="btn-card btn-card-primario">Cerrar</button>
                                                 ) : (
                                                     <button onClick={() => reabrirCursado(a)} disabled={procesando} className="btn-card btn-card-secundario">Reabrir</button>
                                                 )}
@@ -517,6 +625,60 @@ export default function AlumnosPage() {
                 </div>
             )}
 
+            {/* ✅ MEJORA 1: MODAL EDITAR ALUMNO */}
+            {editarAlumno.abierto && editarAlumno.alumno && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setEditarAlumno({ abierto: false, alumno: null, datos: {} })}>
+                    <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Editar datos del alumno</h3>
+                        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>
+                            {datosAlumno(editarAlumno.alumno).apellido}, {datosAlumno(editarAlumno.alumno).nombre} · Legajo {datosAlumno(editarAlumno.alumno).legajo}
+                        </p>
+
+                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 20, fontSize: 12, color: '#1e40af' }}>
+                            Los datos de identidad (DNI, apellido, nombre) solo pueden modificarse desde la inscripción original. Aquí se editan los datos de contacto y emergencia.
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                            <div>
+                                <label style={labelStyle}>Teléfono</label>
+                                <input type="tel" value={editarAlumno.datos.telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, telefono: e.target.value } }))} style={inputStyle} placeholder="2345-123456" />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Email</label>
+                                <input type="email" value={editarAlumno.datos.email} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, email: e.target.value } }))} style={inputStyle} placeholder="ejemplo@mail.com" />
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <label style={labelStyle}>Domicilio</label>
+                                <input type="text" value={editarAlumno.datos.domicilio} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, domicilio: e.target.value } }))} style={inputStyle} placeholder="Calle, número, localidad" />
+                            </div>
+                        </div>
+
+                        <h4 style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', margin: '20px 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.05em', paddingBottom: 6, borderBottom: '1px solid #e5e7eb' }}>Contacto de emergencia</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                                <label style={labelStyle}>Nombre completo</label>
+                                <input type="text" value={editarAlumno.datos.emergencia_nombre} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_nombre: e.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Parentesco</label>
+                                <input type="text" value={editarAlumno.datos.emergencia_parentesco} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_parentesco: e.target.value } }))} style={inputStyle} placeholder="Padre, madre, etc." />
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <label style={labelStyle}>Teléfono</label>
+                                <input type="tel" value={editarAlumno.datos.emergencia_telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_telefono: e.target.value } }))} style={inputStyle} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                            <button onClick={() => setEditarAlumno({ abierto: false, alumno: null, datos: {} })} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={guardarEdicion} disabled={guardandoEdicion} style={{ background: guardandoEdicion ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: guardandoEdicion ? 'not-allowed' : 'pointer' }}>
+                                {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ===== MODAL: FICHA DEL ALUMNO ===== */}
             {mostrarFicha && alumnoFicha && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setMostrarFicha(false)}>
@@ -524,12 +686,13 @@ export default function AlumnosPage() {
                         <div ref={fichaRef}>
                             {(() => {
                                 const d = datosAlumno(alumnoFicha);
+                                const totalCursos = conteoCursos[alumnoFicha.fp_alumno_id] || 1;
                                 return (
                                     <>
                                         <div style={{ textAlign: 'center', marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #1e3a8a' }}>
                                             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 8, marginTop: 0 }}>ESCUELA TÉCNICA FRAY LUIS BELTRÁN</h1>
                                             <h2 style={{ fontSize: 16, fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>FICHA DEL ALUMNO CURSANTE</h2>
-                                            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Legajo: {d.legajo || 'Pendiente'} | Estado: {alumnoFicha.estado}</p>
+                                            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Legajo: {d.legajo || 'Pendiente'} | Estado: {alumnoFicha.estado} | {totalCursos} {totalCursos === 1 ? 'curso registrado' : 'cursos registrados'}</p>
                                         </div>
                                         <div style={{ marginBottom: 24 }}>
                                             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos Personales</h3>
@@ -543,13 +706,21 @@ export default function AlumnosPage() {
                                         <div style={{ marginBottom: 24 }}>
                                             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Datos de Contacto</h3>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
-                                                <div><strong>Teléfono:</strong> {d.telefono}</div>
+                                                <div><strong>Teléfono:</strong> {d.telefono || '—'}</div>
                                                 <div><strong>Email:</strong> {d.email || '—'}</div>
                                                 <div style={{ gridColumn: '1 / -1' }}><strong>Domicilio:</strong> {d.domicilio || '—'}</div>
                                             </div>
                                         </div>
                                         <div style={{ marginBottom: 24 }}>
-                                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Cursado</h3>
+                                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Contacto de Emergencia</h3>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 14, color: '#4b5563' }}>
+                                                <div><strong>Nombre:</strong> {d.emergencia_nombre || '—'}</div>
+                                                <div><strong>Parentesco:</strong> {d.emergencia_parentesco || '—'}</div>
+                                                <div style={{ gridColumn: '1 / -1' }}><strong>Teléfono:</strong> {d.emergencia_telefono || '—'}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ marginBottom: 24 }}>
+                                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Cursado Actual</h3>
                                             <div style={{ fontSize: 14, color: '#4b5563' }}>
                                                 <div><strong>Curso:</strong> {cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.nombre || '—'} ({cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.turno})</div>
                                                 <div><strong>Ciclo Lectivo:</strong> {alumnoFicha.ciclo_lectivo}</div>
@@ -561,10 +732,13 @@ export default function AlumnosPage() {
                                             <div style={{ fontSize: 14, color: '#4b5563' }}>
                                                 {DOCUMENTOS_REQUERIDOS.map(doc => {
                                                     const fisico = alumnoFicha[`doc_${doc.id}_fisico`];
+                                                    const digital = alumnoFicha[`doc_${doc.id}_digital`];
                                                     return (
                                                         <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                                             <span style={{ fontWeight: 600, minWidth: 200 }}>{doc.nombre}:</span>
-                                                            {fisico ? (<span className="badge badge-fisico">Presentado</span>) : (<span style={{ color: '#b91c1c', fontSize: 12 }}>Pendiente</span>)}
+                                                            {fisico && <span className="badge badge-fisico">Físico</span>}
+                                                            {digital && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>Digital</span>}
+                                                            {!fisico && !digital && <span style={{ color: '#b91c1c', fontSize: 12 }}>Pendiente</span>}
                                                         </div>
                                                     );
                                                 })}
