@@ -42,34 +42,21 @@ const ESTILOS_ESTADO = {
     pendiente: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' }
 };
 
-// Estados que el preceptor SÍ puede elegir manualmente (excepcionales)
 const ESTADOS_EXCEPCIONALES = [
-    {
-        valor: 'abandono',
-        etiqueta: 'Abandono',
-        desc: 'Dejó de asistir sin presentar justificación.'
-    },
-    {
-        valor: 'abandono_justificado',
-        etiqueta: 'Abandono justificado',
-        desc: 'Dejó de asistir, pero presentó causa (médica, laboral, etc.).'
-    },
-    {
-        valor: 'rendicion_libre',
-        etiqueta: 'Rindió libre y aprobó',
-        desc: 'No completó el cursado, pero aprobó el examen final.'
-    },
-    {
-        valor: 'nunca_asistio',
-        etiqueta: 'Nunca asistió',
-        desc: 'Se inscribió pero no concurrió en ningún momento.'
-    }
+    { valor: 'abandono', etiqueta: 'Abandono', desc: 'Dejó de asistir sin presentar justificación.' },
+    { valor: 'abandono_justificado', etiqueta: 'Abandono justificado', desc: 'Dejó de asistir, pero presentó causa (médica, laboral, etc.).' },
+    { valor: 'rendicion_libre', etiqueta: 'Rindió libre y aprobó', desc: 'No completó el cursado, pero aprobó el examen final.' },
+    { valor: 'nunca_asistio', etiqueta: 'Nunca asistió', desc: 'Se inscribió pero no concurrió en ningún momento.' }
 ];
 
-// Umbral de asistencia para aprobación automática
 const UMBRAL_ASISTENCIA = 75;
-// Nota mínima para aprobación automática
 const NOTA_MINIMA = 6;
+
+// ✅ Limpia el sufijo de año del nombre del curso
+function limpiarNombreCurso(nombre) {
+    if (!nombre) return '—';
+    return nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim();
+}
 
 function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null;
@@ -98,34 +85,24 @@ function badgeEstado(estado) {
     );
 }
 
-// Calcula el estado automático basado en asistencia y nota
 function calcularEstadoAutomatico(inscripcion) {
     const asistencia = inscripcion.porcentaje_asistencia;
     const nota = inscripcion.nota_final;
     const tieneAsistencia = asistencia !== null && asistencia !== undefined;
     const tieneNota = nota !== null && nota !== undefined;
 
-    // Si no hay datos suficientes, está pendiente
     if (!tieneAsistencia || !tieneNota) {
         return { estado: 'pendiente', razon: 'Faltan datos de asistencia o acta docente' };
     }
-
-    // Si nunca asistió
     if (asistencia === 0) {
         return { estado: 'nunca_asistio', razon: 'Asistencia 0%' };
     }
-
-    // Si no alcanzó el umbral de asistencia
     if (asistencia < UMBRAL_ASISTENCIA) {
         return { estado: 'desaprobado', razon: `Asistencia ${asistencia}% (mínimo ${UMBRAL_ASISTENCIA}%)` };
     }
-
-    // Si tiene asistencia pero no aprobó la nota
     if (nota < NOTA_MINIMA) {
         return { estado: 'desaprobado', razon: `Nota ${nota} (mínimo ${NOTA_MINIMA})` };
     }
-
-    // Aprobado
     return { estado: 'aprobado', razon: `Asistencia ${asistencia}% y nota ${nota}` };
 }
 
@@ -141,13 +118,7 @@ export default function AlumnosPage() {
     const [busqueda, setBusqueda] = useState('');
     const [alumnoFicha, setAlumnoFicha] = useState(null);
     const [mostrarFicha, setMostrarFicha] = useState(false);
-    const [cierre, setCierre] = useState({
-        abierto: false,
-        alumno: null,
-        estadoAutomatico: null,
-        estadoElegido: null,
-        observacion: ''
-    });
+    const [cierre, setCierre] = useState({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' });
     const [historial, setHistorial] = useState({ abierto: false, dni: '', nombre: '', registros: [] });
     const [cargandoHistorial, setCargandoHistorial] = useState(false);
     const [editarAlumno, setEditarAlumno] = useState({ abierto: false, alumno: null, datos: {} });
@@ -182,8 +153,10 @@ export default function AlumnosPage() {
         }
     }
 
+    // ✅ Filtra nulos para evitar opciones vacías en el dropdown
     function obtenerCiclosUnicos() {
-        return [...new Set(cursos.map(c => c.anio))].sort((a, b) => b - a);
+        const ciclos = [...new Set(cursos.map(c => c.anio).filter(a => a !== null && a !== undefined))];
+        return ciclos.sort((a, b) => b - a);
     }
 
     function datosAlumno(a) {
@@ -207,15 +180,31 @@ export default function AlumnosPage() {
         };
     }
 
+    // ✅ Filtros robustos con conversión a Number segura
     function filtrarAlumnos() {
         let resultado = [...alumnos];
-        if (filtroCiclo !== 'todos') {
-            const idsCiclo = cursos.filter(c => c.anio === Number(filtroCiclo)).map(c => c.id);
+
+        if (filtroCiclo !== 'todos' && filtroCiclo !== null) {
+            const cicloNum = Number(filtroCiclo);
+            const idsCiclo = cursos
+                .filter(c => Number(c.anio) === cicloNum)
+                .map(c => c.id);
             resultado = resultado.filter(a => idsCiclo.includes(a.fp_curso_id));
         }
-        if (filtroCurso !== 'todos') resultado = resultado.filter(a => a.fp_curso_id === Number(filtroCurso));
-        if (filtroEstado !== 'todos') resultado = resultado.filter(a => a.estado === filtroEstado);
-        if (filtroDocPendiente) resultado = resultado.filter(a => !a.documentacion_completa);
+
+        if (filtroCurso !== 'todos' && filtroCurso !== null) {
+            const cursoNum = Number(filtroCurso);
+            resultado = resultado.filter(a => a.fp_curso_id === cursoNum);
+        }
+
+        if (filtroEstado !== 'todos') {
+            resultado = resultado.filter(a => a.estado === filtroEstado);
+        }
+
+        if (filtroDocPendiente) {
+            resultado = resultado.filter(a => !a.documentacion_completa);
+        }
+
         if (busqueda) {
             const q = busqueda.toLowerCase();
             resultado = resultado.filter(a => {
@@ -228,10 +217,10 @@ export default function AlumnosPage() {
                 );
             });
         }
+
         return resultado;
     }
 
-    // ✅ Abrir modal de cierre con cálculo automático
     function abrirCierre(a) {
         const estadoCalc = calcularEstadoAutomatico(a);
         setCierre({
@@ -243,7 +232,6 @@ export default function AlumnosPage() {
         });
     }
 
-    // ✅ Confirmar cierre con validación
     async function confirmarCierre() {
         if (!cierre.alumno) return;
 
@@ -252,16 +240,10 @@ export default function AlumnosPage() {
             cierre.estadoAutomatico.estado !== 'pendiente' &&
             cierre.estadoElegido !== cierre.estadoAutomatico.estado;
 
-        // La observación es obligatoria si:
-        // 1. Elige un estado excepcional, O
-        // 2. Cambia el estado automático sugerido
         const requiereObservacion = esExcepcional || esCambioDeAutomatico;
 
         if (requiereObservacion && !cierre.observacion.trim()) {
-            setMensaje({
-                tipo: 'error',
-                texto: 'La observación/justificación es obligatoria cuando se interviene manualmente.'
-            });
+            setMensaje({ tipo: 'error', texto: 'La observación/justificación es obligatoria cuando se interviene manualmente.' });
             return;
         }
 
@@ -278,8 +260,6 @@ export default function AlumnosPage() {
                     fecha_cierre: new Date().toISOString().split('T')[0],
                     observacion_cierre: cierre.observacion.trim() || null,
                     cierre_automatico: esAutomatico,
-                    // Solo se marca egresado si el estado automático lo determina
-                    // (esto se definirá cuando exista la configuración de cursos)
                     es_egresado: false
                 })
                 .eq('id', cierre.alumno.id);
@@ -287,10 +267,7 @@ export default function AlumnosPage() {
             if (error) throw error;
 
             const tipoCierre = esAutomatico ? 'automático' : 'manual (con justificación)';
-            setMensaje({
-                tipo: 'ok',
-                texto: `Cursado cerrado como "${estadoFinal}" (${tipoCierre}).`
-            });
+            setMensaje({ tipo: 'ok', texto: `Cursado cerrado como "${estadoFinal}" (${tipoCierre}).` });
             setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' });
             await cargarDatos();
             setTimeout(() => setMensaje(null), 3000);
@@ -448,7 +425,6 @@ export default function AlumnosPage() {
                     <p style={{ fontSize: 14, color: '#6b7280' }}>Gestión de alumnos dados de alta: cursado activo y cierre de trayectos.</p>
                 </div>
 
-                {/* Métricas */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
                     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
                         <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 4 }}>Total Cursantes</div>
@@ -472,12 +448,49 @@ export default function AlumnosPage() {
                     </div>
                 </div>
 
-                {/* Filtros */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                    <div><label style={labelStyle}>Ciclo Lectivo</label><select value={filtroCiclo} onChange={(e) => { setFiltroCiclo(e.target.value); setFiltroCurso('todos'); }} style={inputStyle}><option value="todos">Todos los ciclos</option>{obtenerCiclosUnicos().map(anio => (<option key={anio} value={anio}>Ciclo {anio}</option>))}</select></div>
-                    <div><label style={labelStyle}>Curso</label><select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}><option value="todos">Todos los cursos</option>{cursos.filter(c => filtroCiclo === 'todos' || c.anio === Number(filtroCiclo)).map(c => { const n = c.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim(); return <option key={c.id} value={c.id}>{n}</option>; })}</select></div>
-                    <div><label style={labelStyle}>Estado</label><select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}><option value="todos">Todos</option><option value="inscripto">Inscripto</option><option value="en_curso">En cursado</option><option value="aprobado">Aprobado</option><option value="desaprobado">Desaprobado</option><option value="abandono">Abandono</option><option value="abandono_justificado">Abandono justificado</option><option value="rendicion_libre">Rindió libre</option><option value="nunca_asistio">Nunca asistió</option><option value="diferido">Diferido</option></select></div>
-                    <div><label style={labelStyle}>Búsqueda</label><input type="text" placeholder="Nombre, DNI o legajo..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} /></div>
+                    <div>
+                        <label style={labelStyle}>Ciclo Lectivo</label>
+                        <select value={filtroCiclo} onChange={(e) => { setFiltroCiclo(e.target.value); setFiltroCurso('todos'); }} style={inputStyle}>
+                            <option value="todos">Todos los ciclos</option>
+                            {obtenerCiclosUnicos().map(anio => (
+                                <option key={anio} value={anio}>Ciclo {anio}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Curso</label>
+                        <select value={filtroCurso} onChange={(e) => setFiltroCurso(e.target.value)} style={inputStyle}>
+                            <option value="todos">Todos los cursos</option>
+                            {/* ✅ Usa limpiarNombreCurso para quitar el año redundante */}
+                            {cursos
+                                .filter(c => filtroCiclo === 'todos' || Number(c.anio) === Number(filtroCiclo))
+                                .map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {limpiarNombreCurso(c.nombre)} ({c.turno})
+                                    </option>
+                                ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Estado</label>
+                        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={inputStyle}>
+                            <option value="todos">Todos</option>
+                            <option value="inscripto">Inscripto</option>
+                            <option value="en_curso">En cursado</option>
+                            <option value="aprobado">Aprobado</option>
+                            <option value="desaprobado">Desaprobado</option>
+                            <option value="abandono">Abandono</option>
+                            <option value="abandono_justificado">Abandono justificado</option>
+                            <option value="rendicion_libre">Rindió libre</option>
+                            <option value="nunca_asistio">Nunca asistió</option>
+                            <option value="diferido">Diferido</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Búsqueda</label>
+                        <input type="text" placeholder="Nombre, DNI o legajo..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={inputStyle} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', background: filtroDocPendiente ? '#fef2f2' : '#fff', border: `1px solid ${filtroDocPendiente ? '#b91c1c' : '#d1d5db'}`, borderRadius: 6, width: '100%' }}>
                             <input type="checkbox" checked={filtroDocPendiente} onChange={(e) => setFiltroDocPendiente(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
@@ -488,13 +501,11 @@ export default function AlumnosPage() {
                     </div>
                 </div>
 
-                {/* Listado */}
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                     {filtrados.length === 0 ? (
                         <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay alumnos cursantes con los filtros seleccionados.</div>
                     ) : (
                         <>
-                            {/* ===== ESCRITORIO: TABLA ===== */}
                             <div className="vista-desktop">
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 1000 }}>
@@ -530,7 +541,8 @@ export default function AlumnosPage() {
                                                             )}
                                                         </td>
                                                         <td style={{ padding: '12px 16px', color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>{d.dni || '—'}</td>
-                                                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
+                                                        {/* ✅ Usa limpiarNombreCurso */}
+                                                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>{limpiarNombreCurso(curso?.nombre) || '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center', color: '#1e3a8a', fontWeight: 600 }}>{edad !== null ? `${edad}` : '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                                             {badgeEstado(a.estado)}
@@ -543,38 +555,22 @@ export default function AlumnosPage() {
                                                         </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                                             {docCompleta ? (
-                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
-                                                                    Completa
-                                                                </span>
+                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>Completa</span>
                                                             ) : (
-                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                                                                    Pendiente
-                                                                </span>
+                                                                <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>Pendiente</span>
                                                             )}
                                                         </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                            <button onClick={() => abrirFicha(a)} title="Ver ficha" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
-                                                                {Iconos.imprimir}
-                                                            </button>
-                                                            <button onClick={() => abrirEditar(a)} title="Editar datos" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#d97706', border: '1px solid #d97706', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
-                                                                {Iconos.editar}
-                                                            </button>
-                                                            <button onClick={() => abrirHistorial(a)} title="Historial académico" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>
-                                                                {Iconos.historial}
-                                                            </button>
+                                                            <button onClick={() => abrirFicha(a)} title="Ver ficha" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>{Iconos.imprimir}</button>
+                                                            <button onClick={() => abrirEditar(a)} title="Editar datos" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#d97706', border: '1px solid #d97706', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>{Iconos.editar}</button>
+                                                            <button onClick={() => abrirHistorial(a)} title="Historial académico" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4 }}>{Iconos.historial}</button>
                                                             {a.url_carpeta_drive && (
-                                                                <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" title="Carpeta Drive" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4, textDecoration: 'none' }}>
-                                                                    {Iconos.externo}
-                                                                </a>
+                                                                <a href={a.url_carpeta_drive} target="_blank" rel="noopener noreferrer" title="Carpeta Drive" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer', marginRight: 4, textDecoration: 'none' }}>{Iconos.externo}</a>
                                                             )}
                                                             {!finalizado ? (
-                                                                <button onClick={() => abrirCierre(a)} disabled={procesando} title="Cerrar cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
-                                                                    {Iconos.cerrar}
-                                                                </button>
+                                                                <button onClick={() => abrirCierre(a)} disabled={procesando} title="Cerrar cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>{Iconos.cerrar}</button>
                                                             ) : (
-                                                                <button onClick={() => reabrirCursado(a)} disabled={procesando} title="Reabrir cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#4b5563', border: '1px solid #9ca3af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
-                                                                    {Iconos.reabrir}
-                                                                </button>
+                                                                <button onClick={() => reabrirCursado(a)} disabled={procesando} title="Reabrir cursado" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#4b5563', border: '1px solid #9ca3af', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>{Iconos.reabrir}</button>
                                                             )}
                                                         </td>
                                                     </tr>
@@ -585,7 +581,6 @@ export default function AlumnosPage() {
                                 </div>
                             </div>
 
-                            {/* ===== MÓVIL: CARDS ===== */}
                             <div className="vista-mobile" style={{ padding: 12 }}>
                                 {filtrados.map(a => {
                                     const curso = cursos.find(c => c.id === a.fp_curso_id);
@@ -624,7 +619,8 @@ export default function AlumnosPage() {
                                             </div>
                                             <div className="card-alumno-curso">
                                                 <span className="card-alumno-label">Curso:</span>
-                                                <span className="card-alumno-valor">{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</span>
+                                                {/* ✅ Usa limpiarNombreCurso */}
+                                                <span className="card-alumno-valor">{limpiarNombreCurso(curso?.nombre) || '—'}</span>
                                             </div>
                                             <div className="card-alumno-acciones">
                                                 <button onClick={() => abrirFicha(a)} className="btn-card btn-card-secundario">Ficha</button>
@@ -646,13 +642,10 @@ export default function AlumnosPage() {
                 </div>
             </div>
 
-            {/* ===== MODAL: CIERRE DE CURSADO (DEFINITIVO) ===== */}
+            {/* ===== MODAL: CIERRE DE CURSADO ===== */}
             {cierre.abierto && cierre.alumno && (() => {
                 const esExcepcional = ESTADOS_EXCEPCIONALES.some(e => e.valor === cierre.estadoElegido);
-                const esCambioDeAutomatico = cierre.estadoAutomatico &&
-                    cierre.estadoAutomatico.estado !== 'pendiente' &&
-                    cierre.estadoElegido &&
-                    cierre.estadoElegido !== cierre.estadoAutomatico.estado;
+                const esCambioDeAutomatico = cierre.estadoAutomatico && cierre.estadoAutomatico.estado !== 'pendiente' && cierre.estadoElegido && cierre.estadoElegido !== cierre.estadoAutomatico.estado;
                 const requiereObservacion = esExcepcional || esCambioDeAutomatico;
                 const datosAlumnoActual = datosAlumno(cierre.alumno);
 
@@ -660,27 +653,18 @@ export default function AlumnosPage() {
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' })}>
                         <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
                             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Cerrar cursado</h3>
-                            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>
-                                {datosAlumnoActual.apellido}, {datosAlumnoActual.nombre}
-                            </p>
+                            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>{datosAlumnoActual.apellido}, {datosAlumnoActual.nombre}</p>
 
-                            {/* SECCIÓN 1: Estado automático (solo lectura) */}
                             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: 14, marginBottom: 20 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                     {Iconos.automatico}
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Estado automático del sistema
-                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado automático del sistema</div>
                                 </div>
-
-                                {/* Datos de asistencia y nota */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                                     <div>
                                         <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2 }}>Asistencia</div>
                                         <div style={{ fontSize: 16, fontWeight: 700, color: (cierre.alumno.porcentaje_asistencia || 0) >= UMBRAL_ASISTENCIA ? '#059669' : '#b91c1c' }}>
-                                            {cierre.alumno.porcentaje_asistencia !== null && cierre.alumno.porcentaje_asistencia !== undefined
-                                                ? `${cierre.alumno.porcentaje_asistencia}%`
-                                                : '—'}
+                                            {cierre.alumno.porcentaje_asistencia !== null && cierre.alumno.porcentaje_asistencia !== undefined ? `${cierre.alumno.porcentaje_asistencia}%` : '—'}
                                         </div>
                                         <div style={{ fontSize: 10, color: '#6b7280' }}>
                                             {cierre.alumno.porcentaje_asistencia !== null && cierre.alumno.porcentaje_asistencia !== undefined
@@ -691,9 +675,7 @@ export default function AlumnosPage() {
                                     <div>
                                         <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2 }}>Nota final (Acta)</div>
                                         <div style={{ fontSize: 16, fontWeight: 700, color: cierre.alumno.nota_final >= NOTA_MINIMA ? '#059669' : '#b91c1c' }}>
-                                            {cierre.alumno.nota_final !== null && cierre.alumno.nota_final !== undefined
-                                                ? cierre.alumno.nota_final
-                                                : '—'}
+                                            {cierre.alumno.nota_final !== null && cierre.alumno.nota_final !== undefined ? cierre.alumno.nota_final : '—'}
                                         </div>
                                         <div style={{ fontSize: 10, color: '#6b7280' }}>
                                             {cierre.alumno.nota_final !== null && cierre.alumno.nota_final !== undefined
@@ -702,50 +684,27 @@ export default function AlumnosPage() {
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Estado sugerido */}
                                 <div style={{ paddingTop: 10, borderTop: '1px dashed #bbf7d0' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4 }}>Estado asignado automáticamente</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         {badgeEstado(cierre.estadoAutomatico.estado)}
-                                        <span style={{ fontSize: 11, color: '#6b7280' }}>
-                                            {cierre.estadoAutomatico.razon}
-                                        </span>
+                                        <span style={{ fontSize: 11, color: '#6b7280' }}>{cierre.estadoAutomatico.razon}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 2: Intervención excepcional del preceptor */}
                             <div style={{ marginBottom: 20 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                     {Iconos.manual}
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Intervención excepcional (opcional)
-                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Intervención excepcional (opcional)</div>
                                 </div>
                                 <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 12px 0', lineHeight: 1.4 }}>
-                                    El estado automático se asignará al confirmar. Solo intervení si hubo una situación excepcional que requiera un estado diferente. <strong style={{ color: '#b91c1c' }}>La observación es obligatoria en estos casos.</strong>
+                                    El estado automático se asignará al confirmar. Solo intervení si hubo una situación excepcional. <strong style={{ color: '#b91c1c' }}>La observación es obligatoria en estos casos.</strong>
                                 </p>
-
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     {ESTADOS_EXCEPCIONALES.map(r => (
-                                        <label key={r.valor} style={{
-                                            display: 'flex',
-                                            gap: 10,
-                                            alignItems: 'flex-start',
-                                            padding: '10px 12px',
-                                            borderRadius: 6,
-                                            border: `1px solid ${cierre.estadoElegido === r.valor ? '#1e3a8a' : '#e5e7eb'}`,
-                                            background: cierre.estadoElegido === r.valor ? '#eff6ff' : '#fff',
-                                            cursor: 'pointer'
-                                        }}>
-                                            <input
-                                                type="radio"
-                                                name="estadoExcepcional"
-                                                checked={cierre.estadoElegido === r.valor}
-                                                onChange={() => setCierre(prev => ({ ...prev, estadoElegido: r.valor }))}
-                                                style={{ marginTop: 3 }}
-                                            />
+                                        <label key={r.valor} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 6, border: `1px solid ${cierre.estadoElegido === r.valor ? '#1e3a8a' : '#e5e7eb'}`, background: cierre.estadoElegido === r.valor ? '#eff6ff' : '#fff', cursor: 'pointer' }}>
+                                            <input type="radio" name="estadoExcepcional" checked={cierre.estadoElegido === r.valor} onChange={() => setCierre(prev => ({ ...prev, estadoElegido: r.valor }))} style={{ marginTop: 3 }} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>{r.etiqueta}</div>
                                                 <div style={{ fontSize: 12, color: '#6b7280' }}>{r.desc}</div>
@@ -755,7 +714,6 @@ export default function AlumnosPage() {
                                 </div>
                             </div>
 
-                            {/* SECCIÓN 3: Observación / Justificación */}
                             <div style={{ marginBottom: 20 }}>
                                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>
                                     Observación / Justificación
@@ -764,45 +722,15 @@ export default function AlumnosPage() {
                                 <textarea
                                     value={cierre.observacion}
                                     onChange={(e) => setCierre(prev => ({ ...prev, observacion: e.target.value }))}
-                                    placeholder={requiereObservacion
-                                        ? "Explicá el motivo de la intervención excepcional..."
-                                        : "Opcional: podés agregar comentarios adicionales..."}
+                                    placeholder={requiereObservacion ? "Explicá el motivo de la intervención excepcional..." : "Opcional: podés agregar comentarios adicionales..."}
                                     rows={3}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px 12px',
-                                        borderRadius: 6,
-                                        border: `1px solid ${requiereObservacion && !cierre.observacion.trim() ? '#b91c1c' : '#d1d5db'}`,
-                                        fontSize: 13,
-                                        fontFamily: 'inherit',
-                                        resize: 'vertical',
-                                        background: requiereObservacion && !cierre.observacion.trim() ? '#fef2f2' : '#fff'
-                                    }}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: `1px solid ${requiereObservacion && !cierre.observacion.trim() ? '#b91c1c' : '#d1d5db'}`, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', background: requiereObservacion && !cierre.observacion.trim() ? '#fef2f2' : '#fff' }}
                                 />
                             </div>
 
-                            {/* Botones */}
                             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={() => setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' })}
-                                    style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmarCierre}
-                                    disabled={procesando || (requiereObservacion && !cierre.observacion.trim())}
-                                    style={{
-                                        background: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? '#9ca3af' : '#1e3a8a',
-                                        color: '#fff',
-                                        border: 'none',
-                                        padding: '10px 18px',
-                                        borderRadius: 4,
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        cursor: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
+                                <button onClick={() => setCierre({ abierto: false, alumno: null, estadoAutomatico: null, estadoElegido: null, observacion: '' })} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
+                                <button onClick={confirmarCierre} disabled={procesando || (requiereObservacion && !cierre.observacion.trim())} style={{ background: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: (procesando || (requiereObservacion && !cierre.observacion.trim())) ? 'not-allowed' : 'pointer' }}>
                                     {procesando ? 'Guardando...' : 'Confirmar cierre'}
                                 </button>
                             </div>
@@ -817,11 +745,8 @@ export default function AlumnosPage() {
                     <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
                             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Historial académico</h3>
-                            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
-                                {historial.nombre} · DNI {historial.dni} · {historial.registros.length} {historial.registros.length === 1 ? 'inscripción' : 'inscripciones'}
-                            </p>
+                            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{historial.nombre} · DNI {historial.dni} · {historial.registros.length} {historial.registros.length === 1 ? 'inscripción' : 'inscripciones'}</p>
                         </div>
-
                         {cargandoHistorial ? (
                             <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Cargando historial...</div>
                         ) : historial.registros.length === 0 ? (
@@ -845,17 +770,11 @@ export default function AlumnosPage() {
                                             return (
                                                 <tr key={r.id} style={{ borderBottom: i < historial.registros.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                     <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e3a8a' }}>{r.ciclo_lectivo}</td>
-                                                    <td style={{ padding: '10px 12px', color: '#4b5563' }}>{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
+                                                    <td style={{ padding: '10px 12px', color: '#4b5563' }}>{limpiarNombreCurso(curso?.nombre) || '—'}</td>
                                                     <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>{r.legajo || '—'}</td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>{badgeEstado(r.estado)}</td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11 }}>
-                                                        {r.cierre_automatico ? (
-                                                            <span style={{ color: '#059669', fontWeight: 600 }}>Automático</span>
-                                                        ) : r.observacion_cierre ? (
-                                                            <span style={{ color: '#d97706', fontWeight: 600 }}>Manual</span>
-                                                        ) : (
-                                                            <span style={{ color: '#9ca3af' }}>—</span>
-                                                        )}
+                                                        {r.cierre_automatico ? <span style={{ color: '#059669', fontWeight: 600 }}>Automático</span> : r.observacion_cierre ? <span style={{ color: '#d97706', fontWeight: 600 }}>Manual</span> : <span style={{ color: '#9ca3af' }}>—</span>}
                                                     </td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: '#6b7280' }}>{r.fecha_condicion ? formatearFechaLarga(r.fecha_condicion) : '—'}</td>
                                                 </tr>
@@ -865,7 +784,6 @@ export default function AlumnosPage() {
                                 </table>
                             </div>
                         )}
-
                         {!cargandoHistorial && historial.registros.length > 0 && (
                             <div className="vista-mobile">
                                 {historial.registros.map(r => {
@@ -874,16 +792,14 @@ export default function AlumnosPage() {
                                         <div key={r.id} className="card-alumno">
                                             <div className="card-alumno-header">
                                                 <div>
-                                                    <div className="card-alumno-nombre">{curso?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</div>
+                                                    <div className="card-alumno-nombre">{limpiarNombreCurso(curso?.nombre) || '—'}</div>
                                                     <div className="card-alumno-dni">Ciclo {r.ciclo_lectivo} · {r.legajo || 'Sin legajo'}</div>
                                                 </div>
                                                 {badgeEstado(r.estado)}
                                             </div>
                                             <div className="card-alumno-curso">
                                                 <span className="card-alumno-label">Tipo cierre:</span>
-                                                <span className="card-alumno-valor">
-                                                    {r.cierre_automatico ? 'Automático' : r.observacion_cierre ? 'Manual' : '—'}
-                                                </span>
+                                                <span className="card-alumno-valor">{r.cierre_automatico ? 'Automático' : r.observacion_cierre ? 'Manual' : '—'}</span>
                                             </div>
                                             <div className="card-alumno-curso">
                                                 <span className="card-alumno-label">Fecha:</span>
@@ -899,7 +815,6 @@ export default function AlumnosPage() {
                                 })}
                             </div>
                         )}
-
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
                             <button onClick={() => setHistorial({ abierto: false, dni: '', nombre: '', registros: [] })} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
                         </div>
@@ -912,50 +827,24 @@ export default function AlumnosPage() {
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setEditarAlumno({ abierto: false, alumno: null, datos: {} })}>
                     <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Editar datos del alumno</h3>
-                        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>
-                            {datosAlumno(editarAlumno.alumno).apellido}, {datosAlumno(editarAlumno.alumno).nombre} · Legajo {datosAlumno(editarAlumno.alumno).legajo}
-                        </p>
-
+                        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px 0' }}>{datosAlumno(editarAlumno.alumno).apellido}, {datosAlumno(editarAlumno.alumno).nombre} · Legajo {datosAlumno(editarAlumno.alumno).legajo}</p>
                         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 20, fontSize: 12, color: '#1e40af' }}>
                             Los datos de identidad (DNI, apellido, nombre) solo pueden modificarse desde la inscripción original. Aquí se editan los datos de contacto y emergencia.
                         </div>
-
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                            <div>
-                                <label style={labelStyle}>Teléfono</label>
-                                <input type="tel" value={editarAlumno.datos.telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, telefono: e.target.value } }))} style={inputStyle} placeholder="2345-123456" />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Email</label>
-                                <input type="email" value={editarAlumno.datos.email} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, email: e.target.value } }))} style={inputStyle} placeholder="ejemplo@mail.com" />
-                            </div>
-                            <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={labelStyle}>Domicilio</label>
-                                <input type="text" value={editarAlumno.datos.domicilio} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, domicilio: e.target.value } }))} style={inputStyle} placeholder="Calle, número, localidad" />
-                            </div>
+                            <div><label style={labelStyle}>Teléfono</label><input type="tel" value={editarAlumno.datos.telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, telefono: e.target.value } }))} style={inputStyle} placeholder="2345-123456" /></div>
+                            <div><label style={labelStyle}>Email</label><input type="email" value={editarAlumno.datos.email} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, email: e.target.value } }))} style={inputStyle} placeholder="ejemplo@mail.com" /></div>
+                            <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Domicilio</label><input type="text" value={editarAlumno.datos.domicilio} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, domicilio: e.target.value } }))} style={inputStyle} placeholder="Calle, número, localidad" /></div>
                         </div>
-
                         <h4 style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', margin: '20px 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.05em', paddingBottom: 6, borderBottom: '1px solid #e5e7eb' }}>Contacto de emergencia</h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div>
-                                <label style={labelStyle}>Nombre completo</label>
-                                <input type="text" value={editarAlumno.datos.emergencia_nombre} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_nombre: e.target.value } }))} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Parentesco</label>
-                                <input type="text" value={editarAlumno.datos.emergencia_parentesco} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_parentesco: e.target.value } }))} style={inputStyle} placeholder="Padre, madre, etc." />
-                            </div>
-                            <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={labelStyle}>Teléfono</label>
-                                <input type="tel" value={editarAlumno.datos.emergencia_telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_telefono: e.target.value } }))} style={inputStyle} />
-                            </div>
+                            <div><label style={labelStyle}>Nombre completo</label><input type="text" value={editarAlumno.datos.emergencia_nombre} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_nombre: e.target.value } }))} style={inputStyle} /></div>
+                            <div><label style={labelStyle}>Parentesco</label><input type="text" value={editarAlumno.datos.emergencia_parentesco} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_parentesco: e.target.value } }))} style={inputStyle} placeholder="Padre, madre, etc." /></div>
+                            <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Teléfono</label><input type="tel" value={editarAlumno.datos.emergencia_telefono} onChange={(e) => setEditarAlumno(prev => ({ ...prev, datos: { ...prev.datos, emergencia_telefono: e.target.value } }))} style={inputStyle} /></div>
                         </div>
-
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                             <button onClick={() => setEditarAlumno({ abierto: false, alumno: null, datos: {} })} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
-                            <button onClick={guardarEdicion} disabled={guardandoEdicion} style={{ background: guardandoEdicion ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: guardandoEdicion ? 'not-allowed' : 'pointer' }}>
-                                {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
-                            </button>
+                            <button onClick={guardarEdicion} disabled={guardandoEdicion} style={{ background: guardandoEdicion ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: guardandoEdicion ? 'not-allowed' : 'pointer' }}>{guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}</button>
                         </div>
                     </div>
                 </div>
@@ -1004,7 +893,7 @@ export default function AlumnosPage() {
                                         <div style={{ marginBottom: 24 }}>
                                             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 12, textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>Cursado Actual</h3>
                                             <div style={{ fontSize: 14, color: '#4b5563' }}>
-                                                <div><strong>Curso:</strong> {cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.nombre || '—'} ({cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.turno})</div>
+                                                <div><strong>Curso:</strong> {limpiarNombreCurso(cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.nombre) || '—'} ({cursos.find(c => c.id === alumnoFicha.fp_curso_id)?.turno})</div>
                                                 <div><strong>Ciclo Lectivo:</strong> {alumnoFicha.ciclo_lectivo}</div>
                                                 <div><strong>Fecha de inscripción:</strong> {formatearFechaLarga(alumnoFicha.fecha_inscripcion)}</div>
                                             </div>
