@@ -12,10 +12,10 @@ const Iconos = {
     agregar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
     eliminar: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
     check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
-    masivo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+    masivo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>,
+    planilla: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
 };
 
-// ✅ FERIADOS NACIONALES FIJOS DE ARGENTINA (no cambian de fecha)
 const FERIADOS_NACIONALES_FIJOS = [
     { mes: 3, dia: 24, nombre: 'Día Nacional de la Memoria por la Verdad y la Justicia' },
     { mes: 4, dia: 2, nombre: 'Día del Veterano y de los Caídos en la Guerra de Malvinas' },
@@ -31,13 +31,13 @@ const FERIADOS_NACIONALES_FIJOS = [
 ];
 
 const DIAS_SEMANA = [
-    { valor: 'lunes', etiqueta: 'Lunes' },
-    { valor: 'martes', etiqueta: 'Martes' },
-    { valor: 'miercoles', etiqueta: 'Miércoles' },
-    { valor: 'jueves', etiqueta: 'Jueves' },
-    { valor: 'viernes', etiqueta: 'Viernes' },
-    { valor: 'sabado', etiqueta: 'Sábado' },
-    { valor: 'domingo', etiqueta: 'Domingo' }
+    { valor: 'lunes', etiqueta: 'Lunes', numero: 1 },
+    { valor: 'martes', etiqueta: 'Martes', numero: 2 },
+    { valor: 'miercoles', etiqueta: 'Miércoles', numero: 3 },
+    { valor: 'jueves', etiqueta: 'Jueves', numero: 4 },
+    { valor: 'viernes', etiqueta: 'Viernes', numero: 5 },
+    { valor: 'sabado', etiqueta: 'Sábado', numero: 6 },
+    { valor: 'domingo', etiqueta: 'Domingo', numero: 0 }
 ];
 
 const MODALIDADES = [
@@ -62,11 +62,35 @@ function formatearFechaCorta(fechaISO) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// Genera la fecha ISO a partir de año, mes y día
 function generarFechaISO(anio, mes, dia) {
     const m = String(mes).padStart(2, '0');
     const d = String(dia).padStart(2, '0');
     return `${anio}-${m}-${d}`;
+}
+
+// Genera todos los días entre dos fechas
+function generarDiasEntre(fechaInicio, fechaFin) {
+    const dias = [];
+    const inicio = new Date(fechaInicio + 'T00:00:00');
+    const fin = new Date(fechaFin + 'T00:00:00');
+    const actual = new Date(inicio);
+
+    while (actual <= fin) {
+        const fechaISO = actual.toISOString().split('T')[0];
+        const diaSemanaNumero = actual.getDay(); // 0=domingo, 1=lunes, etc.
+        const diaSemanaObj = DIAS_SEMANA.find(d => d.numero === diaSemanaNumero);
+
+        dias.push({
+            fecha: fechaISO,
+            diaSemana: diaSemanaObj?.valor || 'desconocido',
+            diaSemanaEtiqueta: diaSemanaObj?.etiqueta || 'Desconocido',
+            esFinDeSemana: diaSemanaNumero === 0 || diaSemanaNumero === 6
+        });
+
+        actual.setDate(actual.getDate() + 1);
+    }
+
+    return dias;
 }
 
 export default function CalendarioPage() {
@@ -113,6 +137,10 @@ export default function CalendarioPage() {
         anio: new Date().getFullYear()
     });
 
+    // Planilla
+    const [planillaDatos, setPlanillaDatos] = useState([]);
+    const [cursoPlanilla, setCursoPlanilla] = useState('');
+
     // Filtros
     const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
 
@@ -129,7 +157,11 @@ export default function CalendarioPage() {
         }
         if (vista === 'academico') cargarCalendarios();
         if (vista === 'recesos') cargarRecesos();
-    }, [vista, filtroAnio]);
+        if (vista === 'planilla') {
+            cargarCursos();
+            if (cursoPlanilla) generarPlanilla();
+        }
+    }, [vista, filtroAnio, cursoPlanilla]);
 
     async function cargarTodo() {
         await cargarCalendarios();
@@ -169,7 +201,7 @@ export default function CalendarioPage() {
         try {
             const { data, error } = await supabase
                 .from('fp_cursos')
-                .select('id, nombre, anio, turno')
+                .select('id, nombre, anio, turno, fecha_inicio, fecha_fin')
                 .eq('anio', filtroAnio)
                 .order('nombre');
             if (error) throw error;
@@ -205,6 +237,98 @@ export default function CalendarioPage() {
         } catch (err) {
             console.error('Error al cargar recesos:', err);
         }
+    }
+
+    // === GENERAR PLANILLA ===
+    async function generarPlanilla() {
+        if (!cursoPlanilla) return;
+
+        const curso = cursos.find(c => c.id === Number(cursoPlanilla));
+        if (!curso) return;
+
+        // Buscar calendario académico de la modalidad FP para el año
+        const calendario = calendarios.find(c => c.modalidad === 'fp' && c.anio === filtroAnio);
+        if (!calendario) {
+            setMensaje({ tipo: 'error', texto: 'No hay calendario académico configurado para FP ' + filtroAnio });
+            return;
+        }
+
+        // Generar todos los días entre fecha_inicio y fecha_fin del curso
+        const fechaInicio = curso.fecha_inicio || calendario.fecha_inicio;
+        const fechaFin = curso.fecha_fin || calendario.fecha_fin;
+
+        if (!fechaInicio || !fechaFin) {
+            setMensaje({ tipo: 'error', texto: 'El curso no tiene fechas de inicio/fin configuradas.' });
+            return;
+        }
+
+        const todosLosDias = generarDiasEntre(fechaInicio, fechaFin);
+
+        // Mapear días de clase del calendario
+        const diasClaseNumeros = calendario.dias_clase.map(d => {
+            const diaObj = DIAS_SEMANA.find(ds => ds.valor === d);
+            return diaObj?.numero;
+        });
+
+        // Crear mapa de feriados, recesos y suspensiones
+        const mapaFeriados = new Map(feriados.map(f => [f.fecha, f]));
+        const mapaRecesos = recesos.map(r => ({
+            inicio: new Date(r.fecha_inicio + 'T00:00:00'),
+            fin: new Date(r.fecha_fin + 'T00:00:00'),
+            nombre: r.nombre
+        }));
+        const mapaSuspensiones = new Map(
+            suspensiones
+                .filter(s => s.fp_curso_id === Number(cursoPlanilla))
+                .map(s => [s.fecha, s])
+        );
+
+        // Generar planilla
+        const planilla = todosLosDias.map(dia => {
+            const fechaDate = new Date(dia.fecha + 'T00:00:00');
+            const esDiaDeClase = diasClaseNumeros.includes(fechaDate.getDay());
+
+            // Verificar si es feriado
+            const feriado = mapaFeriados.get(dia.fecha);
+
+            // Verificar si está en receso
+            const receso = mapaRecesos.find(r => fechaDate >= r.inicio && fechaDate <= r.fin);
+
+            // Verificar si hay suspensión
+            const suspension = mapaSuspensiones.get(dia.fecha);
+
+            let estado = 'fin_de_semana';
+            let estadoEtiqueta = 'Fin de semana';
+            let color = '#f3f4f6';
+
+            if (feriado) {
+                estado = 'feriado';
+                estadoEtiqueta = `Feriado: ${feriado.nombre}`;
+                color = '#fef3c7';
+            } else if (receso) {
+                estado = 'receso';
+                estadoEtiqueta = `Receso: ${receso.nombre}`;
+                color = '#dbeafe';
+            } else if (suspension) {
+                estado = 'suspension';
+                estadoEtiqueta = `Suspensión: ${suspension.motivo || 'Sin motivo'}`;
+                color = '#fee2e2';
+            } else if (esDiaDeClase) {
+                estado = 'clase';
+                estadoEtiqueta = 'Día de clase';
+                color = '#dcfce7';
+            }
+
+            return {
+                ...dia,
+                estado,
+                estadoEtiqueta,
+                color,
+                esDiaDeClase
+            };
+        });
+
+        setPlanillaDatos(planilla);
     }
 
     // === CALENDARIO ACADÉMICO ===
@@ -298,24 +422,15 @@ export default function CalendarioPage() {
         }
     }
 
-    // ✅ CARGA MASIVA DE FERIADOS NACIONALES
     function abrirModalCargaMasiva() {
-        // Generar la lista de feriados fijos para el año seleccionado
         const feriadosGenerados = FERIADOS_NACIONALES_FIJOS.map(f => ({
             fecha: generarFechaISO(filtroAnio, f.mes, f.dia),
             nombre: f.nombre,
             alcance: 'nacional',
             anio: filtroAnio
         }));
-
-        // Marcar todos como seleccionados por defecto
         const seleccionados = feriadosGenerados.map((_, i) => i);
-
-        setModalCargaMasiva({
-            abierto: true,
-            feriados: feriadosGenerados,
-            seleccionados
-        });
+        setModalCargaMasiva({ abierto: true, feriados: feriadosGenerados, seleccionados });
     }
 
     function toggleSeleccionFeriado(index) {
@@ -328,10 +443,7 @@ export default function CalendarioPage() {
     }
 
     function seleccionarTodos() {
-        setModalCargaMasiva(prev => ({
-            ...prev,
-            seleccionados: prev.feriados.map((_, i) => i)
-        }));
+        setModalCargaMasiva(prev => ({ ...prev, seleccionados: prev.feriados.map((_, i) => i) }));
     }
 
     function deseleccionarTodos() {
@@ -346,14 +458,10 @@ export default function CalendarioPage() {
         setProcesando(true);
         try {
             const feriadosAInsertar = modalCargaMasiva.seleccionados.map(i => modalCargaMasiva.feriados[i]);
-
-            // Insertar todos de una vez
             const { error } = await supabase
                 .from('calendario_feriados')
                 .upsert(feriadosAInsertar, { onConflict: 'fecha, anio' });
-
             if (error) throw error;
-
             setMensaje({ tipo: 'ok', texto: `${feriadosAInsertar.length} feriados nacionales cargados correctamente.` });
             setModalCargaMasiva({ abierto: false, feriados: [], seleccionados: [] });
             await cargarFeriados();
@@ -455,6 +563,16 @@ export default function CalendarioPage() {
     const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
     const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, background: '#fff', color: '#1e3a8a' };
 
+    // Estadísticas de la planilla
+    const statsPlanilla = planillaDatos.length > 0 ? {
+        total: planillaDatos.length,
+        clases: planillaDatos.filter(d => d.estado === 'clase').length,
+        feriados: planillaDatos.filter(d => d.estado === 'feriado').length,
+        recesos: planillaDatos.filter(d => d.estado === 'receso').length,
+        suspensiones: planillaDatos.filter(d => d.estado === 'suspension').length,
+        finesDeSemana: planillaDatos.filter(d => d.estado === 'fin_de_semana').length
+    } : null;
+
     return (
         <Sidebar docente={docente} titulo="Calendario Académico">
             <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -495,6 +613,9 @@ export default function CalendarioPage() {
                     </button>
                     <button onClick={() => setVista('recesos')} style={{ padding: '12px 24px', background: vista === 'recesos' ? '#1e3a8a' : 'transparent', color: vista === 'recesos' ? '#fff' : '#4b5563', border: 'none', borderBottom: vista === 'recesos' ? '2px solid #1e3a8a' : '2px solid transparent', fontSize: 14, fontWeight: vista === 'recesos' ? 600 : 400, cursor: 'pointer', marginBottom: -2, display: 'flex', alignItems: 'center', gap: 8 }}>
                         {Iconos.receso} Recesos
+                    </button>
+                    <button onClick={() => setVista('planilla')} style={{ padding: '12px 24px', background: vista === 'planilla' ? '#1e3a8a' : 'transparent', color: vista === 'planilla' ? '#fff' : '#4b5563', border: 'none', borderBottom: vista === 'planilla' ? '2px solid #1e3a8a' : '2px solid transparent', fontSize: 14, fontWeight: vista === 'planilla' ? 600 : 400, cursor: 'pointer', marginBottom: -2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {Iconos.planilla} Planilla
                     </button>
                 </div>
 
@@ -609,14 +730,13 @@ export default function CalendarioPage() {
                 {/* ===== FERIADOS ===== */}
                 {vista === 'feriados' && (
                     <div>
-                        {/* Botón de carga masiva */}
                         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 20, marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                             <div>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>
                                     Carga rápida de feriados nacionales
                                 </div>
                                 <div style={{ fontSize: 12, color: '#6b7280' }}>
-                                    Carga automáticamente los 11 feriados nacionales fijos de Argentina para {filtroAnio}. Los feriados móviles (Carnaval, Semana Santa, Güemes) se agregan manualmente.
+                                    Carga automáticamente los 11 feriados nacionales fijos de Argentina para {filtroAnio}.
                                 </div>
                             </div>
                             <button
@@ -677,7 +797,7 @@ export default function CalendarioPage() {
                                 </h3>
                             </div>
                             {feriados.length === 0 ? (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay feriados registrados para {filtroAnio}. Usá el botón "Cargar feriados {filtroAnio}" para agregar los nacionales automáticamente.</div>
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay feriados registrados para {filtroAnio}.</div>
                             ) : (
                                 <div className="vista-desktop">
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -795,7 +915,7 @@ export default function CalendarioPage() {
                                 Registrar receso
                             </h3>
                             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#1e40af' }}>
-                                Los recesos son períodos donde no hay clases para todas las modalidades (ej: receso invernal, de primavera).
+                                Los recesos son períodos donde no hay clases para todas las modalidades.
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                 <div>
@@ -866,6 +986,92 @@ export default function CalendarioPage() {
                         </div>
                     </div>
                 )}
+
+                {/* ===== PLANILLA ===== */}
+                {vista === 'planilla' && (
+                    <div>
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Generar planilla de días
+                            </h3>
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#1e40af' }}>
+                                Seleccioná un curso para ver todos los días del ciclo lectivo con su estado (clase, feriado, receso, suspensión).
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>Curso</label>
+                                    <select value={cursoPlanilla} onChange={(e) => setCursoPlanilla(e.target.value)} style={inputStyle}>
+                                        <option value="">Seleccionar curso...</option>
+                                        {cursos.map(c => (
+                                            <option key={c.id} value={c.id}>{c.nombre} ({c.turno})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {statsPlanilla && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
+                                <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#065f46', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Días de clase</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669' }}>{statsPlanilla.clases}</div>
+                                </div>
+                                <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#92400e', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Feriados</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#d97706' }}>{statsPlanilla.feriados}</div>
+                                </div>
+                                <div style={{ background: '#dbeafe', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#1e40af', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Recesos</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#1e3a8a' }}>{statsPlanilla.recesos}</div>
+                                </div>
+                                <div style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#991b1b', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Suspensiones</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#b91c1c' }}>{statsPlanilla.suspensiones}</div>
+                                </div>
+                                <div style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Fines de semana</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#4b5563' }}>{statsPlanilla.finesDeSemana}</div>
+                                </div>
+                                <div style={{ background: '#1e3a8a', borderRadius: 8, padding: 16 }}>
+                                    <div style={{ fontSize: 10, color: '#bfdbfe', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Total días</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{statsPlanilla.total}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {planillaDatos.length > 0 && (
+                            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                                    <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        Planilla de días - {cursos.find(c => c.id === Number(cursoPlanilla))?.nombre}
+                                    </h3>
+                                </div>
+                                <div className="vista-desktop">
+                                    <div style={{ overflowX: 'auto', maxHeight: 600, overflowY: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                            <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 10 }}>
+                                                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Fecha</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Día</th>
+                                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Estado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {planillaDatos.map((dia, idx) => (
+                                                    <tr key={dia.fecha} style={{ borderBottom: idx < planillaDatos.length - 1 ? '1px solid #e5e7eb' : 'none', background: dia.color }}>
+                                                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1e3a8a', fontVariantNumeric: 'tabular-nums' }}>{formatearFechaCorta(dia.fecha)}</td>
+                                                        <td style={{ padding: '8px 12px', color: '#4b5563', textTransform: 'capitalize' }}>{dia.diaSemanaEtiqueta}</td>
+                                                        <td style={{ padding: '8px 12px', color: '#1e3a8a', fontWeight: 500 }}>{dia.estadoEtiqueta}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ===== MODAL: CARGA MASIVA DE FERIADOS ===== */}
@@ -876,7 +1082,7 @@ export default function CalendarioPage() {
                             Cargar feriados nacionales {filtroAnio}
                         </h3>
                         <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 16px 0' }}>
-                            Seleccioná los feriados que querés cargar. Desmarcá los que no correspondan (ej: si cae en fin de semana).
+                            Seleccioná los feriados que querés cargar.
                         </p>
 
                         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -922,10 +1128,6 @@ export default function CalendarioPage() {
                                     </label>
                                 );
                             })}
-                        </div>
-
-                        <div style={{ marginTop: 16, padding: 12, background: '#fef3c7', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
-                            💡 <strong>Recordá:</strong> Los feriados móviles (Carnaval, Semana Santa, Güemes) se agregan manualmente después, ya que cambian de fecha cada año.
                         </div>
 
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
