@@ -11,8 +11,24 @@ const Iconos = {
     receso: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>,
     agregar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
     eliminar: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
-    check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
+    check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
+    masivo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
 };
+
+// ✅ FERIADOS NACIONALES FIJOS DE ARGENTINA (no cambian de fecha)
+const FERIADOS_NACIONALES_FIJOS = [
+    { mes: 3, dia: 24, nombre: 'Día Nacional de la Memoria por la Verdad y la Justicia' },
+    { mes: 4, dia: 2, nombre: 'Día del Veterano y de los Caídos en la Guerra de Malvinas' },
+    { mes: 5, dia: 1, nombre: 'Día del Trabajador' },
+    { mes: 5, dia: 25, nombre: 'Día de la Revolución de Mayo' },
+    { mes: 6, dia: 20, nombre: 'Día de la Bandera' },
+    { mes: 7, dia: 9, nombre: 'Día de la Independencia' },
+    { mes: 8, dia: 17, nombre: 'Paso a la Inmortalidad del Gral. José de San Martín' },
+    { mes: 10, dia: 12, nombre: 'Día del Respeto a la Diversidad Cultural' },
+    { mes: 11, dia: 20, nombre: 'Día de la Soberanía Nacional' },
+    { mes: 12, dia: 8, nombre: 'Inmaculada Concepción de María' },
+    { mes: 12, dia: 25, nombre: 'Navidad' }
+];
 
 const DIAS_SEMANA = [
     { valor: 'lunes', etiqueta: 'Lunes' },
@@ -46,6 +62,13 @@ function formatearFechaCorta(fechaISO) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Genera la fecha ISO a partir de año, mes y día
+function generarFechaISO(anio, mes, dia) {
+    const m = String(mes).padStart(2, '0');
+    const d = String(dia).padStart(2, '0');
+    return `${anio}-${m}-${d}`;
+}
+
 export default function CalendarioPage() {
     const { docente, cargando } = useDocente();
     const [vista, setVista] = useState('academico');
@@ -70,6 +93,7 @@ export default function CalendarioPage() {
         alcance: 'nacional',
         anio: new Date().getFullYear()
     });
+    const [modalCargaMasiva, setModalCargaMasiva] = useState({ abierto: false, feriados: [], seleccionados: [] });
 
     // Suspensiones
     const [suspensiones, setSuspensiones] = useState([]);
@@ -274,6 +298,73 @@ export default function CalendarioPage() {
         }
     }
 
+    // ✅ CARGA MASIVA DE FERIADOS NACIONALES
+    function abrirModalCargaMasiva() {
+        // Generar la lista de feriados fijos para el año seleccionado
+        const feriadosGenerados = FERIADOS_NACIONALES_FIJOS.map(f => ({
+            fecha: generarFechaISO(filtroAnio, f.mes, f.dia),
+            nombre: f.nombre,
+            alcance: 'nacional',
+            anio: filtroAnio
+        }));
+
+        // Marcar todos como seleccionados por defecto
+        const seleccionados = feriadosGenerados.map((_, i) => i);
+
+        setModalCargaMasiva({
+            abierto: true,
+            feriados: feriadosGenerados,
+            seleccionados
+        });
+    }
+
+    function toggleSeleccionFeriado(index) {
+        setModalCargaMasiva(prev => {
+            const nuevos = prev.seleccionados.includes(index)
+                ? prev.seleccionados.filter(i => i !== index)
+                : [...prev.seleccionados, index];
+            return { ...prev, seleccionados: nuevos };
+        });
+    }
+
+    function seleccionarTodos() {
+        setModalCargaMasiva(prev => ({
+            ...prev,
+            seleccionados: prev.feriados.map((_, i) => i)
+        }));
+    }
+
+    function deseleccionarTodos() {
+        setModalCargaMasiva(prev => ({ ...prev, seleccionados: [] }));
+    }
+
+    async function confirmarCargaMasiva() {
+        if (modalCargaMasiva.seleccionados.length === 0) {
+            setMensaje({ tipo: 'error', texto: 'Seleccioná al menos un feriado.' });
+            return;
+        }
+        setProcesando(true);
+        try {
+            const feriadosAInsertar = modalCargaMasiva.seleccionados.map(i => modalCargaMasiva.feriados[i]);
+
+            // Insertar todos de una vez
+            const { error } = await supabase
+                .from('calendario_feriados')
+                .upsert(feriadosAInsertar, { onConflict: 'fecha, anio' });
+
+            if (error) throw error;
+
+            setMensaje({ tipo: 'ok', texto: `${feriadosAInsertar.length} feriados nacionales cargados correctamente.` });
+            setModalCargaMasiva({ abierto: false, feriados: [], seleccionados: [] });
+            await cargarFeriados();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setProcesando(false);
+        }
+    }
+
     // === SUSPENSIONES ===
     async function guardarSuspension() {
         if (!formSuspension.fp_curso_id || !formSuspension.fecha) {
@@ -467,7 +558,6 @@ export default function CalendarioPage() {
                             </div>
                         </div>
 
-                        {/* Listado de calendarios */}
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                             <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
                                 <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -519,10 +609,44 @@ export default function CalendarioPage() {
                 {/* ===== FERIADOS ===== */}
                 {vista === 'feriados' && (
                     <div>
+                        {/* Botón de carga masiva */}
+                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 20, marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', marginBottom: 4 }}>
+                                    Carga rápida de feriados nacionales
+                                </div>
+                                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                                    Carga automáticamente los 11 feriados nacionales fijos de Argentina para {filtroAnio}. Los feriados móviles (Carnaval, Semana Santa, Güemes) se agregan manualmente.
+                                </div>
+                            </div>
+                            <button
+                                onClick={abrirModalCargaMasiva}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    background: '#1e3a8a',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '10px 20px',
+                                    borderRadius: 6,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                {Iconos.masivo} Cargar feriados {filtroAnio}
+                            </button>
+                        </div>
+
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, marginBottom: 24 }}>
                             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Agregar feriado
+                                Agregar feriado manualmente
                             </h3>
+                            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#92400e' }}>
+                                💡 Usá este formulario solo para feriados móviles (Carnaval, Semana Santa, Güemes) o provinciales/locales.
+                            </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                 <div>
                                     <label style={labelStyle}>Fecha</label>
@@ -530,7 +654,7 @@ export default function CalendarioPage() {
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Nombre</label>
-                                    <input type="text" value={formFeriado.nombre} onChange={(e) => setFormFeriado(prev => ({ ...prev, nombre: e.target.value }))} placeholder="Ej: Día de la Independencia" style={inputStyle} />
+                                    <input type="text" value={formFeriado.nombre} onChange={(e) => setFormFeriado(prev => ({ ...prev, nombre: e.target.value }))} placeholder="Ej: Carnaval" style={inputStyle} />
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Alcance</label>
@@ -553,7 +677,7 @@ export default function CalendarioPage() {
                                 </h3>
                             </div>
                             {feriados.length === 0 ? (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay feriados registrados para {filtroAnio}.</div>
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay feriados registrados para {filtroAnio}. Usá el botón "Cargar feriados {filtroAnio}" para agregar los nacionales automáticamente.</div>
                             ) : (
                                 <div className="vista-desktop">
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -743,6 +867,94 @@ export default function CalendarioPage() {
                     </div>
                 )}
             </div>
+
+            {/* ===== MODAL: CARGA MASIVA DE FERIADOS ===== */}
+            {modalCargaMasiva.abierto && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setModalCargaMasiva({ abierto: false, feriados: [], seleccionados: [] })}>
+                    <div style={{ background: '#fff', borderRadius: 8, padding: 28, maxWidth: 600, width: '100%', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>
+                            Cargar feriados nacionales {filtroAnio}
+                        </h3>
+                        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 16px 0' }}>
+                            Seleccioná los feriados que querés cargar. Desmarcá los que no correspondan (ej: si cae en fin de semana).
+                        </p>
+
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                            <button onClick={seleccionarTodos} style={{ fontSize: 12, color: '#1e40af', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                Seleccionar todos
+                            </button>
+                            <span style={{ color: '#d1d5db' }}>|</span>
+                            <button onClick={deseleccionarTodos} style={{ fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                Deseleccionar todos
+                            </button>
+                        </div>
+
+                        <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, maxHeight: 400, overflow: 'auto' }}>
+                            {modalCargaMasiva.feriados.map((f, i) => {
+                                const fecha = new Date(f.fecha + 'T00:00:00');
+                                const diaSemana = fecha.toLocaleDateString('es-AR', { weekday: 'long' });
+                                const isSelected = modalCargaMasiva.seleccionados.includes(i);
+                                return (
+                                    <label
+                                        key={i}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 12,
+                                            padding: '12px 16px',
+                                            borderBottom: i < modalCargaMasiva.feriados.length - 1 ? '1px solid #e5e7eb' : 'none',
+                                            background: isSelected ? '#f0fdf4' : '#fff',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleSeleccionFeriado(i)}
+                                            style={{ width: 16, height: 16, cursor: 'pointer' }}
+                                        />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>{f.nombre}</div>
+                                            <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'capitalize' }}>
+                                                {formatearFechaCorta(f.fecha)} · {diaSemana}
+                                            </div>
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ marginTop: 16, padding: 12, background: '#fef3c7', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                            💡 <strong>Recordá:</strong> Los feriados móviles (Carnaval, Semana Santa, Güemes) se agregan manualmente después, ya que cambian de fecha cada año.
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                            <button
+                                onClick={() => setModalCargaMasiva({ abierto: false, feriados: [], seleccionados: [] })}
+                                style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 18px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmarCargaMasiva}
+                                disabled={procesando || modalCargaMasiva.seleccionados.length === 0}
+                                style={{
+                                    background: (procesando || modalCargaMasiva.seleccionados.length === 0) ? '#9ca3af' : '#1e3a8a',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '10px 18px',
+                                    borderRadius: 4,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: (procesando || modalCargaMasiva.seleccionados.length === 0) ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {procesando ? 'Cargando...' : `Cargar ${modalCargaMasiva.seleccionados.length} feriados`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Sidebar>
     );
 }
