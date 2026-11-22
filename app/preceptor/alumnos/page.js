@@ -141,6 +141,7 @@ export default function AlumnosPage() {
                 `)
                     .in('estado', ESTADOS_CURSANTES)
                     .order('creado_en', { ascending: false })
+                    .limit(3000)
             ]);
             setCursos(cursosData || []);
             setAlumnos(alumnosData || []);
