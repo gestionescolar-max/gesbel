@@ -223,17 +223,24 @@ export default function AlumnosPage() {
 
     function abrirCierre(a) {
         const estadoCalc = calcularEstadoAutomatico(a);
+        const curso = cursos.find(c => c.id === a.fp_curso_id);
         setCierre({
             abierto: true,
             alumno: a,
             estadoAutomatico: estadoCalc,
             estadoElegido: estadoCalc.estado === 'pendiente' ? '' : estadoCalc.estado,
-            observacion: ''
+            observacion: '',
+            esTrayectoFinal: curso?.es_trayecto_final === true
         });
     }
 
     async function confirmarCierre() {
         if (!cierre.alumno) return;
+
+        const [cierre, setCierre] = useState({
+            abierto: false, alumno: null, estadoAutomatico: null,
+            estadoElegido: null, observacion: '', esTrayectoFinal: false
+        });
 
         const esExcepcional = ESTADOS_EXCEPCIONALES.some(e => e.valor === cierre.estadoElegido);
         const esCambioDeAutomatico = cierre.estadoAutomatico &&
@@ -260,7 +267,7 @@ export default function AlumnosPage() {
                     fecha_cierre: new Date().toISOString().split('T')[0],
                     observacion_cierre: cierre.observacion.trim() || null,
                     cierre_automatico: esAutomatico,
-                    es_egresado: false
+                    es_egresado: esAutomatico && cierre.esTrayectoFinal && estadoFinal === 'aprobado'
                 })
                 .eq('id', cierre.alumno.id);
 
