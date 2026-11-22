@@ -29,6 +29,25 @@ const Iconos = {
 };
 
 // ============================================================
+// FUNCIONES HELPER (para el acta legal)
+// ============================================================
+function numeroALetras(num) {
+    const unidades = ['Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciseis', 'Diecisiete', 'Dieciocho', 'Diecinueve', 'Veinte'];
+    if (num === 0) return 'Ninguno';
+    if (num <= 20) return unidades[num];
+    if (num < 30) return 'Veinti' + unidades[num - 20].toLowerCase();
+    if (num === 30) return 'Treinta';
+    if (num < 40) return 'Treinta y ' + unidades[num - 30].toLowerCase();
+    if (num === 40) return 'Cuarenta';
+    return num.toString();
+}
+
+function mesALetras(mesIndex) {
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return meses[mesIndex] || '';
+}
+
+// ============================================================
 // COMPONENTE PRINCIPAL
 // ============================================================
 export default function CursoFPDetallePage() {
@@ -51,6 +70,7 @@ export default function CursoFPDetallePage() {
     const [cargando, setCargando] = useState(true);
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState(null);
+    const [uid, setUid] = useState(null);
 
     // ============================================================
     // CARGA INICIAL
@@ -69,6 +89,8 @@ export default function CursoFPDetallePage() {
     async function cargarDatos() {
         setCargando(true);
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUid(user?.id || null);
             const { data: cursoData, error: errorCurso } = await supabase
                 .from('fp_cursos')
                 .select('*')
@@ -109,6 +131,9 @@ export default function CursoFPDetallePage() {
                 bloqueado: ESTADOS_BLOQUEADOS.includes(insc.estado)
             }));
             setAlumnos(alumnosProcesados);
+            if (funcionActiva) {
+                await cargarCapacidadesYCalificaciones();
+            }
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar: ${err.message}` });
         } finally {
@@ -248,7 +273,7 @@ export default function CursoFPDetallePage() {
                         fp_inscripcion_id: inscripcionId,
                         fp_evidencia_id: evidenciaId,
                         valor: nuevoValor,
-                        docente_id: docente?.id || null,
+                        docente_id: uid,
                         fecha_registro: new Date().toISOString().split('T')[0]
                     }, { onConflict: 'fp_inscripcion_id,fp_evidencia_id' });
                 if (error) throw error;
@@ -692,13 +717,104 @@ export default function CursoFPDetallePage() {
                 )}
 
                 {tabActiva === 'acta' && (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                        <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📜</div>
-                        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Acta de Finalización</div>
-                        <div style={{ fontSize: 14 }}>
-                            El acta se genera cuando el alumno completa todas las funciones del perfil.
-                            <br />
-                            <strong>Funciones del curso:</strong> {funciones.length}
+                    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 40, maxWidth: 900, margin: '0 auto' }}>
+                        {/* Encabezado del Acta */}
+                        <div style={{ textAlign: 'center', marginBottom: 30, borderBottom: '2px solid #1e3a8a', paddingBottom: 20 }}>
+                            <h3 style={{ fontSize: 14, color: '#6b7280', margin: '0 0 10px 0', textTransform: 'uppercase' }}>Escuela Técnica Fray Luis Beltrán</h3>
+                            <h2 style={{ fontSize: 22, color: '#1e3a8a', margin: '0 0 10px 0', fontWeight: 700 }}>ACTA DE FINALIZACIÓN</h2>
+                            <p style={{ fontSize: 14, color: '#4b5563', margin: 0 }}>Resolución N° 5036/16</p>
+                        </div>
+
+                        {/* Datos del Perfil */}
+                        <div style={{ marginBottom: 30, fontSize: 14, lineHeight: 1.8 }}>
+                            <p style={{ margin: '0 0 10px 0' }}><strong>SECTOR:</strong> APOYO ADMINISTRATIVO EN CUALQUIER SECTOR PRODUCTIVO</p>
+                            <p style={{ margin: '0 0 10px 0' }}><strong>PERFIL PROFESIONAL:</strong> {curso?.nombre?.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}</p>
+                            <p style={{ margin: '0 0 10px 0' }}><strong>NIVEL DE CUALIFICACIÓN:</strong> II</p>
+                            <p style={{ margin: '0 0 20px 0' }}><strong>Duración Total en Horas:</strong> {curso?.carga_horaria || 500}</p>
+
+                            <p style={{ margin: '20px 0' }}>
+                                A los <strong>{numeroALetras(new Date().getDate())}</strong> días del mes de <strong>{mesALetras(new Date().getMonth())}</strong> de dos mil <strong>{numeroALetras(new Date().getFullYear() - 2000)}</strong>,
+                                reunido el equipo Docente correspondiente al Perfil Profesional mencionado, proceden a registrar las Calificaciones Finales.
+                            </p>
+                        </div>
+
+                        {/* Tabla de Alumnos */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 30, fontSize: 13 }}>
+                            <thead>
+                                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #1e3a8a' }}>
+                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb' }}>Nº</th>
+                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb' }}>D.N.I. Nº</th>
+                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb' }}>APELLIDO Y NOMBRE</th>
+                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb' }}>CALIFICACIÓN DEFINITIVA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {alumnos.map((alumno, index) => {
+                                    // Calcular estado final del alumno (simplificado para el acta)
+                                    const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
+                                    let calificacion = 'En proceso';
+                                    if (alumno.bloqueado) calificacion = 'Ausente';
+                                    else if (total > 0 && alcanzadas / total >= 0.5) calificacion = 'Aprobado';
+                                    else if (total > 0) calificacion = 'Desaprobado';
+
+                                    return (
+                                        <tr key={alumno.inscripcionId}>
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>{index + 1}</td>
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>{alumno.dni || '—'}</td>
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb', fontWeight: 600 }}>
+                                                {alumno.apellido ? `${alumno.apellido.toUpperCase()}, ${alumno.nombre.toUpperCase()}` : alumno.nombre.toUpperCase()}
+                                            </td>
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center', fontWeight: 700, color: calificacion === 'Aprobado' ? '#15803d' : calificacion === 'Desaprobado' ? '#b91c1c' : '#6b7280' }}>
+                                                {calificacion}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+
+                        {/* Pie del Acta (Conteo en números y letras) */}
+                        {(() => {
+                            const totalAlumnos = alumnos.length;
+                            const aprobados = alumnos.filter(a => !a.bloqueado && calcularCapacidadesAlcanzadas(a.inscripcionId).total > 0 && calcularCapacidadesAlcanzadas(a.inscripcionId).alcanzadas / calcularCapacidadesAlcanzadas(a.inscripcionId).total >= 0.5).length;
+                            const desaprobados = alumnos.filter(a => !a.bloqueado && calcularCapacidadesAlcanzadas(a.inscripcionId).total > 0 && calcularCapacidadesAlcanzadas(a.inscripcionId).alcanzadas / calcularCapacidadesAlcanzadas(a.inscripcionId).total < 0.5).length;
+                            const ausentes = alumnos.filter(a => a.bloqueado).length;
+
+                            return (
+                                <div style={{ fontSize: 14, lineHeight: 1.8, borderTop: '1px solid #e5e7eb', paddingTop: 20 }}>
+                                    <p>
+                                        Se hace constar que examinados <strong>{totalAlumnos} ({numeroALetras(totalAlumnos)})</strong> alumnos, resultaron:
+                                    </p>
+                                    <p style={{ marginLeft: 20 }}>
+                                        <strong>{aprobados} ({numeroALetras(aprobados)}) APROBADOS</strong>,
+                                    </p>
+                                    <p style={{ marginLeft: 20 }}>
+                                        <strong>{desaprobados} ({numeroALetras(desaprobados)}) DESAPROBADOS</strong> y,
+                                    </p>
+                                    <p style={{ marginLeft: 20 }}>
+                                        <strong>{ausentes} ({numeroALetras(ausentes)}) AUSENTES</strong>.
+                                    </p>
+                                    <p style={{ marginTop: 20 }}>
+                                        Total de Alumnos: <strong>{totalAlumnos} ({numeroALetras(totalAlumnos)})</strong>.
+                                    </p>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Firmas (Espacios vacíos) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60, paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
+                            <div style={{ textAlign: 'center', width: '30%' }}>
+                                <div style={{ borderBottom: '1px solid #000', marginBottom: 5, height: 40 }}></div>
+                                <p style={{ fontSize: 11, margin: 0 }}>Firma Equipo Docente</p>
+                            </div>
+                            <div style={{ textAlign: 'center', width: '30%' }}>
+                                <div style={{ borderBottom: '1px solid #000', marginBottom: 5, height: 40 }}></div>
+                                <p style={{ fontSize: 11, margin: 0 }}>Firma Preceptor/a</p>
+                            </div>
+                            <div style={{ textAlign: 'center', width: '30%' }}>
+                                <div style={{ borderBottom: '1px solid #000', marginBottom: 5, height: 40 }}></div>
+                                <p style={{ fontSize: 11, margin: 0 }}>Firma J.T.E.P.</p>
+                            </div>
                         </div>
                     </div>
                 )}
