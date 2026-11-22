@@ -71,6 +71,7 @@ export default function CursoFPDetallePage() {
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState(null);
     const [uid, setUid] = useState(null);
+    const [proyectosHistorial, setProyectosHistorial] = useState([]);
 
     // ============================================================
     // CARGA INICIAL
@@ -130,6 +131,24 @@ export default function CursoFPDetallePage() {
                 nombre: insc.fp_alumnos?.nombre,
                 bloqueado: ESTADOS_BLOQUEADOS.includes(insc.estado)
             }));
+
+            const { data: proyectosHist, error: errorHist } = await supabase
+                .from('fp_proyectos_aulicos')
+                .select(`
+                id, titulo, descripcion, archivo_url, anio_lectivo, creado_en,
+                fp_proyecto_capacidades (id)
+            `)
+                .eq('fp_curso_id', cursoId)
+                .order('anio_lectivo', { ascending: false });
+
+            if (errorHist) throw errorHist;
+
+            // Calcular cantidad de capacidades evaluables por proyecto
+            const proyectosConCapacidades = (proyectosHist || []).map(p => ({
+                ...p,
+                capacidades_evaluables: (p.fp_proyecto_capacidades || []).length
+            }));
+            setProyectosHistorial(proyectosConCapacidades);
 
             setAlumnos(alumnosProcesados);
             if (funcionActiva) {
@@ -701,12 +720,117 @@ export default function CursoFPDetallePage() {
                 )}
 
                 {tabActiva === 'proyecto' && (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Proyecto Áulico</div>
-                        <div style={{ fontSize: 14, marginBottom: 16 }}>Cargá el proyecto y definí qué capacidades evaluás en este curso.</div>
-                        <button onClick={() => router.push(`/docente/cursos/${cursoId}/proyecto`)} style={{ background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>
-                            Abrir Proyecto Áulico →
-                        </button>
+                    <div>
+                        {/* Encabezado */}
+                        <div style={{ marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Proyecto Áulico</h3>
+                            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
+                                Gestioná el proyecto del ciclo actual y consultá el historial de años anteriores.
+                            </p>
+                        </div>
+
+                        {/* Proyecto vigente (año actual) */}
+                        {(() => {
+                            const anioActual = new Date().getFullYear();
+                            const vigente = proyectosHistorial.find(p => p.anio_lectivo === anioActual);
+
+                            if (vigente) {
+                                return (
+                                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 20, marginBottom: 24 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                            <div>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', marginBottom: 4 }}>✅ Proyecto Vigente {anioActual}</div>
+                                                <h4 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>{vigente.titulo}</h4>
+                                                {vigente.descripcion && <p style={{ fontSize: 13, color: '#4b5563', margin: '0 0 4px 0' }}>{vigente.descripcion}</p>}
+                                                <div style={{ fontSize: 11, color: '#6b7280' }}>
+                                                    Creado: {new Date(vigente.creado_en).toLocaleDateString('es-AR')}
+                                                    {vigente.capacidades_evaluables > 0 && ` · ${vigente.capacidades_evaluables} capacidades evaluables`}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                {vigente.archivo_url && (
+                                                    <a href={vigente.archivo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '8px 12px', borderRadius: 4, fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>
+                                                        📄 Ver en Drive
+                                                    </a>
+                                                )}
+                                                <button onClick={() => router.push(`/docente/cursos/${cursoId}/proyecto`)} style={{ background: '#15803d', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                                                    Editar capacidades →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 20, marginBottom: 24, textAlign: 'center' }}>
+                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#92400e', marginBottom: 8 }}>⚠️ No hay proyecto áulico cargado para {anioActual}</div>
+                                    <div style={{ fontSize: 13, color: '#78350f', marginBottom: 16 }}>
+                                        Debés cargar el proyecto y definir qué capacidades vas a evaluar este ciclo.
+                                    </div>
+                                    <button onClick={() => router.push(`/docente/cursos/${cursoId}/proyecto`)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>
+                                        Cargar Proyecto Áulico →
+                                    </button>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Historial de proyectos anteriores */}
+                        {(() => {
+                            const anioActual = new Date().getFullYear();
+                            const anteriores = proyectosHistorial
+                                .filter(p => p.anio_lectivo < anioActual)
+                                .sort((a, b) => b.anio_lectivo - a.anio_lectivo);
+
+                            if (anteriores.length === 0) {
+                                return (
+                                    <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, textAlign: 'center', color: '#6b7280' }}>
+                                        <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.4 }}>📚</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600 }}>Sin historial de proyectos</div>
+                                        <div style={{ fontSize: 12 }}>Los proyectos que cargues en ciclos anteriores aparecerán acá.</div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                    <div style={{ padding: '14px 20px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', margin: 0 }}>📋 Historial de Proyectos Áulicos</h4>
+                                        <span style={{ fontSize: 12, color: '#6b7280' }}>{anteriores.length} {anteriores.length === 1 ? 'proyecto' : 'proyectos'} anterior(es)</span>
+                                    </div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                        <thead>
+                                            <tr style={{ background: '#fafafa', borderBottom: '1px solid #e5e7eb' }}>
+                                                <th style={{ padding: '10px 20px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Ciclo</th>
+                                                <th style={{ padding: '10px 20px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Título</th>
+                                                <th style={{ padding: '10px 20px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Creado</th>
+                                                <th style={{ padding: '10px 20px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Capacidades</th>
+                                                <th style={{ padding: '10px 20px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {anteriores.map((p, idx) => (
+                                                <tr key={p.id} style={{ borderBottom: idx < anteriores.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                                                    <td style={{ padding: '12px 20px', fontWeight: 700, color: '#1e3a8a' }}>{p.anio_lectivo}</td>
+                                                    <td style={{ padding: '12px 20px', color: '#1e3a8a', fontWeight: 500 }}>{p.titulo}</td>
+                                                    <td style={{ padding: '12px 20px', color: '#6b7280', fontSize: 12 }}>{new Date(p.creado_en).toLocaleDateString('es-AR')}</td>
+                                                    <td style={{ padding: '12px 20px', textAlign: 'center', color: '#6b7280', fontSize: 12 }}>{p.capacidades_evaluables || '—'}</td>
+                                                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                                                        {p.archivo_url ? (
+                                                            <a href={p.archivo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1e40af', fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>
+                                                                📄 Ver en Drive
+                                                            </a>
+                                                        ) : (
+                                                            <span style={{ fontSize: 11, color: '#9ca3af' }}>Sin archivo</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
