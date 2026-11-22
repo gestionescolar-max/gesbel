@@ -45,7 +45,7 @@ export default function CursoFPDetallePage() {
     const [evidencias, setEvidencias] = useState({});
     const [alumnos, setAlumnos] = useState([]);
     const [calificaciones, setCalificaciones] = useState({});
-    const [tabActiva, setTabActiva] = useState('planilla');
+    const [tabActiva, setTabActiva] = useState('proyecto');
 
     // Estados de UI
     const [cargando, setCargando] = useState(true);
@@ -127,13 +127,15 @@ export default function CursoFPDetallePage() {
             if (errorCaps) throw errorCaps;
             setCapacidades(capsData || []);
 
-            const capIds = (capsData || []).map(c => c.id);
-            const { data: evidData, error: errorEvid } = await supabase
-                .from('fp_evidencias')
-                .select('*')
-                .in('fp_capacidad_id', capIds)
-                .order('orden');
-            if (errorEvid) throw errorEvid;
+            const { data: proyectoData } = await supabase
+                .from('fp_proyecto_capacidades')
+                .select('fp_capacidad_id')
+                .eq('fp_proyecto_id', (await supabase.from('fp_proyectos_aulicos').select('id').eq('fp_curso_id', cursoId).eq('anio_lectivo', curso.anio).maybeSingle())?.data?.id)
+                .eq('evaluable', true);
+
+            const capsDelProyecto = new Set((proyectoData || []).map(p => p.fp_capacidad_id));
+            const capsFiltradas = (capsData || []).filter(c => capsDelProyecto.has(c.id));
+            setCapacidades(capsFiltradas);
 
             const evidPorCap = {};
             (evidData || []).forEach(e => {
@@ -323,9 +325,9 @@ export default function CursoFPDetallePage() {
 
                 <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb' }}>
                     {[
-                        { id: 'planilla', label: 'Planilla de calificaciones', icon: Iconos.planilla },
                         { id: 'proyecto', label: 'Proyecto áulico', icon: Iconos.proyecto },
                         { id: 'libro', label: 'Libro de temas', icon: Iconos.libro },
+                        { id: 'planilla', label: 'Planilla de calificaciones', icon: Iconos.planilla },
                         { id: 'acta', label: 'Acta de finalización', icon: Iconos.acta }
                     ].map(tab => (
                         <button
@@ -414,6 +416,12 @@ export default function CursoFPDetallePage() {
                                 <span>Alumno bloqueado</span>
                             </div>
                         </div>
+
+                        {funcionActiva && capacidades.length === 0 && (
+                            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 16, marginBottom: 24, fontSize: 13, color: '#92400e' }}>
+                                ⚠️ No hay capacidades evaluables para esta función. El docente debe definir qué capacidades evalúa en el <button onClick={() => setTabActiva('proyecto')} style={{ background: 'none', border: 'none', color: '#92400e', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Proyecto Áulico</button>.
+                            </div>
+                        )}
 
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
