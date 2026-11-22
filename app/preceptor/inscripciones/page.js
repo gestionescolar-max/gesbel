@@ -21,11 +21,11 @@ const Iconos = {
     subir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
     check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
     externo: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>,
-    alerta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>,
     calendario: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
     bloqueo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>,
     imprimir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>,
-    carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+    carpeta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
+    editar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
 };
 
 function calcularEdad(fechaNacimiento) {
@@ -76,10 +76,12 @@ export default function InscripcionesPage() {
     const [pagoCooperadora, setPagoCooperadora] = useState({ paga: false, monto: 0, tipo_pago: 'total', nro_comprobante: '' });
     const [edadCalculada, setEdadCalculada] = useState(null);
 
-    // ✅ NUEVOS ESTADOS PARA LEGAJO ÚNICO
     const [alumnoExistente, setAlumnoExistente] = useState(null);
     const [buscandoAlumno, setBuscandoAlumno] = useState(false);
     const [mostrarAlertaAlumno, setMostrarAlertaAlumno] = useState(false);
+
+    const [formEditar, setFormEditar] = useState(null);
+    const [mostrarEditar, setMostrarEditar] = useState(false);
 
     const [form, setForm] = useState({
         fp_curso_id: '', ciclo_lectivo: periodoInscripcion.cicloLectivo.toString(),
@@ -154,7 +156,6 @@ export default function InscripcionesPage() {
         setArchivosForm(prev => ({ ...prev, [docId]: file }));
     }
 
-    // ✅ FUNCIÓN PARA BUSCAR ALUMNO EXISTENTE POR DNI
     async function buscarAlumnoPorDni(dni) {
         if (!dni || dni.trim().length < 6) {
             setAlumnoExistente(null);
@@ -239,7 +240,6 @@ export default function InscripcionesPage() {
                 datosDocumentos[`doc_${doc.id}_digital`] = check.digital || false;
             });
 
-            // ✅ 1. Manejo de fp_alumnos (Crear o Actualizar)
             let alumnoId = alumnoExistente?.id;
             let legajoFinal = alumnoExistente?.legajo;
 
@@ -290,7 +290,6 @@ export default function InscripcionesPage() {
                 if (errorUpdate) throw errorUpdate;
             }
 
-            // ✅ 2. Crear la inscripción vinculada al alumno
             const datosInsert = {
                 fp_alumno_id: alumnoId,
                 legajo: legajoFinal,
@@ -411,6 +410,14 @@ export default function InscripcionesPage() {
                 datosUpdate[`doc_${doc.id}_digital`] = check.digital || false;
             });
 
+            const docsObligatoriosMarcados = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => {
+                const doc = datosUpdate[`doc_${d.id}_fisico`] || datosUpdate[`doc_${d.id}_digital`];
+                return doc;
+            });
+            const todosDocsObligatoriosOK = docsObligatoriosMarcados.length === DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length;
+
+            datosUpdate.documentacion_completa = todosDocsObligatoriosOK;
+
             const { error } = await supabase.from('fp_inscripciones').update(datosUpdate).eq('id', inscSeleccionada.id);
             if (error) throw error;
 
@@ -419,6 +426,72 @@ export default function InscripcionesPage() {
             setTimeout(() => setMensaje(null), 3000);
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        }
+    }
+
+    function abrirEditar(p) {
+        setFormEditar({
+            id: p.id,
+            fp_alumno_id: p.fp_alumno_id,
+            apellido: p.apellido || '',
+            nombre: p.nombre || '',
+            dni: p.dni || '',
+            fecha_nac: p.fecha_nac || '',
+            nacionalidad: p.nacionalidad || 'argentino',
+            telefono: p.telefono || '',
+            email: p.email || '',
+            domicilio: p.domicilio || '',
+            estudios_obtenidos: p.estudios_obtenidos || 'primario_secundario',
+            situacion_laboral: p.situacion_laboral || '',
+            emergencia_nombre: p.emergencia_nombre || '',
+            emergencia_parentesco: p.emergencia_parentesco || '',
+            emergencia_telefono: p.emergencia_telefono || '',
+            observaciones: p.observaciones || ''
+        });
+        setMostrarEditar(true);
+    }
+
+    async function guardarEditar() {
+        if (!formEditar) return;
+        setEnviando(true);
+        try {
+            if (formEditar.fp_alumno_id) {
+                const { error: errorAlumno } = await supabase
+                    .from('fp_alumnos')
+                    .update({
+                        apellido: formEditar.apellido,
+                        nombre: formEditar.nombre,
+                        dni: formEditar.dni,
+                        fecha_nac: formEditar.fecha_nac,
+                        nacionalidad: formEditar.nacionalidad,
+                        telefono: formEditar.telefono,
+                        email: formEditar.email,
+                        domicilio: formEditar.domicilio,
+                        estudios_obtenidos: formEditar.estudios_obtenidos,
+                        situacion_laboral: formEditar.situacion_laboral,
+                        emergencia_nombre: formEditar.emergencia_nombre,
+                        emergencia_parentesco: formEditar.emergencia_parentesco,
+                        emergencia_telefono: formEditar.emergencia_telefono
+                    })
+                    .eq('id', formEditar.fp_alumno_id);
+                if (errorAlumno) throw errorAlumno;
+            }
+
+            const { error: errorInsc } = await supabase
+                .from('fp_inscripciones')
+                .update({ observaciones: formEditar.observaciones })
+                .eq('id', formEditar.id);
+            if (errorInsc) throw errorInsc;
+
+            setMensaje({ tipo: 'ok', texto: 'Datos actualizados correctamente.' });
+            setMostrarEditar(false);
+            setFormEditar(null);
+            await cargarDatos();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setEnviando(false);
         }
     }
 
@@ -463,7 +536,7 @@ export default function InscripcionesPage() {
                         padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14, display: 'flex', alignItems: 'flex-start', gap: 8
                     }}>
                         <span style={{ flexShrink: 0, marginTop: 2 }}>
-                            {mensaje.tipo === 'loading' && '⏳'}{mensaje.tipo === 'ok' && '✅'}{mensaje.tipo === 'error' && '❌'}{mensaje.tipo === 'warning' && '⚠️'}
+                            {mensaje.tipo === 'loading' && '⏳'}{mensaje.tipo === 'ok' && '✓'}{mensaje.tipo === 'error' && '✕'}{mensaje.tipo === 'warning' && '⚠'}
                         </span>
                         <span>{mensaje.texto}</span>
                     </div>
@@ -534,7 +607,7 @@ export default function InscripcionesPage() {
                                 {mostrarAlertaAlumno && alumnoExistente && (
                                     <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 20, gridColumn: '1 / -1' }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', marginBottom: 8 }}>
-                                            ⚠️ Alumno ya registrado
+                                            Alumno ya registrado
                                         </div>
                                         <div style={{ fontSize: 13, color: '#1e3a8a', marginBottom: 12 }}>
                                             <strong>{alumnoExistente.apellido}, {alumnoExistente.nombre}</strong> ya tiene legajo <strong>{alumnoExistente.legajo}</strong>
@@ -731,10 +804,41 @@ export default function InscripcionesPage() {
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                        <button onClick={() => { setInscripcionCompleta({ ...p, pago: { paga: p.pago_cooperadora, monto: p.monto_cooperadora || 0, tipo_pago: p.tipo_pago_cooperadora || 'total', nro_comprobante: p.nro_comprobante_cooperadora || '' } }); setMostrarImpresion(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>
+                                                        <button onClick={() => abrirEditar(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#d97706', border: '1px solid #d97706', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>
+                                                            {Iconos.editar} Editar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setInscripcionCompleta({
+                                                                    ...p,
+                                                                    pago: {
+                                                                        paga: p.pago_cooperadora,
+                                                                        monto: p.monto_cooperadora || 0,
+                                                                        tipo_pago: p.tipo_pago_cooperadora || 'total',
+                                                                        nro_comprobante: p.nro_comprobante_cooperadora || ''
+                                                                    }
+                                                                });
+                                                                setMostrarImpresion(true);
+                                                            }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#1e40af', border: '1px solid #1e40af', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
+                                                        >
                                                             {Iconos.imprimir} Ver Ficha
                                                         </button>
-                                                        <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); const checklistActual = {}; DOCUMENTOS_REQUERIDOS.forEach(doc => { checklistActual[doc.id] = { fisico: p[`doc_${doc.id}_fisico`] || false, digital: p[`doc_${doc.id}_digital`] || false }; }); setChecklistModal(checklistActual); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setInscSeleccionada(p);
+                                                                setArchivoListado(null);
+                                                                const checklistActual = {};
+                                                                DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                    checklistActual[doc.id] = {
+                                                                        fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                        digital: p[`doc_${doc.id}_digital`] || false
+                                                                    };
+                                                                });
+                                                                setChecklistModal(checklistActual);
+                                                            }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer', marginRight: 6 }}
+                                                        >
                                                             {Iconos.subir} Cargar Doc.
                                                         </button>
                                                         {p.url_carpeta_drive && (
@@ -770,20 +874,72 @@ export default function InscripcionesPage() {
                                         <div key={p.id} className="card-alumno">
                                             <div className="card-alumno-header">
                                                 <div>
-                                                    <div className="card-alumno-nombre">{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</div>
-                                                    <div className="card-alumno-dni">DNI: {p.dni || '—'} {p.legajo && <span style={{ marginLeft: 8, color: '#6b7280' }}>· Legajo: {p.legajo}</span>}</div>
+                                                    <div className="card-alumno-nombre">
+                                                        {p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}
+                                                    </div>
+                                                    <div className="card-alumno-dni">
+                                                        DNI: {p.dni || '—'} {p.legajo && <span style={{ marginLeft: 8, color: '#6b7280' }}>· Legajo: {p.legajo}</span>}
+                                                    </div>
                                                 </div>
-                                                <span className="card-alumno-estado" style={{ background: bgEstado, color: colorEstado, border: `1px solid ${borderEstado}` }}>{p.estado}</span>
+                                                <span className="card-alumno-estado" style={{ background: bgEstado, color: colorEstado, border: `1px solid ${borderEstado}` }}>
+                                                    {p.estado}
+                                                </span>
                                             </div>
                                             <div className="card-alumno-curso">
                                                 <span className="card-alumno-label">Curso:</span>
-                                                <span className="card-alumno-valor">{cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</span>
+                                                <span className="card-alumno-valor">
+                                                    {cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                </span>
                                             </div>
                                             <div className="card-alumno-acciones">
-                                                <button onClick={() => { setInscripcionCompleta({ ...p, pago: { paga: p.pago_cooperadora, monto: p.monto_cooperadora || 0, tipo_pago: p.tipo_pago_cooperadora || 'total', nro_comprobante: p.nro_comprobante_cooperadora || '' } }); setMostrarImpresion(true); }} className="btn-card btn-card-secundario">Ver Ficha</button>
-                                                <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); const checklistActual = {}; DOCUMENTOS_REQUERIDOS.forEach(doc => { checklistActual[doc.id] = { fisico: p[`doc_${doc.id}_fisico`] || false, digital: p[`doc_${doc.id}_digital`] || false }; }); setChecklistModal(checklistActual); }} className="btn-card btn-card-primario">Cargar Doc.</button>
-                                                {p.url_carpeta_drive && (<a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" className="btn-card btn-card-secundario">Ver Carpeta</a>)}
-                                                {p.estado === 'preinscrito' && (<button onClick={() => confirmarInscripcion(p.id)} className="btn-card btn-card-confirmar">Confirmar</button>)}
+                                                <button onClick={() => abrirEditar(p)} className="btn-card btn-card-secundario">Editar</button>
+                                                <button
+                                                    onClick={() => {
+                                                        setInscripcionCompleta({
+                                                            ...p,
+                                                            pago: {
+                                                                paga: p.pago_cooperadora,
+                                                                monto: p.monto_cooperadora || 0,
+                                                                tipo_pago: p.tipo_pago_cooperadora || 'total',
+                                                                nro_comprobante: p.nro_comprobante_cooperadora || ''
+                                                            }
+                                                        });
+                                                        setMostrarImpresion(true);
+                                                    }}
+                                                    className="btn-card btn-card-secundario"
+                                                >
+                                                    Ver Ficha
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setInscSeleccionada(p);
+                                                        setArchivoListado(null);
+                                                        const checklistActual = {};
+                                                        DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                            checklistActual[doc.id] = {
+                                                                fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                digital: p[`doc_${doc.id}_digital`] || false
+                                                            };
+                                                        });
+                                                        setChecklistModal(checklistActual);
+                                                    }}
+                                                    className="btn-card btn-card-primario"
+                                                >
+                                                    Cargar Doc.
+                                                </button>
+                                                {p.url_carpeta_drive && (
+                                                    <a href={p.url_carpeta_drive} target="_blank" rel="noopener noreferrer" className="btn-card btn-card-secundario">
+                                                        Ver Carpeta
+                                                    </a>
+                                                )}
+                                                {p.estado === 'preinscrito' && (
+                                                    <button
+                                                        onClick={() => confirmarInscripcion(p.id)}
+                                                        className="btn-card btn-card-confirmar"
+                                                    >
+                                                        Confirmar
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -809,10 +965,24 @@ export default function InscripcionesPage() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
                             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado de Inscripción</h3>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Estado de Inscripción
+                                </h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
                                     <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
-                                        <div style={{ width: 140, height: 140, borderRadius: '50%', background: (() => { const total = inscripcionesDelCiclo.length || 1; const inscriptos = inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length; const preinscriptos = inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length; const pctInsc = (inscriptos / total) * 100; const pctPre = (preinscriptos / total) * 100; return `conic-gradient(#059669 0% ${pctInsc}%, #d97706 ${pctInsc}% ${pctInsc + pctPre}%, #d1d5db ${pctInsc + pctPre}% 100%)`; })() }} />
+                                        <div style={{
+                                            width: 140,
+                                            height: 140,
+                                            borderRadius: '50%',
+                                            background: (() => {
+                                                const total = inscripcionesDelCiclo.length || 1;
+                                                const inscriptos = inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length;
+                                                const preinscriptos = inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length;
+                                                const pctInsc = (inscriptos / total) * 100;
+                                                const pctPre = (preinscriptos / total) * 100;
+                                                return `conic-gradient(#059669 0% ${pctInsc}%, #d97706 ${pctInsc}% ${pctInsc + pctPre}%, #d1d5db ${pctInsc + pctPre}% 100%)`;
+                                            })()
+                                        }} />
                                         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 80, height: 80, borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                                             <div style={{ fontSize: 22, fontWeight: 700, color: '#1e3a8a' }}>{inscripcionesDelCiclo.length}</div>
                                             <div style={{ fontSize: 10, color: '#6b7280' }}>Total</div>
@@ -844,7 +1014,9 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
                             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ocupación por Curso</h3>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Ocupación por Curso
+                                </h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                     {cursosDelCicloResumen.length === 0 ? (
                                         <div style={{ textAlign: 'center', color: '#6b7280', padding: 20, fontSize: 13 }}>No hay cursos para este ciclo</div>
@@ -858,7 +1030,9 @@ export default function InscripcionesPage() {
                                             return (
                                                 <div key={curso.id}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}</div>
+                                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
+                                                            {curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}
+                                                        </div>
                                                         <div style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap', fontWeight: 600 }}>{ocupados}/{cupo}</div>
                                                     </div>
                                                     <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
@@ -873,12 +1047,26 @@ export default function InscripcionesPage() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
                             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado de Documentación</h3>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Estado de Documentación
+                                </h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
                                     <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
-                                        <div style={{ width: 140, height: 140, borderRadius: '50%', background: (() => { const total = inscripcionesDelCiclo.length || 1; const completa = inscripcionesDelCiclo.filter(p => p.documentacion_completa).length; const pctComp = (completa / total) * 100; return `conic-gradient(#059669 0% ${pctComp}%, #b91c1c ${pctComp}% 100%)`; })() }} />
+                                        <div style={{
+                                            width: 140,
+                                            height: 140,
+                                            borderRadius: '50%',
+                                            background: (() => {
+                                                const total = inscripcionesDelCiclo.length || 1;
+                                                const completa = inscripcionesDelCiclo.filter(p => p.documentacion_completa).length;
+                                                const pctComp = (completa / total) * 100;
+                                                return `conic-gradient(#059669 0% ${pctComp}%, #b91c1c ${pctComp}% 100%)`;
+                                            })()
+                                        }} />
                                         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 80, height: 80, borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                            <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>{inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100) : 0}%</div>
+                                            <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>
+                                                {inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100) : 0}%
+                                            </div>
                                             <div style={{ fontSize: 10, color: '#6b7280' }}>Completa</div>
                                         </div>
                                     </div>
@@ -901,25 +1089,41 @@ export default function InscripcionesPage() {
                                 </div>
                             </div>
                             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pago de Cooperadora</h3>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Pago de Cooperadora
+                                </h3>
                                 <div style={{ marginBottom: 16 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                         <span style={{ fontSize: 12, color: '#6b7280' }}>Alumnos que pagan</span>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>{inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length} / {inscripcionesDelCiclo.length}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>
+                                            {inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length} / {inscripcionesDelCiclo.length}
+                                        </span>
                                     </div>
                                     <div style={{ height: 10, background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: `${inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}%`, background: '#059669', borderRadius: 5, transition: 'width 0.5s ease' }} />
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}%`,
+                                            background: '#059669',
+                                            borderRadius: 5,
+                                            transition: 'width 0.5s ease'
+                                        }} />
                                     </div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'right', fontWeight: 600 }}>{inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}% de cobertura</div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'right', fontWeight: 600 }}>
+                                        {inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}% de cobertura
+                                    </div>
                                 </div>
                                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: 14 }}>
                                     <div style={{ fontSize: 10, color: '#059669', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4, letterSpacing: '0.05em' }}>Total Recaudado</div>
-                                    <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>${inscripcionesDelCiclo.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0).toLocaleString('es-AR')}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: '#059669' }}>
+                                        ${inscripcionesDelCiclo.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0).toLocaleString('es-AR')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div style={{ marginBottom: 24 }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detalle por Curso</h3>
+                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Detalle por Curso
+                            </h3>
                             <div className="vista-desktop" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                                 {cursosDelCicloResumen.length === 0 ? (
                                     <div style={{ padding: 32, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>No hay cursos para este ciclo lectivo</div>
@@ -950,21 +1154,38 @@ export default function InscripcionesPage() {
                                                     const pctCoop = ocupados > 0 ? Math.round((paganCoop / ocupados) * 100) : 0;
                                                     const recaudado = inscCurso.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0);
                                                     const colorOcupacion = pctOcupacion >= 90 ? '#b91c1c' : pctOcupacion >= 70 ? '#d97706' : '#059669';
+
                                                     return (
                                                         <tr key={curso.id} style={{ borderBottom: idx < cursosDelCicloResumen.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                             <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>{curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}</td>
-                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}><span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: curso.turno === 'Noche' ? '#1e3a8a' : curso.turno === 'Tarde' ? '#d97706' : '#059669', color: '#fff' }}>{curso.turno}</span></td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: curso.turno === 'Noche' ? '#1e3a8a' : curso.turno === 'Tarde' ? '#d97706' : '#059669', color: '#fff' }}>
+                                                                    {curso.turno}
+                                                                </span>
+                                                            </td>
                                                             <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, fontSize: 12 }}>{cupo}</td>
                                                             <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>{ocupados}</td>
                                                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 100 }}>
-                                                                    <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pctOcupacion}%`, background: colorOcupacion, borderRadius: 3 }} /></div>
+                                                                    <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                                                                        <div style={{ height: '100%', width: `${pctOcupacion}%`, background: colorOcupacion, borderRadius: 3 }} />
+                                                                    </div>
                                                                     <span style={{ fontSize: 11, fontWeight: 700, color: colorOcupacion, minWidth: 36 }}>{pctOcupacion}%</span>
                                                                 </div>
                                                             </td>
-                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}><span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: pctDocs >= 80 ? '#dcfce7' : pctDocs >= 50 ? '#fef3c7' : '#fef2f2', color: pctDocs >= 80 ? '#059669' : pctDocs >= 50 ? '#92400e' : '#b91c1c' }}>{docsOK}/{ocupados}</span></td>
-                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}><span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: pctCoop >= 80 ? '#dcfce7' : pctCoop >= 50 ? '#fef3c7' : '#fef2f2', color: pctCoop >= 80 ? '#059669' : pctCoop >= 50 ? '#92400e' : '#b91c1c' }}>{pctCoop}%</span></td>
-                                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>${recaudado.toLocaleString('es-AR')}</td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: pctDocs >= 80 ? '#dcfce7' : pctDocs >= 50 ? '#fef3c7' : '#fef2f2', color: pctDocs >= 80 ? '#059669' : pctDocs >= 50 ? '#92400e' : '#b91c1c' }}>
+                                                                    {docsOK}/{ocupados}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                                <span style={{ padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: pctCoop >= 80 ? '#dcfce7' : pctCoop >= 50 ? '#fef3c7' : '#fef2f2', color: pctCoop >= 80 ? '#059669' : pctCoop >= 50 ? '#92400e' : '#b91c1c' }}>
+                                                                    {pctCoop}%
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                                                                ${recaudado.toLocaleString('es-AR')}
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
@@ -977,51 +1198,21 @@ export default function InscripcionesPage() {
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>{Math.round((inscripcionesDelCiclo.length / Math.max(1, cursosDelCicloResumen.reduce((sum, c) => sum + (c.cupo || 0), 0))) * 100)}%</td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>{inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}/{inscripcionesDelCiclo.length}</td>
                                                     <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>{inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.pago_cooperadora).length / inscripcionesDelCiclo.length) * 100) : 0}%</td>
-                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>${inscripcionesDelCiclo.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0).toLocaleString('es-AR')}</td>
+                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                                                        ${inscripcionesDelCiclo.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0).toLocaleString('es-AR')}
+                                                    </td>
                                                 </tr>
                                             </tfoot>
                                         </table>
                                     </div>
                                 )}
                             </div>
-                            <div className="vista-mobile">
-                                {cursosDelCicloResumen.length === 0 ? (
-                                    <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 13, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}>No hay cursos para este ciclo lectivo</div>
-                                ) : (
-                                    cursosDelCicloResumen.map(curso => {
-                                        const inscCurso = inscripcionesDelCiclo.filter(p => p.fp_curso_id === curso.id);
-                                        const ocupados = inscCurso.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso' || p.estado === 'preinscrito').length;
-                                        const cupo = curso.cupo || 20;
-                                        const pctOcupacion = cupo > 0 ? Math.round((ocupados / cupo) * 100) : 0;
-                                        const docsOK = inscCurso.filter(p => p.documentacion_completa).length;
-                                        const pctDocs = ocupados > 0 ? Math.round((docsOK / ocupados) * 100) : 0;
-                                        const paganCoop = inscCurso.filter(p => p.pago_cooperadora).length;
-                                        const pctCoop = ocupados > 0 ? Math.round((paganCoop / ocupados) * 100) : 0;
-                                        const recaudado = inscCurso.filter(p => p.pago_cooperadora).reduce((sum, p) => sum + (p.monto_cooperadora || 0), 0);
-                                        const colorOcupacion = pctOcupacion >= 90 ? '#b91c1c' : pctOcupacion >= 70 ? '#d97706' : '#059669';
-                                        const colorTurno = curso.turno === 'Noche' ? '#1e3a8a' : curso.turno === 'Tarde' ? '#d97706' : '#059669';
-                                        return (
-                                            <div key={curso.id} className="card-curso">
-                                                <div className="card-curso-header">
-                                                    <div className="card-curso-nombre">{curso.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim()}</div>
-                                                    <span className="card-curso-turno" style={{ background: colorTurno }}>{curso.turno}</span>
-                                                </div>
-                                                <div className="card-dato"><span className="card-dato-label">Cupo total</span><span className="card-dato-valor">{cupo}</span></div>
-                                                <div className="card-dato"><span className="card-dato-label">Inscriptos</span><span className="card-dato-valor">{ocupados}</span></div>
-                                                <div className="card-dato"><span className="card-dato-label">Ocupación</span><span className="card-dato-valor" style={{ color: colorOcupacion }}>{pctOcupacion}%</span></div>
-                                                <div className="card-progreso"><div className="card-progreso-barra" style={{ width: `${pctOcupacion}%`, background: colorOcupacion }} /></div>
-                                                <div className="card-dato" style={{ marginTop: 8 }}><span className="card-dato-label">Documentación OK</span><span className="card-dato-valor" style={{ color: pctDocs >= 80 ? '#059669' : pctDocs >= 50 ? '#d97706' : '#b91c1c' }}>{docsOK}/{ocupados} ({pctDocs}%)</span></div>
-                                                <div className="card-dato"><span className="card-dato-label">Cooperadora</span><span className="card-dato-valor" style={{ color: pctCoop >= 80 ? '#059669' : pctCoop >= 50 ? '#d97706' : '#b91c1c' }}>{pctCoop}%</span></div>
-                                                <div className="card-dato"><span className="card-dato-label">Recaudado</span><span className="card-dato-valor" style={{ color: '#059669' }}>${recaudado.toLocaleString('es-AR')}</span></div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
                         </div>
                         {ultimosPendientes.length > 0 && (
                             <div style={{ marginBottom: 24 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #fecaca', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alumnos con Documentación Pendiente</h3>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #fecaca', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Alumnos con Documentación Pendiente
+                                </h3>
                                 <div className="vista-desktop" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 500 }}>
@@ -1037,10 +1228,32 @@ export default function InscripcionesPage() {
                                                 {ultimosPendientes.map((p, idx) => (
                                                     <tr key={p.id} style={{ borderBottom: idx < ultimosPendientes.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                         <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e3a8a', fontSize: 12 }}>{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</td>
-                                                        <td style={{ padding: '10px 12px', fontSize: 12, color: '#4b5563' }}>{cursosFP.find(c => c.id === p.fp_curso_id)?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}</td>
-                                                        <td style={{ padding: '10px 12px' }}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>{p.estado}</span></td>
+                                                        <td style={{ padding: '10px 12px', fontSize: 12, color: '#4b5563' }}>
+                                                            {cursosFP.find(c => c.id === p.fp_curso_id)?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
+                                                        </td>
+                                                        <td style={{ padding: '10px 12px' }}>
+                                                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                                {p.estado}
+                                                            </span>
+                                                        </td>
                                                         <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                                                            <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); const checklistActual = {}; DOCUMENTOS_REQUERIDOS.forEach(doc => { checklistActual[doc.id] = { fisico: p[`doc_${doc.id}_fisico`] || false, digital: p[`doc_${doc.id}_digital`] || false }; }); setChecklistModal(checklistActual); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>Regularizar</button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setInscSeleccionada(p);
+                                                                    setArchivoListado(null);
+                                                                    const checklistActual = {};
+                                                                    DOCUMENTOS_REQUERIDOS.forEach(doc => {
+                                                                        checklistActual[doc.id] = {
+                                                                            fisico: p[`doc_${doc.id}_fisico`] || false,
+                                                                            digital: p[`doc_${doc.id}_digital`] || false
+                                                                        };
+                                                                    });
+                                                                    setChecklistModal(checklistActual);
+                                                                }}
+                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1e3a8a', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}
+                                                            >
+                                                                Regularizar
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1048,28 +1261,12 @@ export default function InscripcionesPage() {
                                         </table>
                                     </div>
                                 </div>
-                                <div className="vista-mobile">
-                                    {ultimosPendientes.map(p => {
-                                        const cursoInfo = cursosFP.find(c => c.id === p.fp_curso_id);
-                                        return (
-                                            <div key={p.id} className="card-pendiente">
-                                                <div className="card-pendiente-nombre">{p.apellido ? `${p.apellido}, ${p.nombre}` : p.nombre}</div>
-                                                <div className="card-pendiente-curso">
-                                                    {cursoInfo?.nombre.replace(/\s*[-–—]\s*\d{4}\s*$/, '').trim() || '—'}
-                                                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', marginLeft: 8 }}>{p.estado}</span>
-                                                </div>
-                                                <div className="card-pendiente-acciones">
-                                                    <button onClick={() => { setInscSeleccionada(p); setArchivoListado(null); const checklistActual = {}; DOCUMENTOS_REQUERIDOS.forEach(doc => { checklistActual[doc.id] = { fisico: p[`doc_${doc.id}_fisico`] || false, digital: p[`doc_${doc.id}_digital`] || false }; }); setChecklistModal(checklistActual); }} style={{ flex: 1, padding: '8px 12px', background: '#1e3a8a', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Regularizar</button>
-                                                    <button onClick={() => { setInscripcionCompleta({ ...p, pago: { paga: p.pago_cooperadora, monto: p.monto_cooperadora || 0, tipo_pago: p.tipo_pago_cooperadora || 'total', nro_comprobante: p.nro_comprobante_cooperadora || '' } }); setMostrarImpresion(true); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: '#1e40af', border: '1px solid #1e40af', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Ver Ficha</button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
                             </div>
                         )}
                         <div style={{ marginBottom: 24 }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Indicadores Generales</h3>
+                            <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Indicadores Generales
+                            </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Total Inscriptos</div>
@@ -1078,18 +1275,28 @@ export default function InscripcionesPage() {
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #059669' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Inscriptos Confirmados</div>
-                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length}</div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length / inscripcionesDelCiclo.length) * 100) : 0}% del total</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                        {inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.estado === 'inscripto' || p.estado === 'en_curso').length / inscripcionesDelCiclo.length) * 100) : 0}% del total
+                                    </div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #d97706' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Pre-inscriptos</div>
-                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>{inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length}</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#d97706', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.estado === 'preinscrito').length}
+                                    </div>
                                     <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Pendientes de confirmar</div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #059669' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Documentación Completa</div>
-                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}</div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100) : 0}% completó docs</div>
+                                    <div style={{ fontSize: 28, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                                        {inscripcionesDelCiclo.filter(p => p.documentacion_completa).length}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                        {inscripcionesDelCiclo.length > 0 ? Math.round((inscripcionesDelCiclo.filter(p => p.documentacion_completa).length / inscripcionesDelCiclo.length) * 100) : 0}% completó docs
+                                    </div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
                                     <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Cupos Totales</div>
@@ -1123,6 +1330,217 @@ export default function InscripcionesPage() {
                             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
                                 <button onClick={() => setMostrarImpresion(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cerrar</button>
                                 <button onClick={handleImprimir} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{Iconos.imprimir} Imprimir Ficha</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {mostrarEditar && formEditar && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setMostrarEditar(false)}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Editar datos del alumno</h2>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                                    <strong>{formEditar.apellido}, {formEditar.nombre}</strong> · DNI {formEditar.dni || '—'} · Legajo {inscSeleccionada?.legajo || '—'}
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16, marginBottom: 24 }}>
+                                <div><label style={labelStyle}>Apellido</label><input type="text" value={formEditar.apellido} onChange={(e) => setFormEditar(prev => ({ ...prev, apellido: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Nombre</label><input type="text" value={formEditar.nombre} onChange={(e) => setFormEditar(prev => ({ ...prev, nombre: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>DNI</label><input type="text" value={formEditar.dni} onChange={(e) => setFormEditar(prev => ({ ...prev, dni: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Fecha de Nacimiento</label><input type="date" value={formEditar.fecha_nac} onChange={(e) => setFormEditar(prev => ({ ...prev, fecha_nac: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Nacionalidad</label><select value={formEditar.nacionalidad} onChange={(e) => setFormEditar(prev => ({ ...prev, nacionalidad: e.target.value }))} style={inputStyle}><option value="argentino">Argentino</option><option value="naturalizado">Naturalizado</option><option value="extranjero">Extranjero</option></select></div>
+                                <div><label style={labelStyle}>Teléfono</label><input type="tel" value={formEditar.telefono} onChange={(e) => setFormEditar(prev => ({ ...prev, telefono: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Email</label><input type="email" value={formEditar.email} onChange={(e) => setFormEditar(prev => ({ ...prev, email: e.target.value }))} style={inputStyle} /></div>
+                                <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Domicilio</label><input type="text" value={formEditar.domicilio} onChange={(e) => setFormEditar(prev => ({ ...prev, domicilio: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Estudios Obtenidos</label><select value={formEditar.estudios_obtenidos} onChange={(e) => setFormEditar(prev => ({ ...prev, estudios_obtenidos: e.target.value }))} style={inputStyle}><option value="primario_secundario">Primario / Secundario</option><option value="nivel_superior">Nivel Superior / Universitario</option><option value="formacion_profesional">Formación Profesional</option></select></div>
+                                <div><label style={labelStyle}>Situación Laboral</label><select value={formEditar.situacion_laboral} onChange={(e) => setFormEditar(prev => ({ ...prev, situacion_laboral: e.target.value }))} style={inputStyle}><option value="">Seleccione...</option><option value="estudiante">Estudiante</option><option value="desocupado">Desocupado</option><option value="empleado">Empleado</option><option value="trabajador_independiente">Trabajador Independiente</option><option value="jubilado">Jubilado</option></select></div>
+                                <div><label style={labelStyle}>Contacto de Emergencia - Nombre</label><input type="text" value={formEditar.emergencia_nombre} onChange={(e) => setFormEditar(prev => ({ ...prev, emergencia_nombre: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Parentesco</label><input type="text" value={formEditar.emergencia_parentesco} onChange={(e) => setFormEditar(prev => ({ ...prev, emergencia_parentesco: e.target.value }))} style={inputStyle} /></div>
+                                <div><label style={labelStyle}>Teléfono de Emergencia</label><input type="tel" value={formEditar.emergencia_telefono} onChange={(e) => setFormEditar(prev => ({ ...prev, emergencia_telefono: e.target.value }))} style={inputStyle} /></div>
+                                <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Observaciones</label><textarea value={formEditar.observaciones} onChange={(e) => setFormEditar(prev => ({ ...prev, observaciones: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} /></div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
+                                <button onClick={() => setMostrarEditar(false)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
+                                <button onClick={guardarEditar} disabled={enviando} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: enviando ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: enviando ? 'not-allowed' : 'pointer' }}>
+                                    {Iconos.check} {enviando ? 'Guardando...' : 'Guardar cambios'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {inscSeleccionada && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setInscSeleccionada(null)}>
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 32, maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
+                                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>
+                                    Completar Documentación
+                                </h2>
+                                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                                    <strong>{inscSeleccionada.apellido ? `${inscSeleccionada.apellido}, ${inscSeleccionada.nombre}` : inscSeleccionada.nombre}</strong>
+                                    {' · '}DNI {inscSeleccionada.dni || '—'}
+                                    {' · '}Legajo {inscSeleccionada.legajo || 'Pendiente'}
+                                </p>
+                                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', background: inscSeleccionada.documentacion_completa ? '#dcfce7' : '#fef3c7', color: inscSeleccionada.documentacion_completa ? '#15803d' : '#92400e', border: `1px solid ${inscSeleccionada.documentacion_completa ? '#bbf7d0' : '#fde68a'}` }}>
+                                        {inscSeleccionada.documentacion_completa ? 'Documentación Completa' : 'Documentación Pendiente'}
+                                    </span>
+                                    <span style={{ fontSize: 12, color: '#6b7280' }}>Estado: <strong>{inscSeleccionada.estado}</strong></span>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const totalObligatorios = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).length;
+                                const completados = DOCUMENTOS_REQUERIDOS.filter(d => d.obligatorio).filter(d => {
+                                    const check = checklistModal[d.id] || {};
+                                    return check.fisico || check.digital;
+                                }).length;
+                                const pct = totalObligatorios > 0 ? Math.round((completados / totalObligatorios) * 100) : 0;
+                                return (
+                                    <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 14, marginBottom: 20 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1e3a8a' }}>Progreso de documentación obligatoria</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 100 ? '#059669' : '#d97706' }}>{completados}/{totalObligatorios} ({pct}%)</span>
+                                        </div>
+                                        <div style={{ height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#059669' : '#d97706', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.05em', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    Documentos Requeridos
+                                </h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {DOCUMENTOS_REQUERIDOS.map(doc => {
+                                        const check = checklistModal[doc.id] || {};
+                                        const tieneAlguno = check.fisico || check.digital;
+                                        return (
+                                            <div key={doc.id} style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '1fr 200px',
+                                                gap: 16,
+                                                padding: '12px 14px',
+                                                background: tieneAlguno ? '#f0fdf4' : '#fff',
+                                                borderRadius: 6,
+                                                border: `1px solid ${tieneAlguno ? '#bbf7d0' : '#e5e7eb'}`,
+                                                alignItems: 'center'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', marginBottom: 6 }}>
+                                                        {doc.nombre}
+                                                        {doc.obligatorio && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 6 }}>(Obligatorio)</span>}
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={check.fisico || false}
+                                                                onChange={(e) => handleChecklistModal(doc.id, 'fisico', e.target.checked)}
+                                                                style={{ width: 15, height: 15, cursor: 'pointer' }}
+                                                            />
+                                                            <span>Físico</span>
+                                                        </label>
+                                                        {!doc.solo_fisico && (
+                                                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#4b5563' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={check.digital || false}
+                                                                    onChange={(e) => handleChecklistModal(doc.id, 'digital', e.target.checked)}
+                                                                    style={{ width: 15, height: 15, cursor: 'pointer' }}
+                                                                />
+                                                                <span>Digital</span>
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    {doc.solo_fisico ? (
+                                                        <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>Solo físico</div>
+                                                    ) : (
+                                                        <input
+                                                            type="file"
+                                                            accept=".pdf,.jpg,.jpeg,.png"
+                                                            onChange={(e) => setArchivoListado(e.target.files[0])}
+                                                            style={{ fontSize: 11, width: '100%' }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 16, marginBottom: 20 }}>
+                                <h3 style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Cargar Documento Adicional a Drive
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
+                                    <div>
+                                        <label style={labelStyle}>Tipo de Documento</label>
+                                        <select value={tipoDocListado} onChange={(e) => setTipoDocListado(e.target.value)} style={inputStyle}>
+                                            <option value="Documentación General">Documentación General</option>
+                                            <option value="Certificado Analítico">Certificado Analítico</option>
+                                            <option value="Certificado de Estudio">Certificado de Estudio</option>
+                                            <option value="Comprobante de Pago">Comprobante de Pago</option>
+                                            <option value="Certificado Médico">Certificado Médico</option>
+                                            <option value="Otro">Otro</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={labelStyle}>Archivo</label>
+                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setArchivoListado(e.target.files[0])} style={{ fontSize: 12, width: '100%' }} />
+                                    </div>
+                                    <button
+                                        onClick={handleSubirArchivoListado}
+                                        disabled={!archivoListado || subiendoListado}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: !archivoListado || subiendoListado ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: !archivoListado || subiendoListado ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                                    >
+                                        {subiendoListado ? 'Subiendo...' : 'Subir'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {inscSeleccionada.url_carpeta_drive && (
+                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: 14, marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <div style={{ color: '#1e40af' }}>{Iconos.carpeta}</div>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a' }}>Carpeta de Drive del alumno</div>
+                                            <div style={{ fontSize: 11, color: '#6b7280' }}>Todos los documentos cargados están en Google Drive</div>
+                                        </div>
+                                    </div>
+                                    <a
+                                        href={inscSeleccionada.url_carpeta_drive}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                                    >
+                                        {Iconos.externo} Abrir Carpeta
+                                    </a>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', paddingTop: 20, borderTop: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={() => setInscSeleccionada(null)} style={{ background: '#fff', color: '#4b5563', border: '1px solid #d1d5db', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                                        Cerrar
+                                    </button>
+                                    <button onClick={guardarChecklistModal} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                        {Iconos.check} Guardar Checklist
+                                    </button>
+                                </div>
+                                {inscSeleccionada.estado === 'preinscrito' && (
+                                    <button onClick={() => confirmarInscripcion(inscSeleccionada.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#059669', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                        {Iconos.check} Confirmar Inscripción
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
