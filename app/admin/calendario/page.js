@@ -8,6 +8,7 @@ const Iconos = {
     calendario: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
     feriado: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>,
     suspension: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>,
+    receso: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>,
     agregar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
     eliminar: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
     check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
@@ -79,6 +80,15 @@ export default function CalendarioPage() {
         motivo: ''
     });
 
+    // Recesos
+    const [recesos, setRecesos] = useState([]);
+    const [formReceso, setFormReceso] = useState({
+        nombre: '',
+        fecha_inicio: '',
+        fecha_fin: '',
+        anio: new Date().getFullYear()
+    });
+
     // Filtros
     const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
 
@@ -94,6 +104,7 @@ export default function CalendarioPage() {
             cargarSuspensiones();
         }
         if (vista === 'academico') cargarCalendarios();
+        if (vista === 'recesos') cargarRecesos();
     }, [vista, filtroAnio]);
 
     async function cargarTodo() {
@@ -155,6 +166,20 @@ export default function CalendarioPage() {
             setSuspensiones(data || []);
         } catch (err) {
             console.error('Error al cargar suspensiones:', err);
+        }
+    }
+
+    async function cargarRecesos() {
+        try {
+            const { data, error } = await supabase
+                .from('calendario_recesos')
+                .select('*')
+                .eq('anio', filtroAnio)
+                .order('fecha_inicio');
+            if (error) throw error;
+            setRecesos(data || []);
+        } catch (err) {
+            console.error('Error al cargar recesos:', err);
         }
     }
 
@@ -289,6 +314,51 @@ export default function CalendarioPage() {
         }
     }
 
+    // === RECESOS ===
+    async function guardarReceso() {
+        if (!formReceso.nombre || !formReceso.fecha_inicio || !formReceso.fecha_fin) {
+            setMensaje({ tipo: 'error', texto: 'Completá nombre, fecha inicio y fecha fin.' });
+            return;
+        }
+        if (formReceso.fecha_fin < formReceso.fecha_inicio) {
+            setMensaje({ tipo: 'error', texto: 'La fecha fin debe ser posterior a la fecha inicio.' });
+            return;
+        }
+        setProcesando(true);
+        try {
+            const { error } = await supabase
+                .from('calendario_recesos')
+                .insert({
+                    anio: formReceso.anio,
+                    nombre: formReceso.nombre,
+                    fecha_inicio: formReceso.fecha_inicio,
+                    fecha_fin: formReceso.fecha_fin
+                });
+            if (error) throw error;
+            setMensaje({ tipo: 'ok', texto: 'Receso registrado correctamente.' });
+            setFormReceso({ nombre: '', fecha_inicio: '', fecha_fin: '', anio: formReceso.anio });
+            await cargarRecesos();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        } finally {
+            setProcesando(false);
+        }
+    }
+
+    async function eliminarReceso(id) {
+        if (!confirm('¿Eliminar este receso?')) return;
+        try {
+            const { error } = await supabase.from('calendario_recesos').delete().eq('id', id);
+            if (error) throw error;
+            setMensaje({ tipo: 'ok', texto: 'Receso eliminado.' });
+            await cargarRecesos();
+            setTimeout(() => setMensaje(null), 3000);
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
+        }
+    }
+
     if (cargando || !docente) return null;
 
     const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
@@ -331,6 +401,9 @@ export default function CalendarioPage() {
                     </button>
                     <button onClick={() => setVista('suspensiones')} style={{ padding: '12px 24px', background: vista === 'suspensiones' ? '#1e3a8a' : 'transparent', color: vista === 'suspensiones' ? '#fff' : '#4b5563', border: 'none', borderBottom: vista === 'suspensiones' ? '2px solid #1e3a8a' : '2px solid transparent', fontSize: 14, fontWeight: vista === 'suspensiones' ? 600 : 400, cursor: 'pointer', marginBottom: -2, display: 'flex', alignItems: 'center', gap: 8 }}>
                         {Iconos.suspension} Suspensiones
+                    </button>
+                    <button onClick={() => setVista('recesos')} style={{ padding: '12px 24px', background: vista === 'recesos' ? '#1e3a8a' : 'transparent', color: vista === 'recesos' ? '#fff' : '#4b5563', border: 'none', borderBottom: vista === 'recesos' ? '2px solid #1e3a8a' : '2px solid transparent', fontSize: 14, fontWeight: vista === 'recesos' ? 600 : 400, cursor: 'pointer', marginBottom: -2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {Iconos.receso} Recesos
                     </button>
                 </div>
 
@@ -582,6 +655,86 @@ export default function CalendarioPage() {
                                                     </td>
                                                 </tr>
                                             ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ===== RECESOS ===== */}
+                {vista === 'recesos' && (
+                    <div>
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', margin: '0 0 16px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Registrar receso
+                            </h3>
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#1e40af' }}>
+                                Los recesos son períodos donde no hay clases para todas las modalidades (ej: receso invernal, de primavera).
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                <div>
+                                    <label style={labelStyle}>Nombre</label>
+                                    <input type="text" value={formReceso.nombre} onChange={(e) => setFormReceso(prev => ({ ...prev, nombre: e.target.value }))} placeholder="Ej: Receso Invernal" style={inputStyle} />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Fecha inicio</label>
+                                    <input type="date" value={formReceso.fecha_inicio} onChange={(e) => setFormReceso(prev => ({ ...prev, fecha_inicio: e.target.value }))} style={inputStyle} />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Fecha fin</label>
+                                    <input type="date" value={formReceso.fecha_fin} onChange={(e) => setFormReceso(prev => ({ ...prev, fecha_fin: e.target.value }))} style={inputStyle} />
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button onClick={guardarReceso} disabled={procesando} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: procesando ? '#9ca3af' : '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: procesando ? 'not-allowed' : 'pointer' }}>
+                                    {Iconos.agregar} {procesando ? 'Guardando...' : 'Registrar receso'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                            <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Recesos del año {filtroAnio} ({recesos.length})
+                                </h3>
+                            </div>
+                            {recesos.length === 0 ? (
+                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>No hay recesos registrados para {filtroAnio}.</div>
+                            ) : (
+                                <div className="vista-desktop">
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                                        <thead>
+                                            <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Nombre</th>
+                                                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Período</th>
+                                                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Duración</th>
+                                                <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700 }}>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {recesos.map((r, idx) => {
+                                                const inicio = new Date(r.fecha_inicio);
+                                                const fin = new Date(r.fecha_fin);
+                                                const dias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24)) + 1;
+                                                return (
+                                                    <tr key={r.id} style={{ borderBottom: idx < recesos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e3a8a' }}>{r.nombre}</td>
+                                                        <td style={{ padding: '12px 16px', color: '#4b5563' }}>{formatearFechaCorta(r.fecha_inicio)} — {formatearFechaCorta(r.fecha_fin)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                            <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                                {dias} días
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                                            <button onClick={() => eliminarReceso(r.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', color: '#b91c1c', border: '1px solid #b91c1c', padding: '5px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                                                                {Iconos.eliminar}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
