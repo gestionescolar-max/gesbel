@@ -612,9 +612,11 @@ export default function CursoFPDetallePage() {
 
                 {tabActiva === 'proyecto' && (
                     <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                        <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📋</div>
                         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Proyecto Áulico</div>
-                        <div style={{ fontSize: 14 }}>Próximamente disponible.</div>
+                        <div style={{ fontSize: 14, marginBottom: 16 }}>Cargá el proyecto y definí qué capacidades evaluás en este curso.</div>
+                        <button onClick={() => router.push(`/docente/cursos/${cursoId}/proyecto`)} style={{ background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>
+                            Abrir Proyecto Áulico →
+                        </button>
                     </div>
                 )}
 
