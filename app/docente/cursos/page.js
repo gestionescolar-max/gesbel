@@ -21,7 +21,8 @@ export default function DocenteCursosPage() {
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [mensaje, setMensaje] = useState(null);
     const [cargandoCursos, setCargandoCursos] = useState(true);
-
+    const [proyectosPorCurso, setProyectosPorCurso] = useState({});
+    const [infoFunciones, setInfoFunciones] = useState({});
     // ✅ ESTADOS AGREGADOS PARA LOS MODALES
     const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
     const [modalFichaAbierto, setModalFichaAbierto] = useState(false);
@@ -72,6 +73,32 @@ export default function DocenteCursosPage() {
                     conteo[insc.fp_curso_id] = (conteo[insc.fp_curso_id] || 0) + 1;
                 });
                 setCantidadAlumnos(conteo);
+                // Cargar proyectos áulicos de estos cursos
+                const { data: proyectos } = await supabase
+                    .from('fp_proyectos_aulicos')
+                    .select('id, fp_curso_id, titulo, anio_lectivo, creado_en')
+                    .in('fp_curso_id', idsCursos);
+
+                const proyectosMap = {};
+                (proyectos || []).forEach(p => {
+                    if (!proyectosMap[p.fp_curso_id]) proyectosMap[p.fp_curso_id] = [];
+                    proyectosMap[p.fp_curso_id].push(p);
+                });
+                setProyectosPorCurso(proyectosMap);
+
+                // Opcional: cargar funciones para mostrar en las cards
+                const { data: funciones } = await supabase
+                    .from('fp_funciones')
+                    .select('fp_curso_id, carga_horaria')
+                    .in('fp_curso_id', idsCursos);
+
+                const infoFn = {};
+                (funciones || []).forEach(f => {
+                    if (!infoFn[f.fp_curso_id]) infoFn[f.fp_curso_id] = { funciones: 0, carga: 0 };
+                    infoFn[f.fp_curso_id].funciones += 1;
+                    infoFn[f.fp_curso_id].carga += (f.carga_horaria || 0);
+                });
+                setInfoFunciones(infoFn);
             }
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error: ${err.message}` });
@@ -185,6 +212,11 @@ export default function DocenteCursosPage() {
                             const estadoInfo = obtenerEstadoCurso(curso);
                             const cantidadAlumnosCurso = cantidadAlumnos[curso.id] || 0;
                             const porcentajeCupo = curso.cupo > 0 ? Math.round((cantidadAlumnosCurso / curso.cupo) * 100) : 0;
+                            const proyectos = proyectosPorCurso[curso.id] || [];
+                            const anioActual = new Date().getFullYear();
+                            const proyectoVigente = proyectos.find(p => p.anio_lectivo === anioActual);
+                            const proyectosAnteriores = proyectos.filter(p => p.anio_lectivo < anioActual);
+                            const fn = infoFunciones[curso.id];
 
                             return (
                                 <div
@@ -245,6 +277,30 @@ export default function DocenteCursosPage() {
                                         </span>
                                     </div>
 
+                                    {fn && fn.funciones > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: '#4b5563' }}>
+                                            📋 <span><strong style={{ color: '#1e3a8a' }}>{fn.funciones}</strong> funciones{fn.carga > 0 && <span style={{ color: '#9ca3af' }}> · {fn.carga} hs</span>}</span>
+                                        </div>
+                                    )}
+
+                                    <div style={{ marginBottom: 12, padding: '8px 10px', background: proyectoVigente ? '#f0fdf4' : '#fef3c7', border: `1px solid ${proyectoVigente ? '#bbf7d0' : '#fde68a'}`, borderRadius: 6, fontSize: 12 }}>
+                                        {proyectoVigente ? (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ color: '#15803d', fontWeight: 600 }}>✅ Proyecto vigente ({anioActual})</span>
+                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/docente/cursos/${curso.id}/proyecto`); }} style={{ background: '#15803d', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 3, fontSize: 10, cursor: 'pointer' }}>Ver →</button>
+                                            </div>
+                                        ) : (
+                                            <div style={{ color: '#92400e', fontWeight: 600 }}>
+                                                ⚠️ Sin proyecto áulico {anioActual}
+                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/docente/cursos/${curso.id}/proyecto`); }} style={{ marginLeft: 8, background: '#d97706', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 3, fontSize: 10, cursor: 'pointer' }}>Cargar →</button>
+                                            </div>
+                                        )}
+                                        {proyectosAnteriores.length > 0 && (
+                                            <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
+                                                {proyectosAnteriores.length} proyecto(s) anterior(es): {proyectosAnteriores.map(p => p.anio_lectivo).join(', ')}
+                                            </div>
+                                        )}
+                                    </div>
                                     {curso.cupo > 0 && (
                                         <div style={{ marginBottom: 16 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
