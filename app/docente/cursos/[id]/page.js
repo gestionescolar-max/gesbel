@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { useDocente } from '@/lib/useDocente';
@@ -8,7 +8,6 @@ import Sidebar from '@/components/Sidebar';
 // ============================================================
 // CONSTANTES
 // ============================================================
-const VALORES_EVALUACION = ['A', 'EP', 'NA'];
 const TIPOS_EVIDENCIA = ['conocimiento', 'desempeno', 'producto'];
 const TIPOS_EVIDENCIA_LABEL = {
     conocimiento: 'C',
@@ -16,16 +15,7 @@ const TIPOS_EVIDENCIA_LABEL = {
     producto: 'P'
 };
 
-// Estados que bloquean la calificación (alumno no cursa más)
 const ESTADOS_BLOQUEADOS = ['abandono', 'abandono_justificado', 'nunca_asistio', 'diferido'];
-
-// Estilos de botones de evaluación
-const ESTILOS_BOTON = {
-    A: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0', hover: '#bbf7d0' },
-    EP: { bg: '#fef3c7', color: '#92400e', border: '#fde68a', hover: '#fde68a' },
-    NA: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca', hover: '#fecaca' },
-    vacio: { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb', hover: '#e5e7eb' }
-};
 
 const Iconos = {
     volver: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>,
@@ -35,8 +25,7 @@ const Iconos = {
     planilla: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>,
     proyecto: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>,
     libro: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>,
-    acta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>,
-    usuarios: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+    acta: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
 };
 
 // ============================================================
@@ -46,23 +35,22 @@ export default function CursoFPDetallePage() {
     const params = useParams();
     const router = useRouter();
     const { docente, cargando: cargandoDocente } = useDocente();
-    const cursoId = Number(params.id);
+    const cursoId = params?.id ? Number(params.id) : null;
 
     // Estados de datos
     const [curso, setCurso] = useState(null);
     const [funciones, setFunciones] = useState([]);
     const [funcionActiva, setFuncionActiva] = useState(null);
     const [capacidades, setCapacidades] = useState([]);
-    const [evidencias, setEvidencias] = useState({}); // { capacidadId: [evidencias] }
+    const [evidencias, setEvidencias] = useState({});
     const [alumnos, setAlumnos] = useState([]);
-    const [calificaciones, setCalificaciones] = useState({}); // { inscripcionId_evidenciaId: valor }
+    const [calificaciones, setCalificaciones] = useState({});
     const [tabActiva, setTabActiva] = useState('planilla');
 
     // Estados de UI
     const [cargando, setCargando] = useState(true);
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState(null);
-    const [alumnoExpand, setAlumnoExpand] = useState(null); // Para vista móvil
 
     // ============================================================
     // CARGA INICIAL
@@ -72,15 +60,15 @@ export default function CursoFPDetallePage() {
         cargarDatos();
     }, [docente, cursoId]);
 
-    // Recargar capacidades/evidencias cuando cambia la función activa
     useEffect(() => {
-        if (funcionActiva) cargarCapacidadesYCalificaciones();
+        if (funcionActiva && alumnos.length > 0) {
+            cargarCapacidadesYCalificaciones();
+        }
     }, [funcionActiva]);
 
     async function cargarDatos() {
         setCargando(true);
         try {
-            // 1. Datos del curso
             const { data: cursoData, error: errorCurso } = await supabase
                 .from('fp_cursos')
                 .select('*')
@@ -89,7 +77,6 @@ export default function CursoFPDetallePage() {
             if (errorCurso) throw errorCurso;
             setCurso(cursoData);
 
-            // 2. Funciones del curso
             const { data: funcionesData, error: errorFunciones } = await supabase
                 .from('fp_funciones')
                 .select('*')
@@ -101,7 +88,6 @@ export default function CursoFPDetallePage() {
                 setFuncionActiva(funcionesData[0]);
             }
 
-            // 3. Alumnos inscriptos (con datos personales)
             const { data: inscripcionesData, error: errorInsc } = await supabase
                 .from('fp_inscripciones')
                 .select(`
@@ -133,7 +119,6 @@ export default function CursoFPDetallePage() {
     async function cargarCapacidadesYCalificaciones() {
         if (!funcionActiva) return;
         try {
-            // Capacidades de la función activa
             const { data: capsData, error: errorCaps } = await supabase
                 .from('fp_capacidades')
                 .select('*')
@@ -142,7 +127,6 @@ export default function CursoFPDetallePage() {
             if (errorCaps) throw errorCaps;
             setCapacidades(capsData || []);
 
-            // Evidencias por capacidad
             const capIds = (capsData || []).map(c => c.id);
             const { data: evidData, error: errorEvid } = await supabase
                 .from('fp_evidencias')
@@ -158,7 +142,6 @@ export default function CursoFPDetallePage() {
             });
             setEvidencias(evidPorCap);
 
-            // Calificaciones existentes para los alumnos de este curso
             const inscIds = alumnos.map(a => a.inscripcionId);
             const evidIds = (evidData || []).map(e => e.id);
 
@@ -197,14 +180,11 @@ export default function CursoFPDetallePage() {
 
         const key = `${inscripcionId}_${evidenciaId}`;
         const valorActual = calificaciones[key];
-
-        // Si hace clic en el mismo valor, lo quita (toggle)
         const nuevoValor = valorActual === valor ? null : valor;
 
         setGuardando(true);
         try {
             if (nuevoValor) {
-                // Upsert: insertar o actualizar
                 const { error } = await supabase
                     .from('fp_calificaciones')
                     .upsert({
@@ -216,7 +196,6 @@ export default function CursoFPDetallePage() {
                     }, { onConflict: 'fp_inscripcion_id,fp_evidencia_id' });
                 if (error) throw error;
             } else {
-                // Eliminar si existía
                 const { error } = await supabase
                     .from('fp_calificaciones')
                     .delete()
@@ -225,7 +204,6 @@ export default function CursoFPDetallePage() {
                 if (error) throw error;
             }
 
-            // Actualizar estado local
             setCalificaciones(prev => {
                 const nuevo = { ...prev };
                 if (nuevoValor) {
@@ -246,9 +224,8 @@ export default function CursoFPDetallePage() {
     // CÁLCULOS
     // ============================================================
     function calcularCapacidadesAlcanzadas(inscripcionId) {
-        // Una capacidad está "alcanzada" si sus 3 evidencias están en 'A'
         let alcanzadas = 0;
-        let total = capacidades.length;
+        const total = capacidades.length;
 
         capacidades.forEach(cap => {
             const evidsCap = evidencias[cap.id] || [];
@@ -268,6 +245,15 @@ export default function CursoFPDetallePage() {
         return { estado: 'no_alcanzado', color: '#991b1b', texto: 'No alcanzado' };
     }
 
+    function getBgColor(color, opacity) {
+        // Convierte hex a rgba para opacidad
+        const hex = color.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+
     // ============================================================
     // RENDER
     // ============================================================
@@ -284,7 +270,7 @@ export default function CursoFPDetallePage() {
             <Sidebar docente={docente} titulo="Curso no encontrado">
                 <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>
                     <div style={{ fontSize: 16, marginBottom: 16 }}>No se encontró el curso solicitado.</div>
-                    <button onClick={() => router.push('/docente/cursos-fp')} style={{ background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, cursor: 'pointer' }}>
+                    <button onClick={() => router.push('/docente/cursos')} style={{ background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, cursor: 'pointer' }}>
                         Volver a mis cursos
                     </button>
                 </div>
@@ -297,8 +283,8 @@ export default function CursoFPDetallePage() {
             <Sidebar docente={docente} titulo={curso.nombre}>
                 <div style={{ padding: 60, textAlign: 'center', color: '#6b7280', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, margin: 24 }}>
                     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Este curso no tiene funciones cargadas</div>
-                    <div style={{ fontSize: 14 }}>El administrador debe cargar el diseño curricular del perfil para habilitar la planilla de calificaciones.</div>
-                    <button onClick={() => router.push('/docente/cursos-fp')} style={{ marginTop: 16, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, cursor: 'pointer' }}>
+                    <div style={{ fontSize: 14 }}>El administrador debe cargar el diseño curricular del perfil.</div>
+                    <button onClick={() => router.push('/docente/cursos')} style={{ marginTop: 16, background: '#1e3a8a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 6, cursor: 'pointer' }}>
                         Volver a mis cursos
                     </button>
                 </div>
@@ -306,13 +292,10 @@ export default function CursoFPDetallePage() {
         );
     }
 
-    const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
-
     return (
         <Sidebar docente={docente} titulo={curso.nombre}>
             <div style={{ maxWidth: 1400, margin: '0 auto' }}>
 
-                {/* Mensajes */}
                 {mensaje && (
                     <div style={{
                         background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff',
@@ -326,9 +309,8 @@ export default function CursoFPDetallePage() {
                     </div>
                 )}
 
-                {/* Header con navegación */}
                 <div style={{ marginBottom: 24 }}>
-                    <button onClick={() => router.push('/docente/cursos-fp')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#1e3a8a', fontSize: 14, fontWeight: 500, cursor: 'pointer', padding: 0, marginBottom: 12 }}>
+                    <button onClick={() => router.push('/docente/cursos')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#1e3a8a', fontSize: 14, fontWeight: 500, cursor: 'pointer', padding: 0, marginBottom: 12 }}>
                         {Iconos.volver} Volver a mis cursos
                     </button>
                     <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', marginBottom: 4, marginTop: 0 }}>
@@ -339,7 +321,6 @@ export default function CursoFPDetallePage() {
                     </p>
                 </div>
 
-                {/* Tabs principales */}
                 <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb' }}>
                     {[
                         { id: 'planilla', label: 'Planilla de calificaciones', icon: Iconos.planilla },
@@ -370,12 +351,8 @@ export default function CursoFPDetallePage() {
                     ))}
                 </div>
 
-                {/* ============================================================ */}
-                {/* TAB: PLANILLA DE CALIFICACIONES */}
-                {/* ============================================================ */}
                 {tabActiva === 'planilla' && (
                     <div>
-                        {/* Tabs de funciones */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
                             {funciones.map(fn => (
                                 <button
@@ -405,7 +382,6 @@ export default function CursoFPDetallePage() {
                             ))}
                         </div>
 
-                        {/* Info de la función activa */}
                         {funcionActiva && (
                             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 24 }}>
                                 <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 700, marginBottom: 4 }}>
@@ -420,7 +396,6 @@ export default function CursoFPDetallePage() {
                             </div>
                         )}
 
-                        {/* Leyenda */}
                         <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ width: 24, height: 24, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#15803d', fontSize: 11 }}>A</span>
@@ -436,13 +411,10 @@ export default function CursoFPDetallePage() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
                                 {Iconos.bloqueado}
-                                <span>Alumno bloqueado (no se puede calificar)</span>
+                                <span>Alumno bloqueado</span>
                             </div>
                         </div>
 
-                        {/* ============================================================ */}
-                        {/* MATRIZ DE CALIFICACIONES */}
-                        {/* ============================================================ */}
                         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
@@ -483,23 +455,21 @@ export default function CursoFPDetallePage() {
                                         <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                                             <th style={{ padding: 0, background: '#f9fafb', position: 'sticky', left: 0, zIndex: 10 }}></th>
                                             {capacidades.map(cap => (
-                                                <React.Fragment key={cap.id}>
-                                                    {TIPOS_EVIDENCIA.map(tipo => (
-                                                        <th
-                                                            key={`${cap.id}_${tipo}`}
-                                                            style={{
-                                                                padding: '6px 4px',
-                                                                textAlign: 'center',
-                                                                fontSize: 10,
-                                                                color: '#6b7280',
-                                                                fontWeight: 600,
-                                                                borderLeft: '1px solid #e5e7eb'
-                                                            }}
-                                                        >
-                                                            {TIPOS_EVIDENCIA_LABEL[tipo]}
-                                                        </th>
-                                                    ))}
-                                                </React.Fragment>
+                                                TIPOS_EVIDENCIA.map(tipo => (
+                                                    <th
+                                                        key={`${cap.id}_${tipo}`}
+                                                        style={{
+                                                            padding: '6px 4px',
+                                                            textAlign: 'center',
+                                                            fontSize: 10,
+                                                            color: '#6b7280',
+                                                            fontWeight: 600,
+                                                            borderLeft: '1px solid #e5e7eb'
+                                                        }}
+                                                    >
+                                                        {TIPOS_EVIDENCIA_LABEL[tipo]}
+                                                    </th>
+                                                ))
                                             ))}
                                             <th style={{ padding: 0, borderLeft: '2px solid #e5e7eb', background: '#f9fafb' }}></th>
                                             <th style={{ padding: 0, background: '#f9fafb' }}></th>
@@ -519,7 +489,6 @@ export default function CursoFPDetallePage() {
                                                         opacity: alumno.bloqueado ? 0.7 : 1
                                                     }}
                                                 >
-                                                    {/* Columna alumno (sticky) */}
                                                     <td style={{ padding: '10px 16px', position: 'sticky', left: 0, background: alumno.bloqueado ? '#f9fafb' : '#fff', zIndex: 5, borderBottom: idxAlumno < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                                                         <div style={{ fontWeight: 600, color: '#1e3a8a', fontSize: 13 }}>
                                                             {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
@@ -535,61 +504,61 @@ export default function CursoFPDetallePage() {
                                                         )}
                                                     </td>
 
-                                                    {/* Celdas de evidencias */}
                                                     {capacidades.map(cap => {
                                                         const evidsCap = evidencias[cap.id] || [];
-                                                        return (
-                                                            <React.Fragment key={cap.id}>
-                                                                {TIPOS_EVIDENCIA.map(tipo => {
-                                                                    const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
-                                                                    if (!evidencia) {
-                                                                        return <td key={`${cap.id}_${tipo}`} style={{ padding: 0, borderLeft: '1px solid #e5e7eb' }}></td>;
-                                                                    }
-                                                                    const key = `${alumno.inscripcionId}_${evidencia.id}`;
-                                                                    const valorActual = calificaciones[key];
-                                                                    const estilo = ESTILOS_BOTON[valorActual] || ESTILOS_BOTON.vacio;
+                                                        return TIPOS_EVIDENCIA.map(tipo => {
+                                                            const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
+                                                            if (!evidencia) {
+                                                                return <td key={`${cap.id}_${tipo}`} style={{ padding: 0, borderLeft: '1px solid #e5e7eb' }}></td>;
+                                                            }
+                                                            const key = `${alumno.inscripcionId}_${evidencia.id}`;
+                                                            const valorActual = calificaciones[key];
 
-                                                                    return (
-                                                                        <td
-                                                                            key={`${cap.id}_${tipo}`}
-                                                                            style={{
-                                                                                padding: '4px',
-                                                                                textAlign: 'center',
-                                                                                borderLeft: '1px solid #e5e7eb'
-                                                                            }}
-                                                                        >
-                                                                            <button
-                                                                                onClick={() => guardarCalificacion(alumno.inscripcionId, evidencia.id, 'A', alumno.bloqueado)}
-                                                                                disabled={guardando || alumno.bloqueado}
-                                                                                title={alumno.bloqueado ? 'Alumno bloqueado' : 'Alcanzado'}
-                                                                                style={{
-                                                                                    width: 28,
-                                                                                    height: 28,
-                                                                                    borderRadius: 4,
-                                                                                    border: `1px solid ${estilo.border}`,
-                                                                                    background: valorActual === 'A' ? estilo.bg : '#fff',
-                                                                                    color: valorActual === 'A' ? estilo.color : '#9ca3af',
-                                                                                    fontSize: 10,
-                                                                                    fontWeight: 700,
-                                                                                    cursor: alumno.bloqueado ? 'not-allowed' : 'pointer',
-                                                                                    opacity: alumno.bloqueado ? 0.4 : 1
-                                                                                }}
-                                                                            >
-                                                                                A
-                                                                            </button>
-                                                                        </td>
-                                                                    );
-                                                                })}
-                                                            </React.Fragment>
-                                                        );
+                                                            const estilosBoton = {
+                                                                A: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
+                                                                EP: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+                                                                NA: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
+                                                                vacio: { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb' }
+                                                            };
+                                                            const estilo = estilosBoton[valorActual] || estilosBoton.vacio;
+
+                                                            return (
+                                                                <td
+                                                                    key={`${cap.id}_${tipo}`}
+                                                                    style={{
+                                                                        padding: '4px',
+                                                                        textAlign: 'center',
+                                                                        borderLeft: '1px solid #e5e7eb'
+                                                                    }}
+                                                                >
+                                                                    <button
+                                                                        onClick={() => guardarCalificacion(alumno.inscripcionId, evidencia.id, 'A', alumno.bloqueado)}
+                                                                        disabled={guardando || alumno.bloqueado}
+                                                                        title={alumno.bloqueado ? 'Alumno bloqueado' : 'Alcanzado'}
+                                                                        style={{
+                                                                            width: 28,
+                                                                            height: 28,
+                                                                            borderRadius: 4,
+                                                                            border: `1px solid ${estilo.border}`,
+                                                                            background: valorActual === 'A' ? estilo.bg : '#fff',
+                                                                            color: valorActual === 'A' ? estilo.color : '#9ca3af',
+                                                                            fontSize: 10,
+                                                                            fontWeight: 700,
+                                                                            cursor: alumno.bloqueado ? 'not-allowed' : 'pointer',
+                                                                            opacity: alumno.bloqueado ? 0.4 : 1
+                                                                        }}
+                                                                    >
+                                                                        A
+                                                                    </button>
+                                                                </td>
+                                                            );
+                                                        });
                                                     })}
 
-                                                    {/* Columna alcanzadas */}
                                                     <td style={{ padding: '10px 16px', textAlign: 'center', borderLeft: '2px solid #e5e7eb', fontWeight: 700, color: '#1e3a8a', fontSize: 13 }}>
                                                         {alcanzadas}/{total}
                                                     </td>
 
-                                                    {/* Columna estado */}
                                                     <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                                                         <span style={{
                                                             display: 'inline-block',
@@ -597,9 +566,9 @@ export default function CursoFPDetallePage() {
                                                             borderRadius: 4,
                                                             fontSize: 11,
                                                             fontWeight: 600,
-                                                            background: estadoSugerido.color + '20',
+                                                            background: getBgColor(estadoSugerido.color, 0.1),
                                                             color: estadoSugerido.color,
-                                                            border: `1px solid ${estadoSugerido.color}40`
+                                                            border: `1px solid ${getBgColor(estadoSugerido.color, 0.3)}`
                                                         }}>
                                                             {estadoSugerido.texto}
                                                         </span>
@@ -618,7 +587,6 @@ export default function CursoFPDetallePage() {
                             )}
                         </div>
 
-                        {/* Resumen general */}
                         {alumnos.length > 0 && (
                             <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
@@ -642,39 +610,30 @@ export default function CursoFPDetallePage() {
                     </div>
                 )}
 
-                {/* ============================================================ */}
-                {/* TAB: PROYECTO ÁULICO (placeholder) */}
-                {/* ============================================================ */}
                 {tabActiva === 'proyecto' && (
                     <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                         <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📋</div>
                         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Proyecto Áulico</div>
-                        <div style={{ fontSize: 14 }}>Esta sección estará disponible próximamente. Aquí podrás consultar y editar el proyecto áulico del curso.</div>
+                        <div style={{ fontSize: 14 }}>Próximamente disponible.</div>
                     </div>
                 )}
 
-                {/* ============================================================ */}
-                {/* TAB: LIBRO DE TEMAS (placeholder) */}
-                {/* ============================================================ */}
                 {tabActiva === 'libro' && (
                     <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                         <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📖</div>
                         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Libro de Temas</div>
-                        <div style={{ fontSize: 14 }}>Esta sección estará disponible próximamente. Aquí podrás registrar clase a clase los temas desarrollados.</div>
+                        <div style={{ fontSize: 14 }}>Próximamente disponible.</div>
                     </div>
                 )}
 
-                {/* ============================================================ */}
-                {/* TAB: ACTA DE FINALIZACIÓN (placeholder) */}
-                {/* ============================================================ */}
                 {tabActiva === 'acta' && (
                     <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                         <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📜</div>
                         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Acta de Finalización</div>
                         <div style={{ fontSize: 14 }}>
-                            El acta se genera automáticamente cuando el alumno completa todas las funciones del perfil.
+                            El acta se genera cuando el alumno completa todas las funciones del perfil.
                             <br />
-                            <strong>Funciones completadas:</strong> 0 de {funciones.length}
+                            <strong>Funciones del curso:</strong> {funciones.length}
                         </div>
                     </div>
                 )}
