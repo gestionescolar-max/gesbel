@@ -84,7 +84,7 @@ export default function CursoFPDetallePage() {
         if (funcionActiva && alumnos.length > 0) {
             cargarCapacidadesYCalificaciones();
         }
-    }, [funcionActiva]);
+    }, [funcionActiva, alumnos.length]);
 
     async function cargarDatos() {
         setCargando(true);
@@ -130,10 +130,12 @@ export default function CursoFPDetallePage() {
                 nombre: insc.fp_alumnos?.nombre,
                 bloqueado: ESTADOS_BLOQUEADOS.includes(insc.estado)
             }));
+
             setAlumnos(alumnosProcesados);
             if (funcionActiva) {
                 await cargarCapacidadesYCalificaciones();
             }
+
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar: ${err.message}` });
         } finally {
