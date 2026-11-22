@@ -113,7 +113,9 @@ export default function AsistenciasPage() {
         try {
             const { data: inscripciones, error: errorInsc } = await supabase
                 .from('fp_inscripciones')
-                .select('*, fp_alumnos(*)')
+                .select(`id, fp_alumno_id, fp_curso_id, estado, legajo,
+                fp_alumnos(id, legajo, dni, apellido, nombre)
+                `)
                 .eq('fp_curso_id', cursoSeleccionado)
                 .in('estado', ['inscripto', 'en_curso']);
 

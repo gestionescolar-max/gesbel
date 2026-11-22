@@ -135,7 +135,10 @@ export default function AlumnosPage() {
                 supabase.from('fp_cursos').select('id, nombre, anio, turno, cupo, es_trayecto_final').order('nombre'),
                 supabase
                     .from('fp_inscripciones')
-                    .select('*, fp_alumnos(*)')
+                    .select(`
+                    *,
+                    fp_alumnos(id, legajo, dni, apellido, nombre, fecha_nac, nacionalidad, telefono, email, domicilio, estudios_obtenidos, situacion_laboral, emergencia_nombre, emergencia_parentesco, emergencia_telefono)
+                `)
                     .in('estado', ESTADOS_CURSANTES)
                     .order('creado_en', { ascending: false })
             ]);

@@ -97,7 +97,13 @@ export default function InscripcionesPage() {
         try {
             const [{ data: cursos }, { data: insc }] = await Promise.all([
                 supabase.from('fp_cursos').select('id, nombre, anio, turno, cupo').order('nombre'),
-                supabase.from('fp_inscripciones').select('*').order('creado_en', { ascending: false })
+                supabase.from('fp_inscripciones')
+                    .select(`
+                    *,
+                    fp_alumnos(id, legajo, dni, apellido, nombre, fecha_nac, nacionalidad, telefono, email, domicilio, estudios_obtenidos, situacion_laboral, emergencia_nombre, emergencia_parentesco, emergencia_telefono)
+                `)
+                    .order('creado_en', { ascending: false })
+                    .limit(3000)
             ]);
             setCursosFP(cursos || []);
             setInscripciones(insc || []);
