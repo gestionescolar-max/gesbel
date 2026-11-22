@@ -119,23 +119,73 @@ export default function CursoFPDetallePage() {
     async function cargarCapacidadesYCalificaciones() {
         if (!funcionActiva) return;
         try {
+            // 1. Verificar si existe proyecto áulico para este curso
+            const anio = curso?.anio || new Date().getFullYear();
+            const { data: proyectoData, error: errorProy } = await supabase
+                .from('fp_proyectos_aulicos')
+                .select('id')
+                .eq('fp_curso_id', cursoId)
+                .eq('anio_lectivo', anio)
+                .maybeSingle();
+
+            if (errorProy) throw errorProy;
+
+            if (!proyectoData) {
+                // No hay proyecto áulico → mostrar aviso
+                setCapacidades([]);
+                setEvidencias({});
+                setCalificaciones({});
+                setMensaje({
+                    tipo: 'warning',
+                    texto: 'El docente no cargó el Proyecto Áulico. Sin proyecto no se pueden evaluar capacidades. Andá a la pestaña "Proyecto áulico" para cargarlo.'
+                });
+                return;
+            }
+
+            // 2. Obtener capacidades tildadas en el proyecto para esta función
+            const { data: capsDelProyecto, error: errorCapsProy } = await supabase
+                .from('fp_proyecto_capacidades')
+                .select('fp_capacidad_id')
+                .eq('fp_proyecto_id', proyectoData.id)
+                .eq('evaluable', true);
+
+            if (errorCapsProy) throw errorCapsProy;
+
+            const capsTildadasIds = new Set((capsDelProyecto || []).map(c => c.fp_capacidad_id));
+
+            // 3. Cargar todas las capacidades de la función activa
             const { data: capsData, error: errorCaps } = await supabase
                 .from('fp_capacidades')
                 .select('*')
                 .eq('fp_funcion_id', funcionActiva.id)
                 .order('orden');
+
             if (errorCaps) throw errorCaps;
-            setCapacidades(capsData || []);
 
-            const { data: proyectoData } = await supabase
-                .from('fp_proyecto_capacidades')
-                .select('fp_capacidad_id')
-                .eq('fp_proyecto_id', (await supabase.from('fp_proyectos_aulicos').select('id').eq('fp_curso_id', cursoId).eq('anio_lectivo', curso.anio).maybeSingle())?.data?.id)
-                .eq('evaluable', true);
-
-            const capsDelProyecto = new Set((proyectoData || []).map(p => p.fp_capacidad_id));
-            const capsFiltradas = (capsData || []).filter(c => capsDelProyecto.has(c.id));
+            // 4. Filtrar solo las que están tildadas en el proyecto
+            const capsFiltradas = (capsData || []).filter(c => capsTildadasIds.has(c.id));
             setCapacidades(capsFiltradas);
+
+            // 5. Si no hay capacidades tildadas para esta función, mostrar aviso
+            if (capsFiltradas.length === 0) {
+                setEvidencias({});
+                setCalificaciones({});
+                setMensaje({
+                    tipo: 'warning',
+                    texto: `No hay capacidades evaluables para la Función ${funcionActiva.nro_funcion}. El docente debe tildarlas en el Proyecto Áulico.`
+                });
+                return;
+            }
+
+            // 6. Cargar evidencias de las capacidades filtradas
+            const capIds = capsFiltradas.map(c => c.id);
+            const { data: evidData, error: errorEvid } = await supabase
+                .from('fp_evidencias')
+                .select('*')
+                .in('fp_capacidad_id', capIds)
+                .order('orden');
+
+            if (errorEvid) throw errorEvid;
 
             const evidPorCap = {};
             (evidData || []).forEach(e => {
@@ -144,6 +194,7 @@ export default function CursoFPDetallePage() {
             });
             setEvidencias(evidPorCap);
 
+            // 7. Cargar calificaciones existentes
             const inscIds = alumnos.map(a => a.inscripcionId);
             const evidIds = (evidData || []).map(e => e.id);
 
@@ -153,6 +204,7 @@ export default function CursoFPDetallePage() {
                     .select('*')
                     .in('fp_inscripcion_id', inscIds)
                     .in('fp_evidencia_id', evidIds);
+
                 if (errorCalifs) throw errorCalifs;
 
                 const califsMap = {};
@@ -163,6 +215,9 @@ export default function CursoFPDetallePage() {
             } else {
                 setCalificaciones({});
             }
+
+            // Limpiar mensaje de error si todo salió bien
+            setMensaje(null);
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar capacidades: ${err.message}` });
         }
