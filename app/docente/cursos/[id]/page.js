@@ -111,15 +111,28 @@ export default function CursoFPDetallePage() {
                 setFuncionActiva(funcionesData[0]);
             }
 
-            const { data: inscripcionesData, error: errorInsc } = await supabase
-                .from('fp_inscripciones')
-                .select(`
-                    id, fp_alumno_id, estado, legajo,
-                    fp_alumnos(id, dni, apellido, nombre)
-                `)
-                .eq('fp_curso_id', cursoId)
-                .order('creado_en');
-            if (errorInsc) throw errorInsc;
+            // 1. Obtener el curso y su fp_perfil_id
+            const { data: cursoData, error: errorCurso } = await supabase
+                .from('fp_cursos')
+                .select('*')
+                .eq('id', cursoId)
+                .single();
+            if (errorCurso) throw errorCurso;
+            setCurso(cursoData);
+
+            // 2. Obtener las funciones USANDO EL ID DEL PERFIL (no del curso)
+            const { data: funcionesData, error: errorFunciones } = await supabase
+                .from('fp_funciones')
+                .select('*')
+                .eq('fp_perfil_id', cursoData.fp_perfil_id) // ✅ CAMBIO CLAVE
+                .order('orden');
+
+            if (errorFunciones) throw errorFunciones;
+            setFunciones(funcionesData || []);
+
+            if (funcionesData && funcionesData.length > 0) {
+                setFuncionActiva(funcionesData[0]);
+            }
 
             const alumnosProcesados = (inscripcionesData || []).map(insc => ({
                 inscripcionId: insc.id,
