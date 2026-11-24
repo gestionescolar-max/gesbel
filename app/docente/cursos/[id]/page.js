@@ -1150,7 +1150,6 @@ export default function CursoFPDetallePage() {
                                     <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '15%' }}>D.N.I.</th>
                                     <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '40%' }}>APELLIDO Y NOMBRE</th>
                                     <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '25%' }}>CALIFICACIÓN DEFINITIVA</th>
-                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '15%' }}>CHECKLIST</th>
                                     <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '15%' }} className="col-checklist">CHECKLIST</th>
                                 </tr>
                             </thead>
@@ -1218,9 +1217,12 @@ export default function CursoFPDetallePage() {
                         {/* Pie del Acta (Conteo en números y letras) */}
                         {(() => {
                             const totalAlumnos = alumnos.length;
+
+                            // Contar desde calificacionesActa (el estado real)
                             const conteo = { Aprobado: 0, Desaprobado: 0, Ausente: 0 };
                             Object.values(calificacionesActa).forEach(c => {
-                                conteo[c.condicion] = (conteo[c.condicion] || 0) + 1;
+                                const cond = c.condicion || 'Desaprobado';
+                                conteo[cond] = (conteo[cond] || 0) + 1;
                             });
 
                             return (
