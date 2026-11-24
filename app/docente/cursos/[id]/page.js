@@ -72,6 +72,14 @@ export default function CursoFPDetallePage() {
     const [mensaje, setMensaje] = useState(null);
     const [uid, setUid] = useState(null);
     const [proyectosHistorial, setProyectosHistorial] = useState([]);
+    const [esMobile, setEsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => setEsMobile(window.innerWidth < 768);
+        checkMobile(); // Verificar al cargar
+        window.addEventListener('resize', checkMobile); // Escuchar cambios de tamaño
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // ============================================================
     // CARGA INICIAL
@@ -469,6 +477,7 @@ export default function CursoFPDetallePage() {
 
                 {tabActiva === 'planilla' && (
                     <div>
+                        {/* 1. SELECTOR DE FUNCIONES */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
                             {funciones.map(fn => (
                                 <button
@@ -498,6 +507,7 @@ export default function CursoFPDetallePage() {
                             ))}
                         </div>
 
+                        {/* 2. INFO DE LA FUNCIÓN ACTIVA */}
                         {funcionActiva && (
                             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 24 }}>
                                 <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 700, marginBottom: 4 }}>
@@ -512,6 +522,7 @@ export default function CursoFPDetallePage() {
                             </div>
                         )}
 
+                        {/* 3. LEYENDA DE ESTADOS */}
                         <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ width: 24, height: 24, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#15803d', fontSize: 11 }}>A</span>
@@ -531,184 +542,296 @@ export default function CursoFPDetallePage() {
                             </div>
                         </div>
 
+                        {/* 4. MENSAJE DE ADVERTENCIA SI NO HAY CAPACIDADES */}
                         {funcionActiva && capacidades.length === 0 && (
                             <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 16, marginBottom: 24, fontSize: 13, color: '#92400e' }}>
                                 ⚠️ No hay capacidades evaluables para esta función. El docente debe definir qué capacidades evalúa en el <button onClick={() => setTabActiva('proyecto')} style={{ background: 'none', border: 'none', color: '#92400e', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Proyecto Áulico</button>.
                             </div>
                         )}
 
-                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
-                                    <thead>
-                                        <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, position: 'sticky', left: 0, background: '#f9fafb', zIndex: 10, minWidth: 200 }}>
-                                                Alumno
-                                            </th>
-                                            {capacidades.map(cap => (
-                                                <th
-                                                    key={cap.id}
-                                                    colSpan={3}
-                                                    style={{
-                                                        padding: '8px 4px',
-                                                        textAlign: 'center',
-                                                        fontSize: 10,
-                                                        textTransform: 'uppercase',
-                                                        color: '#1e3a8a',
-                                                        fontWeight: 700,
-                                                        borderBottom: '2px solid #e5e7eb',
-                                                        borderLeft: '1px solid #e5e7eb',
-                                                        minWidth: 120
-                                                    }}
-                                                >
-                                                    <div style={{ fontSize: 10, marginBottom: 2 }}>Cap. {cap.nro_capacidad}</div>
-                                                    <div style={{ fontSize: 9, fontWeight: 400, color: '#6b7280', lineHeight: 1.2, maxHeight: 32, overflow: 'hidden' }} title={cap.descripcion}>
-                                                        {cap.descripcion}
-                                                    </div>
-                                                </th>
-                                            ))}
-                                            <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, borderLeft: '2px solid #e5e7eb', minWidth: 80 }}>
-                                                Alcanzadas
-                                            </th>
-                                            <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, minWidth: 100 }}>
-                                                Estado
-                                            </th>
-                                        </tr>
-                                        <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                                            <th style={{ padding: 0, background: '#f9fafb', position: 'sticky', left: 0, zIndex: 10 }}></th>
-                                            {capacidades.map(cap => (
-                                                TIPOS_EVIDENCIA.map(tipo => (
-                                                    <th
-                                                        key={`${cap.id}_${tipo}`}
-                                                        style={{
-                                                            padding: '6px 4px',
-                                                            textAlign: 'center',
-                                                            fontSize: 10,
-                                                            color: '#6b7280',
-                                                            fontWeight: 600,
-                                                            borderLeft: '1px solid #e5e7eb'
-                                                        }}
-                                                    >
-                                                        {TIPOS_EVIDENCIA_LABEL[tipo]}
-                                                    </th>
-                                                ))
-                                            ))}
-                                            <th style={{ padding: 0, borderLeft: '2px solid #e5e7eb', background: '#f9fafb' }}></th>
-                                            <th style={{ padding: 0, background: '#f9fafb' }}></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {alumnos.map((alumno, idxAlumno) => {
-                                            const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
-                                            const estadoSugerido = obtenerEstadoSugerido(alcanzadas, total);
+                        {/* 5. ÁREA DE DATOS: MOBILE VS DESKTOP */}
+                        {funcionActiva && capacidades.length > 0 && (
+                            esMobile ? (
+                                // ==========================================
+                                // VISTA MOBILE: Tarjetas verticales por Capacidad
+                                // ==========================================
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {capacidades.map((cap) => {
+                                        const evidsCap = evidencias[cap.id] || [];
+                                        return (
+                                            <div key={cap.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                                {/* Encabezado de la Capacidad */}
+                                                <div style={{ background: '#1e3a8a', color: '#fff', padding: '12px 16px' }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>CAPACIDAD {cap.nro_capacidad}</div>
+                                                    <div style={{ fontSize: 13, lineHeight: 1.3, fontWeight: 500 }}>{cap.descripcion}</div>
+                                                </div>
 
-                                            return (
-                                                <tr
-                                                    key={alumno.inscripcionId}
-                                                    style={{
-                                                        borderBottom: idxAlumno < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                                        background: alumno.bloqueado ? '#f9fafb' : '#fff',
-                                                        opacity: alumno.bloqueado ? 0.7 : 1
-                                                    }}
-                                                >
-                                                    <td style={{ padding: '10px 16px', position: 'sticky', left: 0, background: alumno.bloqueado ? '#f9fafb' : '#fff', zIndex: 5, borderBottom: idxAlumno < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                                        <div style={{ fontWeight: 600, color: '#1e3a8a', fontSize: 13 }}>
-                                                            {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
-                                                        </div>
-                                                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                                                            DNI {alumno.dni || '—'}
-                                                            {alumno.legajo && <span style={{ marginLeft: 8 }}>· {alumno.legajo}</span>}
-                                                        </div>
-                                                        {alumno.bloqueado && (
-                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 6px', background: '#fee2e2', color: '#991b1b', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>
-                                                                {Iconos.bloqueado} {alumno.estado}
+                                                {/* Lista de Alumnos dentro de esta capacidad */}
+                                                <div style={{ padding: 12 }}>
+                                                    {alumnos.map((alumno, idx) => {
+                                                        const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
+                                                        const estadoSugerido = obtenerEstadoSugerido(alcanzadas, total);
+
+                                                        return (
+                                                            <div key={alumno.inscripcionId} style={{ padding: '12px 0', borderBottom: idx < alumnos.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                                                                {/* Datos del Alumno */}
+                                                                <div style={{ marginBottom: 10 }}>
+                                                                    <div style={{ fontWeight: 600, color: '#1e3a8a', fontSize: 14 }}>
+                                                                        {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
+                                                                    </div>
+                                                                    <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                        <span>DNI {alumno.dni || '—'}</span>
+                                                                        {alumno.bloqueado && (
+                                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: '#fee2e2', color: '#991b1b', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
+                                                                                {Iconos.bloqueado} Bloqueado
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Botones de Calificación (C, D, P) */}
+                                                                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                                                    {TIPOS_EVIDENCIA.map(tipo => {
+                                                                        const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
+                                                                        if (!evidencia) return null;
+
+                                                                        const key = `${alumno.inscripcionId}_${evidencia.id}`;
+                                                                        const valorActual = calificaciones[key];
+
+                                                                        const estilosBoton = {
+                                                                            A: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
+                                                                            EP: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+                                                                            NA: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
+                                                                            vacio: { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb' }
+                                                                        };
+                                                                        const estilo = estilosBoton[valorActual] || estilosBoton.vacio;
+
+                                                                        return (
+                                                                            <button
+                                                                                key={tipo}
+                                                                                onClick={() => guardarCalificacion(alumno.inscripcionId, evidencia.id, 'A', alumno.bloqueado)}
+                                                                                disabled={guardando || alumno.bloqueado}
+                                                                                style={{
+                                                                                    flex: 1,
+                                                                                    padding: '10px 0',
+                                                                                    borderRadius: 6,
+                                                                                    border: `1px solid ${estilo.border}`,
+                                                                                    background: valorActual === 'A' ? estilo.bg : '#fff',
+                                                                                    color: valorActual === 'A' ? estilo.color : '#9ca3af',
+                                                                                    fontSize: 13,
+                                                                                    fontWeight: 700,
+                                                                                    cursor: alumno.bloqueado ? 'not-allowed' : 'pointer',
+                                                                                    opacity: alumno.bloqueado ? 0.5 : 1,
+                                                                                    transition: 'all 0.2s'
+                                                                                }}
+                                                                            >
+                                                                                {TIPOS_EVIDENCIA_LABEL[tipo]}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+
+                                                                {/* Estado Sugerido del Alumno */}
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                                                                    <span style={{ color: '#6b7280' }}>Alcanzadas: <strong style={{ color: '#1e3a8a' }}>{alcanzadas}/{total}</strong></span>
+                                                                    <span style={{
+                                                                        padding: '4px 8px',
+                                                                        borderRadius: 4,
+                                                                        background: estadoSugerido.color + '15',
+                                                                        color: estadoSugerido.color,
+                                                                        fontWeight: 600,
+                                                                        border: `1px solid ${estadoSugerido.color}30`
+                                                                    }}>
+                                                                        {estadoSugerido.texto}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                    </td>
-
-                                                    {capacidades.map(cap => {
-                                                        const evidsCap = evidencias[cap.id] || [];
-                                                        return TIPOS_EVIDENCIA.map(tipo => {
-                                                            const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
-                                                            if (!evidencia) {
-                                                                return <td key={`${cap.id}_${tipo}`} style={{ padding: 0, borderLeft: '1px solid #e5e7eb' }}></td>;
-                                                            }
-                                                            const key = `${alumno.inscripcionId}_${evidencia.id}`;
-                                                            const valorActual = calificaciones[key];
-
-                                                            const estilosBoton = {
-                                                                A: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
-                                                                EP: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
-                                                                NA: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
-                                                                vacio: { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb' }
-                                                            };
-                                                            const estilo = estilosBoton[valorActual] || estilosBoton.vacio;
-
-                                                            return (
-                                                                <td
-                                                                    key={`${cap.id}_${tipo}`}
-                                                                    style={{
-                                                                        padding: '4px',
-                                                                        textAlign: 'center',
-                                                                        borderLeft: '1px solid #e5e7eb'
-                                                                    }}
-                                                                >
-                                                                    <button
-                                                                        onClick={() => guardarCalificacion(alumno.inscripcionId, evidencia.id, 'A', alumno.bloqueado)}
-                                                                        disabled={guardando || alumno.bloqueado}
-                                                                        title={alumno.bloqueado ? 'Alumno bloqueado' : 'Alcanzado'}
-                                                                        style={{
-                                                                            width: 28,
-                                                                            height: 28,
-                                                                            borderRadius: 4,
-                                                                            border: `1px solid ${estilo.border}`,
-                                                                            background: valorActual === 'A' ? estilo.bg : '#fff',
-                                                                            color: valorActual === 'A' ? estilo.color : '#9ca3af',
-                                                                            fontSize: 10,
-                                                                            fontWeight: 700,
-                                                                            cursor: alumno.bloqueado ? 'not-allowed' : 'pointer',
-                                                                            opacity: alumno.bloqueado ? 0.4 : 1
-                                                                        }}
-                                                                    >
-                                                                        A
-                                                                    </button>
-                                                                </td>
-                                                            );
-                                                        });
+                                                        );
                                                     })}
-
-                                                    <td style={{ padding: '10px 16px', textAlign: 'center', borderLeft: '2px solid #e5e7eb', fontWeight: 700, color: '#1e3a8a', fontSize: 13 }}>
-                                                        {alcanzadas}/{total}
-                                                    </td>
-
-                                                    <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                                                        <span style={{
-                                                            display: 'inline-block',
-                                                            padding: '4px 10px',
-                                                            borderRadius: 4,
-                                                            fontSize: 11,
-                                                            fontWeight: 600,
-                                                            background: getBgColor(estadoSugerido.color, 0.1),
-                                                            color: estadoSugerido.color,
-                                                            border: `1px solid ${getBgColor(estadoSugerido.color, 0.3)}`
-                                                        }}>
-                                                            {estadoSugerido.texto}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {alumnos.length === 0 && (
-                                <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
-                                    No hay alumnos inscriptos en este curso.
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            )}
-                        </div>
+                            ) : (
+                                // ==========================================
+                                // VISTA DESKTOP: Tu tabla horizontal original
+                                // ==========================================
+                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
+                                            <thead>
+                                                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, position: 'sticky', left: 0, background: '#f9fafb', zIndex: 10, minWidth: 200 }}>
+                                                        Alumno
+                                                    </th>
+                                                    {capacidades.map(cap => (
+                                                        <th
+                                                            key={cap.id}
+                                                            colSpan={3}
+                                                            style={{
+                                                                padding: '8px 4px',
+                                                                textAlign: 'center',
+                                                                fontSize: 10,
+                                                                textTransform: 'uppercase',
+                                                                color: '#1e3a8a',
+                                                                fontWeight: 700,
+                                                                borderBottom: '2px solid #e5e7eb',
+                                                                borderLeft: '1px solid #e5e7eb',
+                                                                minWidth: 120
+                                                            }}
+                                                        >
+                                                            <div style={{ fontSize: 10, marginBottom: 2 }}>Cap. {cap.nro_capacidad}</div>
+                                                            <div style={{ fontSize: 9, fontWeight: 400, color: '#6b7280', lineHeight: 1.2, maxHeight: 32, overflow: 'hidden' }} title={cap.descripcion}>
+                                                                {cap.descripcion}
+                                                            </div>
+                                                        </th>
+                                                    ))}
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, borderLeft: '2px solid #e5e7eb', minWidth: 80 }}>
+                                                        Alcanzadas
+                                                    </th>
+                                                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', color: '#6b7280', fontWeight: 700, minWidth: 100 }}>
+                                                        Estado
+                                                    </th>
+                                                </tr>
+                                                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                                                    <th style={{ padding: 0, background: '#f9fafb', position: 'sticky', left: 0, zIndex: 10 }}></th>
+                                                    {capacidades.map(cap => (
+                                                        TIPOS_EVIDENCIA.map(tipo => (
+                                                            <th
+                                                                key={`${cap.id}_${tipo}`}
+                                                                style={{
+                                                                    padding: '6px 4px',
+                                                                    textAlign: 'center',
+                                                                    fontSize: 10,
+                                                                    color: '#6b7280',
+                                                                    fontWeight: 600,
+                                                                    borderLeft: '1px solid #e5e7eb'
+                                                                }}
+                                                            >
+                                                                {TIPOS_EVIDENCIA_LABEL[tipo]}
+                                                            </th>
+                                                        ))
+                                                    ))}
+                                                    <th style={{ padding: 0, borderLeft: '2px solid #e5e7eb', background: '#f9fafb' }}></th>
+                                                    <th style={{ padding: 0, background: '#f9fafb' }}></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {alumnos.map((alumno, idxAlumno) => {
+                                                    const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
+                                                    const estadoSugerido = obtenerEstadoSugerido(alcanzadas, total);
 
+                                                    return (
+                                                        <tr
+                                                            key={alumno.inscripcionId}
+                                                            style={{
+                                                                borderBottom: idxAlumno < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none',
+                                                                background: alumno.bloqueado ? '#f9fafb' : '#fff',
+                                                                opacity: alumno.bloqueado ? 0.7 : 1
+                                                            }}
+                                                        >
+                                                            <td style={{ padding: '10px 16px', position: 'sticky', left: 0, background: alumno.bloqueado ? '#f9fafb' : '#fff', zIndex: 5, borderBottom: idxAlumno < alumnos.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                                                                <div style={{ fontWeight: 600, color: '#1e3a8a', fontSize: 13 }}>
+                                                                    {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
+                                                                </div>
+                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                                                                    DNI {alumno.dni || '—'}
+                                                                    {alumno.legajo && <span style={{ marginLeft: 8 }}>· {alumno.legajo}</span>}
+                                                                </div>
+                                                                {alumno.bloqueado && (
+                                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 6px', background: '#fee2e2', color: '#991b1b', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>
+                                                                        {Iconos.bloqueado} {alumno.estado}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {capacidades.map(cap => {
+                                                                const evidsCap = evidencias[cap.id] || [];
+                                                                return TIPOS_EVIDENCIA.map(tipo => {
+                                                                    const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
+                                                                    if (!evidencia) {
+                                                                        return <td key={`${cap.id}_${tipo}`} style={{ padding: 0, borderLeft: '1px solid #e5e7eb' }}></td>;
+                                                                    }
+                                                                    const key = `${alumno.inscripcionId}_${evidencia.id}`;
+                                                                    const valorActual = calificaciones[key];
+
+                                                                    const estilosBoton = {
+                                                                        A: { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
+                                                                        EP: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+                                                                        NA: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
+                                                                        vacio: { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb' }
+                                                                    };
+                                                                    const estilo = estilosBoton[valorActual] || estilosBoton.vacio;
+
+                                                                    return (
+                                                                        <td
+                                                                            key={`${cap.id}_${tipo}`}
+                                                                            style={{
+                                                                                padding: '4px',
+                                                                                textAlign: 'center',
+                                                                                borderLeft: '1px solid #e5e7eb'
+                                                                            }}
+                                                                        >
+                                                                            <button
+                                                                                onClick={() => guardarCalificacion(alumno.inscripcionId, evidencia.id, 'A', alumno.bloqueado)}
+                                                                                disabled={guardando || alumno.bloqueado}
+                                                                                title={alumno.bloqueado ? 'Alumno bloqueado' : 'Alcanzado'}
+                                                                                style={{
+                                                                                    width: 28,
+                                                                                    height: 28,
+                                                                                    borderRadius: 4,
+                                                                                    border: `1px solid ${estilo.border}`,
+                                                                                    background: valorActual === 'A' ? estilo.bg : '#fff',
+                                                                                    color: valorActual === 'A' ? estilo.color : '#9ca3af',
+                                                                                    fontSize: 10,
+                                                                                    fontWeight: 700,
+                                                                                    cursor: alumno.bloqueado ? 'not-allowed' : 'pointer',
+                                                                                    opacity: alumno.bloqueado ? 0.4 : 1
+                                                                                }}
+                                                                            >
+                                                                                A
+                                                                            </button>
+                                                                        </td>
+                                                                    );
+                                                                });
+                                                            })}
+
+                                                            <td style={{ padding: '10px 16px', textAlign: 'center', borderLeft: '2px solid #e5e7eb', fontWeight: 700, color: '#1e3a8a', fontSize: 13 }}>
+                                                                {alcanzadas}/{total}
+                                                            </td>
+
+                                                            <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    display: 'inline-block',
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: 4,
+                                                                    fontSize: 11,
+                                                                    fontWeight: 600,
+                                                                    background: getBgColor(estadoSugerido.color, 0.1),
+                                                                    color: estadoSugerido.color,
+                                                                    border: `1px solid ${getBgColor(estadoSugerido.color, 0.3)}`
+                                                                }}>
+                                                                    {estadoSugerido.texto}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {alumnos.length === 0 && (
+                                        <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
+                                            No hay alumnos inscriptos en este curso.
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        )}
+
+                        {/* 6. TARJETAS DE RESUMEN (Footer) */}
                         {alumnos.length > 0 && (
                             <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
