@@ -100,26 +100,8 @@ export default function CursoFPDetallePage() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             setUid(user?.id || null);
-            const { data: cursoData, error: errorCurso } = await supabase
-                .from('fp_cursos')
-                .select('*')
-                .eq('id', cursoId)
-                .single();
-            if (errorCurso) throw errorCurso;
-            setCurso(cursoData);
 
-            const { data: funcionesData, error: errorFunciones } = await supabase
-                .from('fp_funciones')
-                .select('*')
-                .eq('fp_curso_id', cursoId)
-                .order('orden');
-            if (errorFunciones) throw errorFunciones;
-            setFunciones(funcionesData || []);
-            if (funcionesData && funcionesData.length > 0) {
-                setFuncionActiva(funcionesData[0]);
-            }
-
-            // 1. Obtener el curso y su fp_perfil_id
+            // 1. Obtener el curso
             const { data: cursoData, error: errorCurso } = await supabase
                 .from('fp_cursos')
                 .select('*')
@@ -134,13 +116,23 @@ export default function CursoFPDetallePage() {
                 .select('*')
                 .eq('fp_perfil_id', cursoData.fp_perfil_id) // ✅ CAMBIO CLAVE
                 .order('orden');
-
             if (errorFunciones) throw errorFunciones;
-            setFunciones(funcionesData || []);
 
+            setFunciones(funcionesData || []);
             if (funcionesData && funcionesData.length > 0) {
                 setFuncionActiva(funcionesData[0]);
             }
+
+            // 3. Obtener inscripciones (alumnos)
+            const { data: inscripcionesData, error: errorInsc } = await supabase
+                .from('fp_inscripciones')
+                .select(`
+                    id, fp_alumno_id, estado, legajo,
+                    fp_alumnos(id, dni, apellido, nombre)
+                `)
+                .eq('fp_curso_id', cursoId)
+                .order('creado_en');
+            if (errorInsc) throw errorInsc;
 
             const alumnosProcesados = (inscripcionesData || []).map(insc => ({
                 inscripcionId: insc.id,
@@ -153,18 +145,18 @@ export default function CursoFPDetallePage() {
                 bloqueado: ESTADOS_BLOQUEADOS.includes(insc.estado)
             }));
 
+            // 4. Obtener historial de proyectos áulicos
             const { data: proyectosHist, error: errorHist } = await supabase
                 .from('fp_proyectos_aulicos')
                 .select(`
-                id, titulo, descripcion, archivo_url, anio_lectivo, creado_en,
-                fp_proyecto_capacidades (id)
-            `)
+                    id, titulo, descripcion, archivo_url, anio_lectivo, creado_en,
+                    fp_proyecto_capacidades (id)
+                `)
                 .eq('fp_curso_id', cursoId)
                 .order('anio_lectivo', { ascending: false });
 
             if (errorHist) throw errorHist;
 
-            // Calcular cantidad de capacidades evaluables por proyecto
             const proyectosConCapacidades = (proyectosHist || []).map(p => ({
                 ...p,
                 capacidades_evaluables: (p.fp_proyecto_capacidades || []).length
@@ -172,9 +164,10 @@ export default function CursoFPDetallePage() {
             setProyectosHistorial(proyectosConCapacidades);
 
             setAlumnos(alumnosProcesados);
-            if (funcionActiva) {
-                await cargarCapacidadesYCalificaciones();
-            }
+
+            // NOTA: No llamamos a cargarCapacidadesYCalificaciones() aquí manualmente.
+            // El useEffect que ya tienes al inicio del componente se encargará de 
+            // dispararlo automáticamente cuando funcionActiva y alumnos.length se actualicen.
 
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar: ${err.message}` });
