@@ -79,6 +79,7 @@ export default function CursoFPDetallePage() {
     const [actaId, setActaId] = useState(null);
     const [calificacionesActa, setCalificacionesActa] = useState({});
     const [guardandoActa, setGuardandoActa] = useState(false);
+    const [fechaCierre, setFechaCierre] = useState(null);
 
     useEffect(() => {
         const checkMobile = () => setEsMobile(window.innerWidth < 768);
@@ -304,7 +305,7 @@ export default function CursoFPDetallePage() {
             const acta = actasExistentes[0];
             setActaId(acta.id);
             setActaFirmada(acta.estado === 'firmada' || !!acta.docente_firma);
-
+            setFechaCierre(acta.fecha);
             // Cargar las calificaciones guardadas
             const { data: detalles } = await supabase
                 .from('fp_actas_detalle')
@@ -413,6 +414,9 @@ export default function CursoFPDetallePage() {
                 .upsert(detallesParaGuardar, { onConflict: 'fp_acta_id,fp_inscripcion_id' });
 
             if (errorDetalle) throw errorDetalle;
+
+            const fechaHoy = new Date().toISOString().split('T')[0];
+            setFechaCierre(fechaHoy);  // ← AGREGAR ESTA LÍNEA
 
             setActaFirmada(true);
             setMensaje({ tipo: 'ok', texto: '✅ Acta firmada, guardada y bloqueada correctamente.' });
@@ -1127,10 +1131,15 @@ export default function CursoFPDetallePage() {
                             <p style={{ margin: '0 0 10px 0' }}><strong>NIVEL DE CUALIFICACIÓN:</strong> {curso?.nivel_certificacion || 'II'}</p>
                             <p style={{ margin: '0 0 20px 0' }}><strong>Duración Total en Horas:</strong> {curso?.carga_horaria || 500}</p>
 
-                            <p style={{ margin: '20px 0' }}>
-                                A los <strong>{numeroALetras(new Date().getDate())}</strong> días del mes de <strong>{mesALetras(new Date().getMonth())}</strong> de dos mil <strong>{numeroALetras(new Date().getFullYear() - 2000)}</strong>,
-                                reunido el equipo Docente correspondiente al Perfil Profesional mencionado, proceden a registrar las Calificaciones Finales.
-                            </p>
+                            {(() => {
+                                const fechaUsar = fechaCierre ? new Date(fechaCierre + 'T12:00:00') : new Date();
+                                return (
+                                    <p style={{ margin: '20px 0' }}>
+                                        A los <strong>{numeroALetras(fechaUsar.getDate())}</strong> días del mes de <strong>{mesALetras(fechaUsar.getMonth())}</strong> de dos mil <strong>{numeroALetras(fechaUsar.getFullYear() - 2000)}</strong>,
+                                        reunido el equipo Docente correspondiente al Perfil Profesional mencionado, proceden a registrar las Calificaciones Finales.
+                                    </p>
+                                );
+                            })()}
                         </div>
 
                         {/* Tabla de Alumnos */}
@@ -1142,6 +1151,7 @@ export default function CursoFPDetallePage() {
                                     <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '40%' }}>APELLIDO Y NOMBRE</th>
                                     <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '25%' }}>CALIFICACIÓN DEFINITIVA</th>
                                     <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '15%' }}>CHECKLIST</th>
+                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '15%' }} className="col-checklist">CHECKLIST</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1151,11 +1161,22 @@ export default function CursoFPDetallePage() {
 
                                     return (
                                         <tr key={alumno.inscripcionId}>
-                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>{index + 1}</td>
-                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>{alumno.dni || '—'}</td>
+                                            {/* Columna 1: Nº */}
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>
+                                                {index + 1}
+                                            </td>
+
+                                            {/* Columna 2: D.N.I. */}
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>
+                                                {alumno.dni || '—'}
+                                            </td>
+
+                                            {/* Columna 3: APELLIDO Y NOMBRE */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb', fontWeight: 600 }}>
                                                 {alumno.apellido ? `${alumno.apellido.toUpperCase()}, ${alumno.nombre.toUpperCase()}` : alumno.nombre.toUpperCase()}
                                             </td>
+
+                                            {/* Columna 4: CALIFICACIÓN DEFINITIVA (lista desplegable) */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center' }}>
                                                 <select
                                                     value={datoActa.condicion || 'Desaprobado'}
@@ -1174,7 +1195,9 @@ export default function CursoFPDetallePage() {
                                                     <option value="Ausente">Ausente</option>
                                                 </select>
                                             </td>
-                                            <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center' }}>
+
+                                            {/* ✅ Columna 5: CHECKLIST (la que agregamos) */}
+                                            <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center' }} className="col-checklist">
                                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: actaFirmada ? 'default' : 'pointer', opacity: actaFirmada ? 0.7 : 1 }}>
                                                     <input
                                                         type="checkbox"
@@ -1276,6 +1299,31 @@ export default function CursoFPDetallePage() {
                 input[type="checkbox"]:checked { background-color: black; }
             }
         `}</style>
+                        <style>{`
+    @media print {
+        body * { visibility: hidden; }
+        .acta-container, .acta-container * { visibility: visible; }
+        .acta-container { 
+            position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; border: none; 
+        }
+        .no-print { display: none !important; }
+        
+        /* ✅ OCULTAR COLUMNA CHECKLIST AL IMPRIMIR */
+        .col-checklist { display: none !important; }
+        
+        /* Ajustar el ancho de la tabla al quitar una columna */
+        .acta-container table { table-layout: fixed; }
+        .acta-container th:nth-child(5),
+        .acta-container td:nth-child(5) { display: none !important; }
+        
+        /* Hace que el select parezca texto plano al imprimir */
+        select { 
+            appearance: none; border: none; background: transparent; 
+            font-weight: bold; color: black; padding: 0; 
+        }
+        input[type="checkbox"] { display: none !important; }
+    }
+`}</style>
                     </div>
                 )}
             </div>
