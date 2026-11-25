@@ -294,43 +294,78 @@ export default function CursoFPDetallePage() {
         if (!cursoId || alumnos.length === 0) return;
 
         // 1. Buscar si ya existe un acta para este curso
-        const { data: actasExistentes } = await supabase
+        const { data: actasExistentes, error: errorActa } = await supabase
             .from('fp_actas')
             .select('*')
-            .eq('fp_curso_id', cursoId) // Nota: Si tu tabla usa fp_perfil_id, cámbialo aquí
+            .eq('fp_curso_id', cursoId)
             .order('creado_en', { ascending: false })
             .limit(1);
+
+        if (errorActa) {
+            console.error("Error al buscar acta:", errorActa);
+            return;
+        }
+
+        let califsGuardadas = {};
 
         if (actasExistentes && actasExistentes.length > 0) {
             const acta = actasExistentes[0];
             setActaId(acta.id);
             setActaFirmada(acta.estado === 'firmada' || !!acta.docente_firma);
             setFechaCierre(acta.fecha);
+
             // Cargar las calificaciones guardadas
-            const { data: detalles } = await supabase
+            const { data: detalles, error: errorDetalles } = await supabase
                 .from('fp_actas_detalle')
                 .select('*')
                 .eq('fp_acta_id', acta.id);
 
-            const califs = {};
-            detalles.forEach(d => {
-                califs[d.fp_inscripcion_id] = { condicion: d.condicion, confirmado: true };
-            });
-            setCalificacionesActa(califs);
-        } else {
-            // 2. Si no existe, inicializar con los valores calculados automáticamente
-            const califsIniciales = {};
-            alumnos.forEach(alumno => {
+            if (!errorDetalles && detalles) {
+                detalles.forEach(d => {
+                    califsGuardadas[d.fp_inscripcion_id] = { condicion: d.condicion, confirmado: true };
+                });
+            }
+        }
+
+        // 2. Asegurar que TODOS los alumnos actuales tengan una entrada en el estado
+        // (Fusiona lo guardado con lo calculado para alumnos nuevos o faltantes)
+        const califsCompletas = { ...califsGuardadas };
+
+        alumnos.forEach(alumno => {
+            if (!califsCompletas[alumno.inscripcionId]) {
                 const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
                 let condicion = 'Desaprobado';
                 if (alumno.bloqueado) condicion = 'Ausente';
                 else if (total > 0 && (alcanzadas / total) >= 0.5) condicion = 'Aprobado';
 
-                califsIniciales[alumno.inscripcionId] = { condicion, confirmado: false };
-            });
-            setCalificacionesActa(califsIniciales);
-        }
+                califsCompletas[alumno.inscripcionId] = { condicion, confirmado: false };
+            }
+        });
+
+        setCalificacionesActa(califsCompletas);
     }
+
+    // Efecto para cargar el acta cuando se abre la pestaña
+    useEffect(() => {
+        if (tabActiva === 'acta' && alumnos.length > 0) {
+            cargarActa();
+        }
+    }, [tabActiva, alumnos.length]);
+
+    // Funciones para manejar los cambios en la UI (Estas están perfectas)
+    const handleCalificacionChange = (inscripcionId, nuevaCondicion) => {
+        setCalificacionesActa(prev => ({
+            ...prev,
+            [inscripcionId]: { ...prev[inscripcionId], condicion: nuevaCondicion }
+        }));
+    };
+
+    const handleConfirmChange = (inscripcionId, confirmado) => {
+        setCalificacionesActa(prev => ({
+            ...prev,
+            [inscripcionId]: { ...prev[inscripcionId], confirmado }
+        }));
+    };
 
     // Efecto para cargar el acta cuando se abre la pestaña
     useEffect(() => {
