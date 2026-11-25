@@ -322,7 +322,11 @@ export default function CursoFPDetallePage() {
 
             if (!errorDetalles && detalles) {
                 detalles.forEach(d => {
-                    califsGuardadas[d.fp_inscripcion_id] = { condicion: d.condicion, confirmado: true };
+                    // Normalizar a la capitalización usada en el resto del código
+                    const condNormalizada = (d.condicion || 'Desaprobado')
+                        .toLowerCase()
+                        .replace(/^\w/, c => c.toUpperCase());
+                    califs[d.fp_inscripcion_id] = { condicion: condNormalizada, confirmado: true };
                 });
             }
         }
@@ -1242,7 +1246,9 @@ export default function CursoFPDetallePage() {
                             // Contar desde calificacionesActa (el estado real)
                             const conteo = { Aprobado: 0, Desaprobado: 0, Ausente: 0 };
                             Object.values(calificacionesActa).forEach(c => {
-                                const cond = c.condicion || 'Desaprobado';
+                                const cond = (c.condicion || 'Desaprobado')
+                                    .toLowerCase()
+                                    .replace(/^\w/, ch => ch.toUpperCase());
                                 conteo[cond] = (conteo[cond] || 0) + 1;
                             });
 
