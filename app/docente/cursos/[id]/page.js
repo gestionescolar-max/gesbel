@@ -293,7 +293,6 @@ export default function CursoFPDetallePage() {
     async function cargarActa() {
         if (!cursoId || alumnos.length === 0) return;
 
-        // 1. Buscar si ya existe un acta para este curso
         const { data: actasExistentes, error: errorActa } = await supabase
             .from('fp_actas')
             .select('*')
@@ -301,12 +300,9 @@ export default function CursoFPDetallePage() {
             .order('creado_en', { ascending: false })
             .limit(1);
 
-        if (errorActa) {
-            console.error("Error al buscar acta:", errorActa);
-            return;
-        }
+        if (errorActa) { console.error(errorActa); return; }
 
-        let califsGuardadas = {};
+        let califsGuardadas = {};   // ← nombre correcto, nunca "califs"
 
         if (actasExistentes && actasExistentes.length > 0) {
             const acta = actasExistentes[0];
@@ -314,35 +310,31 @@ export default function CursoFPDetallePage() {
             setActaFirmada(acta.estado === 'firmada' || !!acta.docente_firma);
             setFechaCierre(acta.fecha);
 
-            // Cargar las calificaciones guardadas
-            const { data: detalles, error: errorDetalles } = await supabase
+            const { data: detalles } = await supabase
                 .from('fp_actas_detalle')
                 .select('*')
                 .eq('fp_acta_id', acta.id);
 
-            if (!errorDetalles && detalles) {
-                detalles.forEach(d => {
-                    // Normalizar a la capitalización usada en el resto del código
-                    const condNormalizada = (d.condicion || 'Desaprobado')
-                        .toLowerCase()
-                        .replace(/^\w/, c => c.toUpperCase());
-                    califs[d.fp_inscripcion_id] = { condicion: condNormalizada, confirmado: true };
-                });
-            }
+            (detalles || []).forEach(d => {
+                califsGuardadas[d.fp_inscripcion_id] = {   // ← califsGuardadas, no califs
+                    condicion: normalizarCondicion(d.condicion),
+                    confirmado: true
+                };
+            });
         }
 
-        // 2. Asegurar que TODOS los alumnos actuales tengan una entrada en el estado
-        // (Fusiona lo guardado con lo calculado para alumnos nuevos o faltantes)
-        const califsCompletas = { ...califsGuardadas };
-
+        // Fusionar: lo guardado + lo calculado para alumnos nuevos
+        const califsCompletas = {};
         alumnos.forEach(alumno => {
-            if (!califsCompletas[alumno.inscripcionId]) {
+            const guardada = califsGuardadas[alumno.inscripcionId];
+            if (guardada) {
+                califsCompletas[alumno.inscripcionId] = guardada;
+            } else {
                 const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
                 let condicion = 'Desaprobado';
                 if (alumno.bloqueado) condicion = 'Ausente';
                 else if (total > 0 && (alcanzadas / total) >= 0.5) condicion = 'Aprobado';
-
-                califsCompletas[alumno.inscripcionId] = { condicion, confirmado: false };
+                califsCompletas[alumno.inscripcionId] = { condicion: normalizarCondicion(condicion), confirmado: false };
             }
         });
 
