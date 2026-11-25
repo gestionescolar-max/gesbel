@@ -360,12 +360,6 @@ export default function CursoFPDetallePage() {
         }));
     };
 
-    const handleConfirmChange = (inscripcionId, confirmado) => {
-        setCalificacionesActa(prev => ({
-            ...prev,
-            [inscripcionId]: { ...prev[inscripcionId], confirmado }
-        }));
-    };
 
     // Efecto para cargar el acta cuando se abre la pestaña
     useEffect(() => {
