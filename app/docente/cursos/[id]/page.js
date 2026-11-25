@@ -17,6 +17,9 @@ const TIPOS_EVIDENCIA_LABEL = {
 
 const ESTADOS_BLOQUEADOS = ['abandono', 'abandono_justificado', 'nunca_asistio', 'diferido'];
 
+// Porcentaje de capacidades alcanzadas necesario para aprobar (0.5 = 50%, 1 = todas)
+const PORCENTAJE_APROBACION = 0.5;
+
 const Iconos = {
     volver: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>,
     check: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
@@ -29,22 +32,54 @@ const Iconos = {
 };
 
 // ============================================================
-// FUNCIONES HELPER (para el acta legal)
+// FUNCIONES HELPER
 // ============================================================
+function normalizarCondicion(c) {
+    const t = String(c || '').trim().toLowerCase();
+    if (t.startsWith('aprob')) return 'Aprobado';
+    if (t.startsWith('ausen')) return 'Ausente';
+    return 'Desaprobado';
+}
+
+function condicionAutomatica(alumno, resumen) {
+    if (alumno.bloqueado) return 'Ausente';
+    if (resumen && resumen.total > 0 && resumen.alcanzadas / resumen.total >= PORCENTAJE_APROBACION) {
+        return 'Aprobado';
+    }
+    return 'Desaprobado';
+}
+
 function numeroALetras(num) {
-    const unidades = ['Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciseis', 'Diecisiete', 'Dieciocho', 'Diecinueve', 'Veinte'];
+    const u = ['Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciséis', 'Diecisiete', 'Dieciocho', 'Diecinueve', 'Veinte', 'Veintiuno', 'Veintidós', 'Veintitrés', 'Veinticuatro', 'Veinticinco', 'Veintiséis', 'Veintisiete', 'Veintiocho', 'Veintinueve'];
+    const d = ['', '', '', 'Treinta', 'Cuarenta', 'Cincuenta', 'Sesenta', 'Setenta', 'Ochenta', 'Noventa'];
     if (num === 0) return 'Ninguno';
-    if (num <= 20) return unidades[num];
-    if (num < 30) return 'Veinti' + unidades[num - 20].toLowerCase();
-    if (num === 30) return 'Treinta';
-    if (num < 40) return 'Treinta y ' + unidades[num - 30].toLowerCase();
-    if (num === 40) return 'Cuarenta';
-    return num.toString();
+    if (num < 30) return u[num];
+    if (num < 100) {
+        const dec = Math.floor(num / 10);
+        const uni = num % 10;
+        return uni === 0 ? d[dec] : `${d[dec]} y ${u[uni].toLowerCase()}`;
+    }
+    return String(num);
 }
 
 function mesALetras(mesIndex) {
     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     return meses[mesIndex] || '';
+}
+
+// Trae todas las filas aunque pasen de 1000 (límite de Supabase)
+async function fetchTodo(buildQuery) {
+    const PAGE = 1000;
+    let desde = 0;
+    const out = [];
+    while (true) {
+        const { data, error } = await buildQuery().range(desde, desde + PAGE - 1);
+        if (error) throw error;
+        out.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+        desde += PAGE;
+    }
+    return out;
 }
 
 // ============================================================
@@ -80,11 +115,13 @@ export default function CursoFPDetallePage() {
     const [calificacionesActa, setCalificacionesActa] = useState({});
     const [guardandoActa, setGuardandoActa] = useState(false);
     const [fechaCierre, setFechaCierre] = useState(null);
+    const [resumenActa, setResumenActa] = useState({}); // { [inscripcionId]: { alcanzadas, total } }
+    const [cargandoActa, setCargandoActa] = useState(false);
 
     useEffect(() => {
         const checkMobile = () => setEsMobile(window.innerWidth < 768);
-        checkMobile(); // Verificar al cargar
-        window.addEventListener('resize', checkMobile); // Escuchar cambios de tamaño
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
@@ -117,11 +154,11 @@ export default function CursoFPDetallePage() {
             if (errorCurso) throw errorCurso;
             setCurso(cursoData);
 
-            // 2. Obtener las funciones USANDO EL ID DEL PERFIL (no del curso)
+            // 2. Obtener las funciones usando el ID del perfil
             const { data: funcionesData, error: errorFunciones } = await supabase
                 .from('fp_funciones')
                 .select('*')
-                .eq('fp_perfil_id', cursoData.fp_perfil_id) // ✅ CAMBIO CLAVE
+                .eq('fp_perfil_id', cursoData.fp_perfil_id)
                 .order('orden');
             if (errorFunciones) throw errorFunciones;
 
@@ -171,11 +208,7 @@ export default function CursoFPDetallePage() {
             setProyectosHistorial(proyectosConCapacidades);
 
             setAlumnos(alumnosProcesados);
-
-            // NOTA: No llamamos a cargarCapacidadesYCalificaciones() aquí manualmente.
-            // El useEffect que ya tienes al inicio del componente se encargará de 
-            // dispararlo automáticamente cuando funcionActiva y alumnos.length se actualicen.
-
+            // cargarCapacidadesYCalificaciones() se dispara solo por el useEffect de arriba
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar: ${err.message}` });
         } finally {
@@ -198,7 +231,6 @@ export default function CursoFPDetallePage() {
             if (errorProy) throw errorProy;
 
             if (!proyectoData) {
-                // No hay proyecto áulico → mostrar aviso
                 setCapacidades([]);
                 setEvidencias({});
                 setCalificaciones({});
@@ -209,7 +241,7 @@ export default function CursoFPDetallePage() {
                 return;
             }
 
-            // 2. Obtener capacidades tildadas en el proyecto para esta función
+            // 2. Capacidades tildadas en el proyecto
             const { data: capsDelProyecto, error: errorCapsProy } = await supabase
                 .from('fp_proyecto_capacidades')
                 .select('fp_capacidad_id')
@@ -220,7 +252,7 @@ export default function CursoFPDetallePage() {
 
             const capsTildadasIds = new Set((capsDelProyecto || []).map(c => c.fp_capacidad_id));
 
-            // 3. Cargar todas las capacidades de la función activa
+            // 3. Todas las capacidades de la función activa
             const { data: capsData, error: errorCaps } = await supabase
                 .from('fp_capacidades')
                 .select('*')
@@ -229,11 +261,11 @@ export default function CursoFPDetallePage() {
 
             if (errorCaps) throw errorCaps;
 
-            // 4. Filtrar solo las que están tildadas en el proyecto
+            // 4. Solo las tildadas en el proyecto
             const capsFiltradas = (capsData || []).filter(c => capsTildadasIds.has(c.id));
             setCapacidades(capsFiltradas);
 
-            // 5. Si no hay capacidades tildadas para esta función, mostrar aviso
+            // 5. Aviso si no hay capacidades tildadas en esta función
             if (capsFiltradas.length === 0) {
                 setEvidencias({});
                 setCalificaciones({});
@@ -244,7 +276,7 @@ export default function CursoFPDetallePage() {
                 return;
             }
 
-            // 6. Cargar evidencias de las capacidades filtradas
+            // 6. Evidencias de las capacidades filtradas
             const capIds = capsFiltradas.map(c => c.id);
             const { data: evidData, error: errorEvid } = await supabase
                 .from('fp_evidencias')
@@ -261,7 +293,7 @@ export default function CursoFPDetallePage() {
             });
             setEvidencias(evidPorCap);
 
-            // 7. Cargar calificaciones existentes
+            // 7. Calificaciones existentes
             const inscIds = alumnos.map(a => a.inscripcionId);
             const evidIds = (evidData || []).map(e => e.id);
 
@@ -283,84 +315,142 @@ export default function CursoFPDetallePage() {
                 setCalificaciones({});
             }
 
-            // Limpiar mensaje de error si todo salió bien
             setMensaje(null);
         } catch (err) {
             setMensaje({ tipo: 'error', texto: `Error al cargar capacidades: ${err.message}` });
         }
     }
 
-    async function cargarActa() {
-        if (!cursoId || alumnos.length === 0) return;
+    // ============================================================
+    // ACTA: CÁLCULO AUTOMÁTICO (todas las funciones del proyecto)
+    // ============================================================
+    async function calcularResumenGlobal() {
+        const anio = curso?.anio || new Date().getFullYear();
 
-        const { data: actasExistentes, error: errorActa } = await supabase
-            .from('fp_actas')
-            .select('*')
-            .eq('fp_curso_id', cursoId)
-            .order('creado_en', { ascending: false })
-            .limit(1);
+        const { data: proy, error: eP } = await supabase
+            .from('fp_proyectos_aulicos').select('id')
+            .eq('fp_curso_id', cursoId).eq('anio_lectivo', anio).maybeSingle();
+        if (eP) throw eP;
+        if (!proy) return { resumen: {}, sinProyecto: true };
 
-        if (errorActa) { console.error(errorActa); return; }
+        const { data: tildadas, error: eT } = await supabase
+            .from('fp_proyecto_capacidades').select('fp_capacidad_id')
+            .eq('fp_proyecto_id', proy.id).eq('evaluable', true);
+        if (eT) throw eT;
 
-        let califsGuardadas = {};   // ← nombre correcto, nunca "califs"
+        const capIds = (tildadas || []).map(t => t.fp_capacidad_id);
+        if (capIds.length === 0) return { resumen: {}, sinCapacidades: true };
 
-        if (actasExistentes && actasExistentes.length > 0) {
-            const acta = actasExistentes[0];
-            setActaId(acta.id);
-            setActaFirmada(acta.estado === 'firmada' || !!acta.docente_firma);
-            setFechaCierre(acta.fecha);
+        const evids = await fetchTodo(() =>
+            supabase.from('fp_evidencias').select('id, fp_capacidad_id')
+                .in('fp_capacidad_id', capIds).order('id'));
 
-            const { data: detalles } = await supabase
-                .from('fp_actas_detalle')
-                .select('*')
-                .eq('fp_acta_id', acta.id);
-
-            (detalles || []).forEach(d => {
-                califsGuardadas[d.fp_inscripcion_id] = {   // ← califsGuardadas, no califs
-                    condicion: normalizarCondicion(d.condicion),
-                    confirmado: true
-                };
-            });
-        }
-
-        // Fusionar: lo guardado + lo calculado para alumnos nuevos
-        const califsCompletas = {};
-        alumnos.forEach(alumno => {
-            const guardada = califsGuardadas[alumno.inscripcionId];
-            if (guardada) {
-                califsCompletas[alumno.inscripcionId] = guardada;
-            } else {
-                const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
-                let condicion = 'Desaprobado';
-                if (alumno.bloqueado) condicion = 'Ausente';
-                else if (total > 0 && (alcanzadas / total) >= 0.5) condicion = 'Aprobado';
-                califsCompletas[alumno.inscripcionId] = { condicion: normalizarCondicion(condicion), confirmado: false };
-            }
+        const evidPorCap = {};
+        evids.forEach(e => {
+            (evidPorCap[e.fp_capacidad_id] = evidPorCap[e.fp_capacidad_id] || []).push(e);
         });
 
-        setCalificacionesActa(califsCompletas);
+        const inscIds = alumnos.map(a => a.inscripcionId);
+        const califs = await fetchTodo(() =>
+            supabase.from('fp_calificaciones').select('fp_inscripcion_id, fp_evidencia_id, valor')
+                .in('fp_inscripcion_id', inscIds)
+                .order('fp_inscripcion_id').order('fp_evidencia_id'));
+
+        const alcanzadasSet = new Set();
+        califs.forEach(c => {
+            if (c.valor === 'A') alcanzadasSet.add(`${c.fp_inscripcion_id}_${c.fp_evidencia_id}`);
+        });
+
+        const resumen = {};
+        alumnos.forEach(al => {
+            let alcanzadas = 0;
+            capIds.forEach(capId => {
+                const evs = evidPorCap[capId] || [];
+                if (evs.length === 3 && evs.every(e => alcanzadasSet.has(`${al.inscripcionId}_${e.id}`))) {
+                    alcanzadas++;
+                }
+            });
+            resumen[al.inscripcionId] = { alcanzadas, total: capIds.length };
+        });
+        return { resumen };
     }
 
-    // Efecto para cargar el acta cuando se abre la pestaña
+    async function cargarActa() {
+        if (!cursoId || !curso || alumnos.length === 0) return;
+        setCargandoActa(true);
+        try {
+            const { resumen, sinProyecto, sinCapacidades } = await calcularResumenGlobal();
+            setResumenActa(resumen);
+
+            if (sinProyecto) {
+                setMensaje({ tipo: 'warning', texto: 'No hay Proyecto Áulico cargado: no se puede calcular el acta automáticamente.' });
+            } else if (sinCapacidades) {
+                setMensaje({ tipo: 'warning', texto: 'El Proyecto Áulico no tiene capacidades evaluables tildadas.' });
+            } else {
+                setMensaje(null);
+            }
+
+            // Acta guardada (si existe)
+            const { data: actas, error: errorActa } = await supabase
+                .from('fp_actas').select('*')
+                .eq('fp_curso_id', cursoId)
+                .order('creado_en', { ascending: false }).limit(1);
+            if (errorActa) throw errorActa;
+
+            const guardadas = {};
+            let firmada = false;
+            if (actas && actas.length > 0) {
+                const acta = actas[0];
+                setActaId(acta.id);
+                firmada = acta.estado === 'firmada' || !!acta.docente_firma;
+                setActaFirmada(firmada);
+                setFechaCierre(acta.fecha);
+
+                const { data: detalles, error: errorDet } = await supabase
+                    .from('fp_actas_detalle').select('*').eq('fp_acta_id', acta.id);
+                if (errorDet) throw errorDet;
+                (detalles || []).forEach(d => {
+                    guardadas[d.fp_inscripcion_id] = normalizarCondicion(d.condicion);
+                });
+            }
+
+            // Prioridad: acta firmada > cambio manual en pantalla > cálculo automático
+            setCalificacionesActa(prev => {
+                const nuevo = {};
+                alumnos.forEach(al => {
+                    const id = al.inscripcionId;
+                    if (firmada && guardadas[id]) {
+                        nuevo[id] = { condicion: guardadas[id], confirmado: true, manual: true };
+                    } else if (prev[id]?.manual) {
+                        nuevo[id] = prev[id];
+                    } else {
+                        nuevo[id] = {
+                            condicion: condicionAutomatica(al, resumen[id]),
+                            confirmado: prev[id]?.confirmado || false,
+                            manual: false
+                        };
+                    }
+                });
+                return nuevo;
+            });
+        } catch (err) {
+            setMensaje({ tipo: 'error', texto: `Error al cargar el acta: ${err.message}` });
+        } finally {
+            setCargandoActa(false);
+        }
+    }
+
+    // Se calcula al abrir la pestaña Acta
     useEffect(() => {
-        if (tabActiva === 'acta' && alumnos.length > 0) {
+        if (tabActiva === 'acta' && curso && alumnos.length > 0) {
             cargarActa();
         }
-    }, [tabActiva, alumnos.length]);
+    }, [tabActiva, curso, alumnos.length]);
 
-
-    // Efecto para cargar el acta cuando se abre la pestaña
-    useEffect(() => {
-        if (tabActiva === 'acta' && alumnos.length > 0) {
-            cargarActa();
-        }
-    }, [tabActiva, alumnos.length]);
-
-    // Funciones para manejar los cambios en la UI
     const handleCalificacionChange = (inscripcionId, nuevaCondicion) => {
         setCalificacionesActa(prev => ({
             ...prev,
-            [inscripcionId]: { ...prev[inscripcionId], condicion: nuevaCondicion }
+            [inscripcionId]: { ...prev[inscripcionId], condicion: nuevaCondicion, manual: true }
         }));
     };
 
@@ -371,25 +461,42 @@ export default function CursoFPDetallePage() {
         }));
     };
 
-    // Función para guardar y firmar
+    // Vuelve todo a automático (descarta cambios manuales)
+    function recalcularAutomatico() {
+        setCalificacionesActa(prev => {
+            const nuevo = {};
+            alumnos.forEach(al => {
+                nuevo[al.inscripcionId] = {
+                    condicion: condicionAutomatica(al, resumenActa[al.inscripcionId]),
+                    confirmado: prev[al.inscripcionId]?.confirmado || false,
+                    manual: false
+                };
+            });
+            return nuevo;
+        });
+    }
+
+    // ============================================================
+    // ACTA: FIRMAR Y GUARDAR
+    // ============================================================
     async function firmarYGuardarActa() {
         const noConfirmados = alumnos.filter(a => !calificacionesActa[a.inscripcionId]?.confirmado);
         if (noConfirmados.length > 0) {
-            if (!confirm(`Hay ${noConfirmados.length} alumnos sin marcar como "Confirmados". ¿Desea firmar de todos modos?`)) {
+            if (!confirm(`Hay ${noConfirmados.length} alumnos sin marcar como "Revisado". ¿Desea firmar de todos modos?`)) {
                 return;
             }
         }
 
         setGuardandoActa(true);
         try {
-            // Contar resultados
+            // Contar resultados sobre la lista real de alumnos
             const conteo = { Aprobado: 0, Desaprobado: 0, Ausente: 0 };
-            Object.values(calificacionesActa).forEach(c => {
-                conteo[c.condicion] = (conteo[c.condicion] || 0) + 1;
+            alumnos.forEach(a => {
+                conteo[normalizarCondicion(calificacionesActa[a.inscripcionId]?.condicion)]++;
             });
 
             const actaData = {
-                fp_curso_id: cursoId, // Asegúrate de que esta columna exista en fp_actas
+                fp_curso_id: cursoId,
                 fp_perfil_id: curso.fp_perfil_id,
                 resolucion: curso.resolucion || 'Res. Min. 5036/16',
                 fecha: new Date().toISOString().split('T')[0],
@@ -419,11 +526,11 @@ export default function CursoFPDetallePage() {
                 if (errorUpdate) throw errorUpdate;
             }
 
-            // Guardar detalles (upsert para permitir re-guardar si hubo error a mitad de camino)
-            const detallesParaGuardar = Object.entries(calificacionesActa).map(([inscripcionId, data]) => ({
+            // Detalles (upsert para poder re-guardar si hubo error a mitad de camino)
+            const detallesParaGuardar = alumnos.map(a => ({
                 fp_acta_id: idActaLocal,
-                fp_inscripcion_id: parseInt(inscripcionId),
-                condicion: data.condicion
+                fp_inscripcion_id: a.inscripcionId,
+                condicion: normalizarCondicion(calificacionesActa[a.inscripcionId]?.condicion)
             }));
 
             const { error: errorDetalle } = await supabase
@@ -432,9 +539,7 @@ export default function CursoFPDetallePage() {
 
             if (errorDetalle) throw errorDetalle;
 
-            const fechaHoy = new Date().toISOString().split('T')[0];
-            setFechaCierre(fechaHoy);  // ← AGREGAR ESTA LÍNEA
-
+            setFechaCierre(actaData.fecha);
             setActaFirmada(true);
             setMensaje({ tipo: 'ok', texto: '✅ Acta firmada, guardada y bloqueada correctamente.' });
         } catch (err) {
@@ -499,7 +604,7 @@ export default function CursoFPDetallePage() {
     }
 
     // ============================================================
-    // CÁLCULOS
+    // CÁLCULOS (planilla, función activa)
     // ============================================================
     function calcularCapacidadesAlcanzadas(inscripcionId) {
         let alcanzadas = 0;
@@ -524,7 +629,6 @@ export default function CursoFPDetallePage() {
     }
 
     function getBgColor(color, opacity) {
-        // Convierte hex a rgba para opacidad
         const hex = color.replace('#', '');
         const r = parseInt(hex.substr(0, 2), 16);
         const g = parseInt(hex.substr(2, 2), 16);
@@ -576,12 +680,12 @@ export default function CursoFPDetallePage() {
 
                 {mensaje && (
                     <div style={{
-                        background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : '#eff6ff',
-                        border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0' : mensaje.tipo === 'error' ? '#fecaca' : '#bfdbfe'}`,
-                        color: mensaje.tipo === 'ok' ? '#15803d' : mensaje.tipo === 'error' ? '#b91c1c' : '#1e40af',
+                        background: mensaje.tipo === 'ok' ? '#f0fdf4' : mensaje.tipo === 'error' ? '#fef2f2' : mensaje.tipo === 'warning' ? '#fef3c7' : '#eff6ff',
+                        border: `1px solid ${mensaje.tipo === 'ok' ? '#bbf7d0' : mensaje.tipo === 'error' ? '#fecaca' : mensaje.tipo === 'warning' ? '#fde68a' : '#bfdbfe'}`,
+                        color: mensaje.tipo === 'ok' ? '#15803d' : mensaje.tipo === 'error' ? '#b91c1c' : mensaje.tipo === 'warning' ? '#92400e' : '#1e40af',
                         padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8
                     }}>
-                        {mensaje.tipo === 'error' && Iconos.alerta}
+                        {(mensaje.tipo === 'error' || mensaje.tipo === 'warning') && Iconos.alerta}
                         {mensaje.tipo === 'ok' && Iconos.check}
                         <span>{mensaje.texto}</span>
                     </div>
@@ -599,7 +703,7 @@ export default function CursoFPDetallePage() {
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '2px solid #e5e7eb', flexWrap: 'wrap' }}>
                     {[
                         { id: 'proyecto', label: 'Proyecto áulico', icon: Iconos.proyecto },
                         { id: 'libro', label: 'Libro de temas', icon: Iconos.libro },
@@ -629,6 +733,9 @@ export default function CursoFPDetallePage() {
                     ))}
                 </div>
 
+                {/* ====================================================== */}
+                {/* PESTAÑA: PLANILLA                                       */}
+                {/* ====================================================== */}
                 {tabActiva === 'planilla' && (
                     <div>
                         {/* 1. SELECTOR DE FUNCIONES */}
@@ -696,7 +803,7 @@ export default function CursoFPDetallePage() {
                             </div>
                         </div>
 
-                        {/* 4. MENSAJE DE ADVERTENCIA SI NO HAY CAPACIDADES */}
+                        {/* 4. ADVERTENCIA SI NO HAY CAPACIDADES */}
                         {funcionActiva && capacidades.length === 0 && (
                             <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 16, marginBottom: 24, fontSize: 13, color: '#92400e' }}>
                                 ⚠️ No hay capacidades evaluables para esta función. El docente debe definir qué capacidades evalúa en el <button onClick={() => setTabActiva('proyecto')} style={{ background: 'none', border: 'none', color: '#92400e', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Proyecto Áulico</button>.
@@ -706,21 +813,17 @@ export default function CursoFPDetallePage() {
                         {/* 5. ÁREA DE DATOS: MOBILE VS DESKTOP */}
                         {funcionActiva && capacidades.length > 0 && (
                             esMobile ? (
-                                // ==========================================
-                                // VISTA MOBILE: Tarjetas verticales por Capacidad
-                                // ==========================================
+                                // VISTA MOBILE: tarjetas verticales por capacidad
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {capacidades.map((cap) => {
                                         const evidsCap = evidencias[cap.id] || [];
                                         return (
                                             <div key={cap.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                                {/* Encabezado de la Capacidad */}
                                                 <div style={{ background: '#1e3a8a', color: '#fff', padding: '12px 16px' }}>
                                                     <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>CAPACIDAD {cap.nro_capacidad}</div>
                                                     <div style={{ fontSize: 13, lineHeight: 1.3, fontWeight: 500 }}>{cap.descripcion}</div>
                                                 </div>
 
-                                                {/* Lista de Alumnos dentro de esta capacidad */}
                                                 <div style={{ padding: 12 }}>
                                                     {alumnos.map((alumno, idx) => {
                                                         const { alcanzadas, total } = calcularCapacidadesAlcanzadas(alumno.inscripcionId);
@@ -728,7 +831,6 @@ export default function CursoFPDetallePage() {
 
                                                         return (
                                                             <div key={alumno.inscripcionId} style={{ padding: '12px 0', borderBottom: idx < alumnos.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                                                                {/* Datos del Alumno */}
                                                                 <div style={{ marginBottom: 10 }}>
                                                                     <div style={{ fontWeight: 600, color: '#1e3a8a', fontSize: 14 }}>
                                                                         {alumno.apellido ? `${alumno.apellido}, ${alumno.nombre}` : alumno.nombre}
@@ -743,7 +845,6 @@ export default function CursoFPDetallePage() {
                                                                     </div>
                                                                 </div>
 
-                                                                {/* Botones de Calificación (C, D, P) */}
                                                                 <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                                                                     {TIPOS_EVIDENCIA.map(tipo => {
                                                                         const evidencia = evidsCap.find(e => e.tipo_evidencia === tipo);
@@ -785,16 +886,15 @@ export default function CursoFPDetallePage() {
                                                                     })}
                                                                 </div>
 
-                                                                {/* Estado Sugerido del Alumno */}
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                                                                     <span style={{ color: '#6b7280' }}>Alcanzadas: <strong style={{ color: '#1e3a8a' }}>{alcanzadas}/{total}</strong></span>
                                                                     <span style={{
                                                                         padding: '4px 8px',
                                                                         borderRadius: 4,
-                                                                        background: estadoSugerido.color + '15',
+                                                                        background: getBgColor(estadoSugerido.color, 0.1),
                                                                         color: estadoSugerido.color,
                                                                         fontWeight: 600,
-                                                                        border: `1px solid ${estadoSugerido.color}30`
+                                                                        border: `1px solid ${getBgColor(estadoSugerido.color, 0.3)}`
                                                                     }}>
                                                                         {estadoSugerido.texto}
                                                                     </span>
@@ -808,9 +908,7 @@ export default function CursoFPDetallePage() {
                                     })}
                                 </div>
                             ) : (
-                                // ==========================================
-                                // VISTA DESKTOP: Tu tabla horizontal original
-                                // ==========================================
+                                // VISTA DESKTOP: tabla horizontal
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
@@ -985,7 +1083,7 @@ export default function CursoFPDetallePage() {
                             )
                         )}
 
-                        {/* 6. TARJETAS DE RESUMEN (Footer) */}
+                        {/* 6. TARJETAS DE RESUMEN */}
                         {alumnos.length > 0 && (
                             <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, borderLeft: '3px solid #1e3a8a' }}>
@@ -1009,9 +1107,11 @@ export default function CursoFPDetallePage() {
                     </div>
                 )}
 
+                {/* ====================================================== */}
+                {/* PESTAÑA: PROYECTO ÁULICO                                */}
+                {/* ====================================================== */}
                 {tabActiva === 'proyecto' && (
                     <div>
-                        {/* Encabezado */}
                         <div style={{ marginBottom: 24 }}>
                             <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>Proyecto Áulico</h3>
                             <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
@@ -1027,7 +1127,7 @@ export default function CursoFPDetallePage() {
                             if (vigente) {
                                 return (
                                     <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 20, marginBottom: 24 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 12 }}>
                                             <div>
                                                 <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', marginBottom: 4 }}>✅ Proyecto Vigente {anioActual}</div>
                                                 <h4 style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a', margin: '0 0 4px 0' }}>{vigente.titulo}</h4>
@@ -1086,7 +1186,7 @@ export default function CursoFPDetallePage() {
                                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                                     <div style={{ padding: '14px 20px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <h4 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a8a', margin: 0 }}>📋 Historial de Proyectos Áulicos</h4>
-                                        <span style={{ fontSize: 12, color: '#6b7280' }}>{anteriores.length} {anteriores.length === 1 ? 'proyecto' : 'proyectos'} anterior(es)</span>
+                                        <span style={{ fontSize: 12, color: '#6b7280' }}>{anteriores.length} {anteriores.length === 1 ? 'proyecto anterior' : 'proyectos anteriores'}</span>
                                     </div>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                                         <thead>
@@ -1124,6 +1224,9 @@ export default function CursoFPDetallePage() {
                     </div>
                 )}
 
+                {/* ====================================================== */}
+                {/* PESTAÑA: LIBRO DE TEMAS                                 */}
+                {/* ====================================================== */}
                 {tabActiva === 'libro' && (
                     <div style={{ padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                         <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📖</div>
@@ -1132,6 +1235,9 @@ export default function CursoFPDetallePage() {
                     </div>
                 )}
 
+                {/* ====================================================== */}
+                {/* PESTAÑA: ACTA DE FINALIZACIÓN                           */}
+                {/* ====================================================== */}
                 {tabActiva === 'acta' && (
                     <div className="acta-container" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 40, maxWidth: 900, margin: '0 auto' }}>
                         {/* Encabezado del Acta */}
@@ -1159,43 +1265,51 @@ export default function CursoFPDetallePage() {
                             })()}
                         </div>
 
+                        {cargandoActa && (
+                            <div className="no-print" style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+                                Calculando calificaciones desde la planilla...
+                            </div>
+                        )}
+
                         {/* Tabla de Alumnos */}
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 30, fontSize: 13 }}>
                             <thead>
                                 <tr style={{ background: '#f9fafb', borderBottom: '2px solid #1e3a8a' }}>
                                     <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '5%' }}>Nº</th>
-                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '15%' }}>D.N.I.</th>
-                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '40%' }}>APELLIDO Y NOMBRE</th>
-                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '25%' }}>CALIFICACIÓN DEFINITIVA</th>
-                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '15%' }} className="col-checklist">CHECKLIST</th>
+                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '14%' }}>D.N.I.</th>
+                                    <th style={{ padding: 10, textAlign: 'left', border: '1px solid #e5e7eb', width: '36%' }}>APELLIDO Y NOMBRE</th>
+                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '20%' }}>CALIFICACIÓN DEFINITIVA</th>
+                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '12%' }} className="col-checklist">ALCANZADAS</th>
+                                    <th style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', width: '13%' }} className="col-checklist">CHECKLIST</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {alumnos.map((alumno, index) => {
                                     const datoActa = calificacionesActa[alumno.inscripcionId] || {};
-                                    const colorTexto = datoActa.condicion === 'Aprobado' ? '#15803d' : datoActa.condicion === 'Ausente' ? '#6b7280' : '#b91c1c';
+                                    const condicionActual = normalizarCondicion(datoActa.condicion);
+                                    const colorTexto = condicionActual === 'Aprobado' ? '#15803d' : condicionActual === 'Ausente' ? '#6b7280' : '#b91c1c';
+                                    const r = resumenActa[alumno.inscripcionId];
 
                                     return (
                                         <tr key={alumno.inscripcionId}>
-                                            {/* Columna 1: Nº */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>
                                                 {index + 1}
                                             </td>
 
-                                            {/* Columna 2: D.N.I. */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb' }}>
                                                 {alumno.dni || '—'}
                                             </td>
 
-                                            {/* Columna 3: APELLIDO Y NOMBRE */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb', fontWeight: 600 }}>
-                                                {alumno.apellido ? `${alumno.apellido.toUpperCase()}, ${alumno.nombre.toUpperCase()}` : alumno.nombre.toUpperCase()}
+                                                {alumno.apellido
+                                                    ? `${alumno.apellido.toUpperCase()}, ${(alumno.nombre || '').toUpperCase()}`
+                                                    : (alumno.nombre || '').toUpperCase()}
                                             </td>
 
-                                            {/* Columna 4: CALIFICACIÓN DEFINITIVA (lista desplegable) */}
+                                            {/* CALIFICACIÓN DEFINITIVA (lista desplegable) */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center' }}>
                                                 <select
-                                                    value={datoActa.condicion || 'Desaprobado'}
+                                                    value={condicionActual}
                                                     onChange={(e) => handleCalificacionChange(alumno.inscripcionId, e.target.value)}
                                                     disabled={actaFirmada}
                                                     style={{
@@ -1212,7 +1326,17 @@ export default function CursoFPDetallePage() {
                                                 </select>
                                             </td>
 
-                                            {/* ✅ Columna 5: CHECKLIST (la que agregamos) */}
+                                            {/* ALCANZADAS (base del cálculo automático) */}
+                                            <td className="col-checklist" style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center', fontSize: 12 }}>
+                                                {r ? `${r.alcanzadas}/${r.total}` : '—'}
+                                                {!actaFirmada && (
+                                                    <div style={{ fontSize: 10, color: datoActa.manual ? '#d97706' : '#9ca3af' }}>
+                                                        {datoActa.manual ? 'modificado a mano' : 'automático'}
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* CHECKLIST */}
                                             <td style={{ padding: 8, border: '1px solid #e5e7eb', textAlign: 'center' }} className="col-checklist">
                                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: actaFirmada ? 'default' : 'pointer', opacity: actaFirmada ? 0.7 : 1 }}>
                                                     <input
@@ -1231,17 +1355,12 @@ export default function CursoFPDetallePage() {
                             </tbody>
                         </table>
 
-                        {/* Pie del Acta (Conteo en números y letras) */}
+                        {/* Pie del Acta (conteo en números y letras) */}
                         {(() => {
                             const totalAlumnos = alumnos.length;
-
-                            // Contar desde calificacionesActa (el estado real)
                             const conteo = { Aprobado: 0, Desaprobado: 0, Ausente: 0 };
-                            Object.values(calificacionesActa).forEach(c => {
-                                const cond = (c.condicion || 'Desaprobado')
-                                    .toLowerCase()
-                                    .replace(/^\w/, ch => ch.toUpperCase());
-                                conteo[cond] = (conteo[cond] || 0) + 1;
+                            alumnos.forEach(a => {
+                                conteo[normalizarCondicion(calificacionesActa[a.inscripcionId]?.condicion)]++;
                             });
 
                             return (
@@ -1271,8 +1390,20 @@ export default function CursoFPDetallePage() {
                             </div>
                         </div>
 
-                        {/* Botones de Acción (No se imprimen) */}
-                        <div className="no-print" style={{ marginTop: 40, display: 'flex', gap: 12, justifyContent: 'center' }}>
+                        {/* Botones de acción (no se imprimen) */}
+                        <div className="no-print" style={{ marginTop: 40, display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {!actaFirmada && (
+                                <button
+                                    onClick={recalcularAutomatico}
+                                    disabled={cargandoActa}
+                                    style={{
+                                        background: '#fff', color: '#1e3a8a', border: '1px solid #1e3a8a', padding: '12px 24px',
+                                        borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14
+                                    }}
+                                >
+                                    🔄 Recalcular desde la planilla
+                                </button>
+                            )}
                             {!actaFirmada ? (
                                 <button
                                     onClick={firmarYGuardarActa}
@@ -1298,52 +1429,21 @@ export default function CursoFPDetallePage() {
                             )}
                         </div>
 
-                        {/* Estilos específicos para impresión */}
+                        {/* Estilos de impresión */}
                         <style>{`
-            @media print {
-                body * { visibility: hidden; }
-                .acta-container, .acta-container * { visibility: visible; }
-                .acta-container { 
-                    position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; border: none; 
-                }
-                .no-print { display: none !important; }
-                /* Hace que el select parezca texto plano al imprimir */
-                select { 
-                    appearance: none; border: none; background: transparent; 
-                    font-weight: bold; color: black; padding: 0; 
-                }
-                /* Estiliza el checkbox para que se vea marcado si lo está */
-                input[type="checkbox"] { 
-                    appearance: none; width: 12px; height: 12px; border: 1px solid black; 
-                    display: inline-block; position: relative;
-                }
-                input[type="checkbox"]:checked { background-color: black; }
-            }
-        `}</style>
-                        <style>{`
-    @media print {
-        body * { visibility: hidden; }
-        .acta-container, .acta-container * { visibility: visible; }
-        .acta-container { 
-            position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; border: none; 
-        }
-        .no-print { display: none !important; }
-        
-        /* ✅ OCULTAR COLUMNA CHECKLIST AL IMPRIMIR */
-        .col-checklist { display: none !important; }
-        
-        /* Ajustar el ancho de la tabla al quitar una columna */
-        .acta-container table { table-layout: fixed; }
-        .acta-container th:nth-child(5),
-        .acta-container td:nth-child(5) { display: none !important; }
-        
-        /* Hace que el select parezca texto plano al imprimir */
-        select { 
-            appearance: none; border: none; background: transparent; 
-            font-weight: bold; color: black; padding: 0; 
-        }
-        input[type="checkbox"] { display: none !important; }
+@media print {
+    body * { visibility: hidden; }
+    .acta-container, .acta-container * { visibility: visible; }
+    .acta-container {
+        position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; border: none;
     }
+    .no-print, .col-checklist { display: none !important; }
+    select {
+        appearance: none; border: none; background: transparent;
+        font-weight: bold; color: black; padding: 0;
+    }
+    input[type="checkbox"] { display: none !important; }
+}
 `}</style>
                     </div>
                 )}
