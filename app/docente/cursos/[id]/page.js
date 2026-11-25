@@ -352,14 +352,6 @@ export default function CursoFPDetallePage() {
         }
     }, [tabActiva, alumnos.length]);
 
-    // Funciones para manejar los cambios en la UI (Estas están perfectas)
-    const handleCalificacionChange = (inscripcionId, nuevaCondicion) => {
-        setCalificacionesActa(prev => ({
-            ...prev,
-            [inscripcionId]: { ...prev[inscripcionId], condicion: nuevaCondicion }
-        }));
-    };
-
 
     // Efecto para cargar el acta cuando se abre la pestaña
     useEffect(() => {
